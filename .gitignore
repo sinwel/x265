@@ -1,0 +1,6 @@
+*.hg*
+.svn/
+build/
+doc/
+readme/
+COPYING
