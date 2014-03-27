@@ -1245,7 +1245,9 @@ void TEncSearch::xRecurIntraCodingQT(TComDataCU* cu,
 	{
 		assert( bCheckSplit == false);
 	}
-
+#ifdef RK_INTRA_PRED
+	RK_HEVC_LOGING(m_rkIntraPred->rk_logIntraPred[8], "bCheckFull = %d, bCheckSplit = %d \n", bCheckFull, bCheckSplit);
+#endif /* RK_INTRA_PRED */
     uint64_t singleCost  = MAX_INT64;
     uint32_t singleDistY = 0;
     uint32_t singleDistC = 0;
@@ -2336,6 +2338,11 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
     uint32_t overallDistC = 0;
     uint32_t candNum;
     uint64_t candCostList[FAST_UDI_MAX_RDMODE_NUM];
+
+#ifdef RK_INTRA_PRED
+	RK_HEVC_LOGING(m_rkIntraPred->rk_logIntraPred[8], "width = %d \n",width);
+#endif /* RK_INTRA_PRED */
+
 
     //===== set QP and clear Cbf =====
     if (cu->getSlice()->getPPS()->getUseDQP() == true)

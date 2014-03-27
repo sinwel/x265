@@ -8,8 +8,8 @@
 
 using namespace x265;
 
-#if defined(_MSC_VER) && defined(X86_64)
-	#define FILE_PATH "H:/HEVC/log_files/"
+#if defined(_MSC_VER)
+	#define FILE_PATH "F:/HEVC/log_files/"
 	#define PATH_NAME(name) (FILE_PATH ## name)
 #elif  defined(__GNUC__) 
 	#define FILE_PATH "/home2/zxy/log_files/"
@@ -58,6 +58,12 @@ Rk_IntraPred::Rk_IntraPred()
 	{
 	    RK_HEVC_PRINT("creat file failed.\n");
 	}
+	rk_logIntraPred[8] = fopen(PATH_NAME("intra_flow.txt"), "w+" );
+	if ( rk_logIntraPred[8] == NULL )
+	{
+	    RK_HEVC_PRINT("creat file failed.\n");
+	}
+	
 #endif
 	rk_bFlag32 = 1;
 	rk_bFlag16 = 1;
@@ -73,15 +79,10 @@ Rk_IntraPred::Rk_IntraPred()
 Rk_IntraPred::~Rk_IntraPred()
 {
 #ifdef X265_LOG_FILE_ROCKCHIP
-	fclose(rk_logIntraPred[0]);
-	fclose(rk_logIntraPred[1]);
-	fclose(rk_logIntraPred[2]);
-	fclose(rk_logIntraPred[3]);
-	fclose(rk_logIntraPred[4]);
-	fclose(rk_logIntraPred[5]);
-	fclose(rk_logIntraPred[6]);
-	fclose(rk_logIntraPred[7]);
-
+	for (int i = 0 ; i < 8 ; i++ )
+	{
+		fclose(rk_logIntraPred[i]);
+	}
 #endif
 #ifdef CONNECT_QT
 	delete rk_hevcqt;

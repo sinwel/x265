@@ -12,6 +12,10 @@
 #include <stdio.h>
 #include "qt.h"
 
+
+//#define RK_INTRA_MODE_CHOOSE
+
+
 //! \ingroup TLibEncoder
 //! \{
 

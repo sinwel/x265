@@ -166,12 +166,22 @@ static const char * const x265_motion_est_names[] = { "dia", "hex", "umh", "star
 #define RK_HEVC_FPRINT(fp,fmt, ...) \
     do { \
         fprintf(fp," " fmt, ## __VA_ARGS__); \
-    } while(0);    
+    } while(0);  
+#define RK_HEVC_LOGING(fp,fmt, ...) \
+     do { \
+        fprintf(fp,"[%s]: %s \n line:%d \n",__FILE__,__FUNCTION__,__LINE__); \
+        fprintf(fp," " fmt, ## __VA_ARGS__); \
+    } while(0);  
+
+    
 #else
 #define RK_HEVC_FPRINT(fp,fmt, ...) 
 
 #endif
 
+#define RK_INTRA_PRED
+
+#define CONNECT_QT
 
 
 
