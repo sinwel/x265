@@ -62,12 +62,15 @@ public:
 
     struct COST_DATA  cost_inter;
     struct COST_DATA  cost_intra;
+    struct COST_DATA  cost_intra_4;
     struct COST_DATA *cost_best;
     struct COST_DATA  cost_temp;
 
     unsigned int depth;
     unsigned int ori_pos;
     unsigned int temp_pos;
+
+    unsigned int cu_pos;
 
 	unsigned int proc(unsigned int level, unsigned int pos_x, unsigned int pos_y);
 

@@ -252,6 +252,11 @@ void CTU_CALC::begin()
     cu_level_calc[2].ori_pos = 0;
     cu_level_calc[3].ori_pos = 0;
 
+    cu_level_calc[0].cu_pos = 0;
+    cu_level_calc[1].cu_pos = 0;
+    cu_level_calc[2].cu_pos = 0;
+    cu_level_calc[3].cu_pos = 0;
+
     /* CTU开始前，将cu_data_valid清0 */
     memset(cu_data_valid, 0, 8*8);
 }
@@ -351,7 +356,7 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
             }
         }
 
-        pHardWare->ctu_calc.cu_split_flag[depth*4 + cu_level_calc[depth].ori_pos] = 1;
+        pHardWare->ctu_calc.cu_split_flag[(depth>>1)*5 + (depth&1) + cu_level_calc[depth].ori_pos] = 1;
     }
 }
 
@@ -359,6 +364,7 @@ void CTU_CALC::compare()
 {
     uint32_t i, j;
     uint32_t w, h;
+    uint32_t m, n;
 
     w = ctu_w;
     h = ctu_w;
@@ -372,7 +378,7 @@ void CTU_CALC::compare()
     for(j=0; j<h; j++) {
         for(i=0; i<w; i++) {
             if(cu_temp_data[0][0]->ReconY[j*ctu_w + i]!= (ori_recon_y[j*ctu_w + i])) {
-                printf("ERROR RECON y is diff y %d x %d\n", j, i);
+                printf("ERROR RECON Y is diff Y %d X %d\n", j, i);
                 assert(0);
             }
         }
@@ -383,7 +389,7 @@ void CTU_CALC::compare()
         for(i=0; i<w/2; i++)
         {
             if(cu_temp_data[0][0]->ReconU[j*ctu_w/2 + i] != (ori_recon_u[j*ctu_w/2 + i])) {
-                printf("ERROR RECON u is diff y %d x %d\n", j, i);
+                printf("ERROR RECON u is diff Y %d X %d\n", j, i);
                 assert(0);
             }
         }
@@ -394,40 +400,7 @@ void CTU_CALC::compare()
         for(i=0; i<w/2; i++)
         {
             if (cu_temp_data[0][0]->ReconV[j*ctu_w/2 + i] != (ori_recon_v[j*ctu_w/2 + i])) {
-                printf("ERROR RECON v is diff y %d x %d\n", j, i);
-                assert(0);
-            }
-        }
-    }
-
-    for(j=0; j<h; j++)
-    {
-        for(i=0; i<w; i++)
-        {
-            if(cu_temp_data[0][0]->CoeffY[j*ctu_w + i] != (ori_resi_y[j*ctu_w + i])) {
-                printf("ERROR RESI y is diff y %d x %d\n", j, i);
-                assert(0);
-            }
-        }
-    }
-
-    for(j=0; j<h/2; j++)
-    {
-        for(i=0; i<w/2; i++)
-        {
-            if(cu_temp_data[0][0]->CoeffU[j*ctu_w/2 + i] != (ori_resi_u[j*ctu_w/2 + i])) {
-                printf("ERROR RESI u is diff y %d x %d\n", j, i);
-                assert(0);
-            }
-        }
-    }
-
-    for(j=0; j<h/2; j++)
-    {
-        for(i=0; i<w/2; i++)
-        {
-            if(cu_temp_data[0][0]->CoeffV[j*ctu_w/2 + i] != (ori_resi_v[j*ctu_w/2 + i])) {
-                printf("ERROR RESI v is diff y %d x %d\n", j, i);
+                printf("ERROR RECON v is diff Y %d X %d\n", j, i);
                 assert(0);
             }
         }
@@ -459,8 +432,8 @@ void CTU_CALC::proc()
     {
         cu_level_calc[1].depth = 1;
         cu_level_calc[1].temp_pos = m;
-        cu_x_1 = (m & 1)*32;
-        cu_y_1 = (m >>1)*32;
+        cu_x_1 = (m & 1)*(ctu_w>>1);
+        cu_y_1 = (m >>1)*(ctu_w>>1);
 
         cost_1 = cu_level_calc[1].proc(1, cu_x_1, cu_y_1);
 
@@ -475,10 +448,13 @@ void CTU_CALC::proc()
         {
             cu_level_calc[2].depth = 2;
             cu_level_calc[2].temp_pos = n;
-            cu_x_2 = cu_x_1 + (n & 1)*16;
-            cu_y_2 = cu_y_1 + (n >>1)*16;
+            cu_x_2 = cu_x_1 + (n & 1)*(ctu_w>>2);
+            cu_y_2 = cu_y_1 + (n >>1)*(ctu_w>>2);
 
             cost_2 = cu_level_calc[2].proc(2, cu_x_2, cu_y_2);
+
+            if(ctu_w == 32)
+                continue;
 
             if (!(cost_2 & 0x80000000)) {
                 totalBits_2 += cu_level_calc[2].cost_best->Bits;
@@ -491,8 +467,8 @@ void CTU_CALC::proc()
             {
                 cu_level_calc[3].depth = 3;
                 cu_level_calc[3].temp_pos = k;
-                cu_x_3 = cu_x_2 + (k & 1)*8;
-                cu_y_3 = cu_y_2 + (k >>1)*8;
+                cu_x_3 = cu_x_2 + (k & 1)*(ctu_w>>3);
+                cu_y_3 = cu_y_2 + (k >>1)*(ctu_w>>3);
 
                 cost_3 = cu_level_calc[3].proc(3, cu_x_3, cu_y_3);
                 cu_level_calc[3].end();
@@ -505,14 +481,14 @@ void CTU_CALC::proc()
             }
             //EncoderCuSplitFlag();
             //calcRDOCOST
-            cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_16[cu_level_calc[2].ori_pos].m_totalCost;
+            cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_16[cu_level_calc[2].cu_pos - 1].m_totalCost;
             cu_level_compare(cost_2, cost_3_total, 2);
             cu_level_calc[2].end();
             cu_level_calc[2].ori_pos++;
         }
         //EncoderCuSplitFlag();
         //calcRDOCOST
-        cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_32[cu_level_calc[1].ori_pos].m_totalCost;
+        cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_32[cu_level_calc[1].cu_pos - 1].m_totalCost;
         cu_level_compare(cost_1, cost_2_total, 1);
         cu_level_calc[1].end();
         cu_level_calc[1].ori_pos++;
@@ -525,7 +501,6 @@ void CTU_CALC::proc()
 
     /* end */
     end();
-
 
     /* for test */
     compare();

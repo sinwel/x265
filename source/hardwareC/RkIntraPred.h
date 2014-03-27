@@ -35,6 +35,7 @@ typedef enum X265_AND_RKs   // Routines can be indexed using log2n(width)
 #define   SIZE_8x8     8
 #define   SIZE_16x16   16
 #define   SIZE_32x32   32
+#define   SIZE_64x64   64
 
 #define   TEST_LUMA_DEPTH       0
 #define   TEST_LUMA_SIZE        SIZE_32x32

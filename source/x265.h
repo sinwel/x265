@@ -180,6 +180,7 @@ static const char * const x265_motion_est_names[] = { "dia", "hex", "umh", "star
 #endif
 
 #define RK_INTRA_PRED
+#define RK_INTRA_SAD_REPALCE_SATD
 
 #define CONNECT_QT
 

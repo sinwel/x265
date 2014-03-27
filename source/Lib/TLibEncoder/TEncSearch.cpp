@@ -517,8 +517,8 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 		
 		assert(width == height);
 
-		// 先调试8x8
-		if (( trDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+		//if (( trDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+		if ( cu->getWidth(0) != SIZE_64x64)
 		{
 			if ( trDepth == 0 )
 			{
@@ -635,7 +635,8 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 #ifdef RK_INTRA_PRED
 	// 32x32 16x16 8x8, or 4x4 for trDepth = 0,1
 	//if (( trDepth == 0) ||(width == 4))
-	if (( trDepth == TEST_LUMA_DEPTH) && (width == TEST_LUMA_SIZE)) // 测试width = 8这层
+	//if (( trDepth == TEST_LUMA_DEPTH) && (width == TEST_LUMA_SIZE)) // 测试width = 8这层
+	if ( cu->getWidth(0) != SIZE_64x64)
 	{
 		assert(width < 64);
 		UChar RK_intraFilterThreshold[5] =
@@ -793,7 +794,8 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
     primitives.calcresidual[(int)g_convertToBit[width]](fenc, pred, residual, stride);
 
 #ifdef RK_INTRA_PRED
-	if (( trDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+	//if (( trDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+	if ( cu->getWidth(0) != SIZE_64x64)
 	{
 		//RK_HEVC_PRINT("0x%016x\n",(uint64_t)residual);
 		//residual 在下面会被重构的更新，需要进行暂存
@@ -990,7 +992,8 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 		cu->getPic()->getPicYuvRec()->getCrAddr(cu->getAddr(), cu->getZorderIdxInCU() + absPartIdx) :
 		cu->getPic()->getPicYuvRec()->getCbAddr(cu->getAddr(), cu->getZorderIdxInCU() + absPartIdx);
 		
-		if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
+		//if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
+		if( cu->getWidth(0) != SIZE_64x64)
 		{
 		
 			if ( trDepth == 0 )
@@ -1079,7 +1082,8 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
         predIntraChromaAng(chromaPred, chromaPredMode, pred, stride, width);
 #ifdef RK_INTRA_PRED
 		// 存储 35 种预测数据
-		if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
+		//if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
+		if( cu->getWidth(0) != SIZE_64x64)		
 		{
 			Pel* pPredSample = chromaId > 0 ? m_rkIntraPred->rk_IntraPred_35.rk_predSampleCr : m_rkIntraPred->rk_IntraPred_35.rk_predSampleCb;
 			::memcpy(pPredSample, pred, width*height);
@@ -1106,7 +1110,8 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
     int size = g_convertToBit[width];
     primitives.calcresidual[size](fenc, pred, residual, stride);
 #ifdef RK_INTRA_PRED
-	if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
+	//if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
+	if( cu->getWidth(0) != SIZE_64x64)		
 	{
 		//RK_HEVC_PRINT("0x%016x\n",(uint64_t)residual);
 		//residual 在下面会被重构的更新，需要进行暂存
@@ -2509,7 +2514,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
             // Find N least cost modes. N = numModesForFullRD
             for (uint32_t mode = 0; mode < numModesAvailable; mode++)
             {
-#ifdef RK_INTRA_PRED
+#ifdef RK_INTRA_SAD_REPALCE_SATD
 				uint32_t sad = modeCosts_SAD[mode];
 #else
                 uint32_t sad = modeCosts[mode];
@@ -2698,7 +2703,8 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
  			{
 				RK_HEVC_PRINT("NxN and width = %d\n",width);
  			}
-	 		if (( initTrDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+	 		//if (( initTrDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+			if ( cu->getWidth(0) != SIZE_64x64)
 	 		{
 				// xRecurIntraCodingQT 中有可能1整块处理，也有可能分4块处理
 				// RK的硬件流程上层不存在4块的可能，只存储32x32 16x16 8x8的数据块
@@ -2716,7 +2722,8 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 	 		
 			// 32x32 16x16 8x8, or 4x4 for trDepth = 0,1  只关心8x8下的NxN,其他case不关心
 			//if ((( initTrDepth == 0) ||(cu->getWidth(0) == 8))&&(cu->getWidth(0) < 64))
-			if (( initTrDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+			//if (( initTrDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
+			if ( cu->getWidth(0) != SIZE_64x64)
 	 		{
 				assert(partOffset < 4);	
 				// 查看这个log，注意最好把wpp关掉，不然是多线程交叉显示
@@ -2746,6 +2753,8 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 			#if 0
 				// log rk_Interface_Intra.bNeighborFlags
 				bool* bNeighbour = rk_Interface_Intra.bNeighborFlags;
+				RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"[size = %d]\n",cu->getWidth(0) >> initTrDepth);
+				RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"[initTrDepth = %d]\n",initTrDepth);
 				RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"[part:%d]\n",partOffset);
 				for (uint8_t i = 0 ; i < 2*rk_Interface_Intra.size/MIN_PU_SIZE; i++ )
 				{
@@ -2756,7 +2765,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				{
 				    RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"%d ",*bNeighbour++ );
 				}
-				RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"\n");
+				RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"\n\n");
 			#endif
 				// check
 
@@ -3008,7 +3017,8 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
         cu->setChromIntraDirSubParts(modeList[mode], 0, depth);
 
  #ifdef RK_INTRA_PRED
- 		if (( 0 == TEST_CHROMA_DEPTH ) && (cu->getWidth(0) >> m_hChromaShift == TEST_CHROMA_SIZE))
+ 		//if (( 0 == TEST_CHROMA_DEPTH ) && (cu->getWidth(0) >> m_hChromaShift == TEST_CHROMA_SIZE))
+		if( cu->getWidth(0) != SIZE_64x64)
  		{
 			// xRecurIntraChromaCodingQT 不关心下划的可能
 			rk_Interface_IntraCb.fenc 			= (Pel*)X265_MALLOC(Pel, 16*16);
@@ -3031,7 +3041,8 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 
  #ifdef RK_INTRA_PRED
 
- 		if (( 0 == TEST_CHROMA_DEPTH ) && (cu->getWidth(0) >> m_hChromaShift == TEST_CHROMA_SIZE))
+ 		//if (( 0 == TEST_CHROMA_DEPTH ) && (cu->getWidth(0) >> m_hChromaShift == TEST_CHROMA_SIZE))
+		if( cu->getWidth(0) != SIZE_64x64)
  		{
 
         	//RK_HEVC_PRINT("[width = %d] partOffset %d in [%d] dirmode  is %d\n",

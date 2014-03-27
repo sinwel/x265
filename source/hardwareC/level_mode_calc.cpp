@@ -432,6 +432,11 @@ void CU_LEVEL_CALC::intra_4_proc()
 
 void CU_LEVEL_CALC::RDOCompare()
 {
+    if ((cu_w == 8) && (cost_intra.TotalCost > cost_intra_4.TotalCost))
+    {
+        cost_intra = cost_intra_4;
+    }
+
     if(cost_inter.TotalCost > cost_intra.TotalCost)
     {
         cost_best = &cost_intra;
@@ -476,7 +481,7 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
     //-------------------------------------------//
     // temp use for debug                        //
     //-------------------------------------------//
-    src_cu = pHardWare->ctu_calc.cu_ori_data[depth][ori_pos];
+    src_cu = pHardWare->ctu_calc.cu_ori_data[depth][cu_pos++];
     dst_cu = pHardWare->ctu_calc.cu_temp_data[depth][temp_pos];
 
     memcpy(dst_cu->ReconY, src_cu->ReconY, cu_w*cu_w);
@@ -487,7 +492,7 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
     memcpy(dst_cu->CoeffU, src_cu->CoeffU, cu_w*cu_w/2);
     memcpy(dst_cu->CoeffV, src_cu->CoeffV, cu_w*cu_w/2);
 
-    cost = (uint32_t)pHardWare->ctu_calc.cu_ori_data[depth][ori_pos]->totalCost;
+    cost = (uint32_t)src_cu->totalCost;
 
 	return cost;
 }
