@@ -3,8 +3,11 @@
 
 #include "RkIntraPred.h"
 #include <cstring>
+#include <assert.h>
+#include <cmath>
 
 using namespace RK_HEVC;
+using namespace std;
 
 #if defined(_MSC_VER)
 	#define FILE_PATH "F:/HEVC/log_files/"

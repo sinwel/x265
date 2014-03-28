@@ -5,11 +5,15 @@
 // Include files
 #include <stdint.h>
 #include <math.h>
-#include <stdio.h>
 
 #include "module_interface.h"
 #include "macro.h" 
 #include "qt.h"
+
+#include <stdio.h>
+#include <assert.h>
+#include <algorithm> 
+
 
 
 //#define RK_INTRA_MODE_CHOOSE
@@ -21,7 +25,6 @@
 
 namespace RK_HEVC {
 // private namespace
-extern unsigned char IntraFilterType[][35];
 
 typedef enum X265_AND_RKs   // Routines can be indexed using log2n(width)
 {

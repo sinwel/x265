@@ -838,8 +838,15 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 	if (( trDepth == TEST_LUMA_DEPTH ) && (width == TEST_LUMA_SIZE))
 	{
 		m_rkIntraPred->SendInfo2QtByIntra.qp 		= cu->getQP(0);
-		m_rkIntraPred->SendInfo2QtByIntra.textType 	= TEXT_LUMA;
-		m_rkIntraPred->SendInfo2QtByIntra.sliceType 	= cu->getSlice()->getSliceType();
+
+		m_rkIntraPred->SendInfo2QtByIntra.textType 	= RK_TEXT_LUMA;
+
+		if (cu->getSlice()->getSliceType() == B_SLICE) 
+			m_rkIntraPred->SendInfo2QtByIntra.sliceType = RK_B_SLICE;
+		if (cu->getSlice()->getSliceType() == P_SLICE) 
+			m_rkIntraPred->SendInfo2QtByIntra.sliceType = RK_P_SLICE;
+		if (cu->getSlice()->getSliceType() == I_SLICE) 
+			m_rkIntraPred->SendInfo2QtByIntra.sliceType = RK_I_SLICE;
 
 		m_rkIntraPred->SendInfo2QtByIntra.qpBdOffset	= cu->getSlice()->getSPS()->getQpBDOffsetY(); // init in sps
 		m_rkIntraPred->SendInfo2QtByIntra.chromaQpoffset = cu->getSlice()->getSPS()->getQpBDOffsetC();; // init in sps
@@ -847,8 +854,6 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 		m_rkIntraPred->SendInfo2QtByIntra.tranformSkip	= false;
 	}
 #endif
-
-
 
     //--- transform and quantization ---
     uint32_t absSum = 0;
@@ -1137,8 +1142,15 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 	if (( trDepth == TEST_CHROMA_DEPTH ) && (width == TEST_CHROMA_SIZE))
 	{
 		m_rkIntraPred->SendInfo2QtByIntra.qp 				= cu->getQP(0);
-		m_rkIntraPred->SendInfo2QtByIntra.textType 			= chromaId > 0 ? TEXT_CHROMA_V : TEXT_CHROMA_U;
-		m_rkIntraPred->SendInfo2QtByIntra.sliceType 		= cu->getSlice()->getSliceType();
+		//m_rkIntraPred->SendInfo2QtByIntra.textType 			= chromaId > 0 ? TEXT_CHROMA_V : TEXT_CHROMA_U;
+		m_rkIntraPred->SendInfo2QtByIntra.textType 			= RK_TEXT_CHROMA;
+		//m_rkIntraPred->SendInfo2QtByIntra.sliceType 		= cu->getSlice()->getSliceType();
+		if (cu->getSlice()->getSliceType() == B_SLICE) 
+			m_rkIntraPred->SendInfo2QtByIntra.sliceType = RK_B_SLICE;
+		if (cu->getSlice()->getSliceType() == P_SLICE) 
+			m_rkIntraPred->SendInfo2QtByIntra.sliceType = RK_P_SLICE;
+		if (cu->getSlice()->getSliceType() == I_SLICE)
+			m_rkIntraPred->SendInfo2QtByIntra.sliceType = RK_I_SLICE;
 
 		m_rkIntraPred->SendInfo2QtByIntra.qpBdOffset		= cu->getSlice()->getSPS()->getQpBDOffsetY(); // init in sps
 		m_rkIntraPred->SendInfo2QtByIntra.chromaQpoffset 	= cu->getSlice()->getSPS()->getQpBDOffsetC();; // init in sps
@@ -2750,7 +2762,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				// QT proc
 			#ifdef CONNECT_QT
 				m_rkIntraPred->SendInfo2QtByIntra.size			= rk_Interface_Intra.size; //TU size
-				m_rkIntraPred->SendInfo2QtByIntra.predMode		= MODE_INTRA;
+				m_rkIntraPred->SendInfo2QtByIntra.predMode		= RK_INTRA;
 				m_rkIntraPred->SendInfo2QtByIntra.inResi 		= m_rkIntraPred->rk_residual[RK_COMPENT];  
 				m_rkIntraPred->rk_hevcqt->setFromIntra(&m_rkIntraPred->SendInfo2QtByIntra);
 				m_rkIntraPred->rk_hevcqt->proc();
@@ -3067,7 +3079,7 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 			// TODO qt_proc			
 			#ifdef CONNECT_QT
 				m_rkIntraPred->SendInfo2QtByIntra.size			= rk_Interface_IntraCb.size; //TU size
-				m_rkIntraPred->SendInfo2QtByIntra.predMode		= MODE_INTRA;
+				m_rkIntraPred->SendInfo2QtByIntra.predMode		= RK_INTRA;
 				m_rkIntraPred->SendInfo2QtByIntra.inResi 		= m_rkIntraPred->rk_residualCb[RK_COMPENT];  
 				m_rkIntraPred->rk_hevcqt->setFromIntra(&m_rkIntraPred->SendInfo2QtByIntra);
 				m_rkIntraPred->rk_hevcqt->proc();
@@ -3081,7 +3093,7 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 			// TODO qt_proc
 			#ifdef CONNECT_QT
 				m_rkIntraPred->SendInfo2QtByIntra.size			= rk_Interface_IntraCr.size; //TU size
-				m_rkIntraPred->SendInfo2QtByIntra.predMode		= MODE_INTRA;
+				m_rkIntraPred->SendInfo2QtByIntra.predMode		= RK_INTRA;
 				m_rkIntraPred->SendInfo2QtByIntra.inResi 		= m_rkIntraPred->rk_residualCr[RK_COMPENT];  
 				m_rkIntraPred->rk_hevcqt->setFromIntra(&m_rkIntraPred->SendInfo2QtByIntra);
 				m_rkIntraPred->rk_hevcqt->proc();

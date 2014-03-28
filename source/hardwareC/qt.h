@@ -1,9 +1,20 @@
 #ifndef _QT_H_
 #define _QT_H_
 
+
+#define X265_TEST_MODE 0
+
+
+#if X265_TEST_MODE
 #include "TLibCommon/CommonDef.h"
 #include "TLibCommon/TComYuv.h"
 #include "TLibCommon/TComDataCU.h"
+
+#else
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#endif
 
 extern int idst_4x4_coeff[4][4];
 extern int idct_4x4_coeff[4][4];
@@ -37,7 +48,7 @@ extern int dct_4x4_coeff[4][4];
 extern int dct_8x8_coeff[8][8];
 
 extern int dct_16x16_coeff_odd[8][8];
-extern int dct_16x16_coeff_even[8][4]; 
+extern int dct_16x16_coeff_even[8][4];
 extern int dct_16x16_coeff[16][16]; // not used actually
 extern int dct_32x32_coeff_odd[16][16];
 extern int dct_32x32_coeff_even[16][8];
@@ -45,8 +56,9 @@ extern int dct_32x32_coeff[32][32]; // not used actually
 #define CLIP(a, min, max)			(((a) < min) ? min : (((a) > max) ? max : (a)))
 
 
-
+#if X265_TEST_MODE
 namespace x265 {
+#endif
 	// private namespace
 
 	//! \ingroup TLibCommon
@@ -55,10 +67,37 @@ namespace x265 {
 	// ====================================================================================================================
 	// Constants
 	// ====================================================================================================================
+#define RK_PURE 1
 
-#define QP_BITS 15
+#define RK_QP_BITS 15
+#define RK_BIT_DEPTH			8
+#define RK_MAX_TR_DYNAMIC_RANGE  15 // Maximum transform dynamic range (excluding sign bit)
+#define RK_QUANT_SHIFT           14 // Q(4) = 2^14
+#define RK_QUANT_IQUANT_SHIFT    20 // Q(QP%6) * IQ(QP%6) = 2^20
+	// ====================================================================================================================
+	// Data Definitions
+	// ====================================================================================================================
 
-#define HWC_DEBUG_MODE 1
+#define CTU_SIZE 64
+
+	enum ePredMode
+	{
+		RK_INTER,         ///< inter-prediction mode
+		RK_INTRA,         ///< intra-prediction mode
+	};
+
+	enum eSliceType
+	{
+		RK_B_SLICE,
+		RK_P_SLICE,
+		RK_I_SLICE,
+	};
+
+	enum eTextType
+	{
+		RK_TEXT_LUMA,          ///< luma
+		RK_TEXT_CHROMA,        ///< chroma (U+V)
+	};
 
 	// ====================================================================================================================
 	// QT module info definition
@@ -68,9 +107,12 @@ namespace x265 {
 		// input 
 		int16_t *inResi;
 		uint32_t size;
-		PredMode predMode;			// inter or intra
-		SliceType sliceType;
-		TextType textType;			// Y, U+V, U, V
+
+		ePredMode predMode;			// inter or intra
+		eSliceType sliceType;
+		eTextType textType;			// Y, U+V, U, V
+
+		
 		bool transformSkip;
 
 		int qp;
@@ -105,9 +147,9 @@ namespace x265 {
 		short*		inResi;
 		int			qp;
 		int			size; //TU size
-		TextType	textType;
-		SliceType	sliceType;
-		PredMode	predMode;
+		eTextType	textType;
+		ePredMode	predMode;
+		eSliceType	sliceType;
 
 		int			qpBdOffset; // init in sps
 		int			chromaQpoffset; // init in sps
@@ -147,18 +189,21 @@ namespace x265 {
 		int16_t *inResi; // Input Residual, before QT and IQ/IT
 
 		uint32_t size;
-		PredMode predMode;
+		eTextType textType;			// Y, U+V, U, V
+		ePredMode predMode;
+		eSliceType sliceType;
+
 		int qp;
 		int qpBdOffset;
 		int chromaQPOffset;
 
-		SliceType sliceType;
-		TextType textType;			// Y, U+V, U, V
+
+
 
 		uint32_t cuStride;			// cu stride(store residual)
 		bool transformSkip;
 		uint32_t absPartIdx;		// TU position in CTU
-		
+
 		//debug info
 		int		 lastPos; // last position of  coeff after T and Q		
 		int		 qpscaled;
@@ -195,15 +240,15 @@ namespace x265 {
 		~hevcQT();
 
 		// main process
-		void creat();
-		void destroy();
+		void creat(); //actually not used
+		void destroy(); //actually not used
 		void proc();
 		void procTandQ();
 		void procIQandIT();
 		void clearOutResi(); // inter, when absSum==0, clear outResi to zero
-		void setQPforQ(int qpy, TextType ttype, int qpBdOffset, int chromaQPOffset);
+		void setQPforQ(int qpy, eTextType ttype, int qpBdOffset, int chromaQPOffset);
 		void fillResi(short* resi, int val, uint32_t resiStride, uint32_t tuSize); // to be debugged
-		
+
 		/************************************************************************/
 		/*                       debug in HWC                                  */
 		/************************************************************************/
@@ -221,11 +266,12 @@ namespace x265 {
 		/************************************************************************/
 		/*                       debug in x265                                   */
 		/************************************************************************/
+#if X265_TEST_MODE
 		// get input from x265
 		void getInputFromX265(int16_t *inResi, TComDataCU* cu,
-			uint32_t absPartIdx, TextType ttype, uint32_t cuStride, uint32_t tuWidth); 
+			uint32_t absPartIdx, TextType ttype, uint32_t cuStride, uint32_t tuWidth);
 		void getFromX265();
-	
+
 		// get output from x265
 		void getOutputFromX265(int16_t *outResi); // intra
 		void getOutputFromX265(int sw, int16_t *outResi); // inter
@@ -234,16 +280,15 @@ namespace x265 {
 		void getDebugInfoFromX265_0(int lastPos, int absSum,
 			int qpScaled, int qpPer, int qpRem, int qpBits, int32_t* quantCoef, int32_t* tmpCoeff, int32_t* coeff); //get info after T and Q	
 		void getDebugInfoFromX265_1(int dequantScale, int shift, int32_t* coeffTQIQ);//get info after IQ
-		
+
 		// compare results with x265
 		int compareX265andHWC();
-
 		// info from x265
 		infoFromX265*     m_infoFromX265;
-	
+#endif
 	protected:
 
-	
+
 	private:
 		//tools
 		void transpose(short* inArray, int size);
@@ -264,7 +309,7 @@ namespace x265 {
 
 		// isIntra: intra(1), inter(0), when is Intra, 4x4 luma do IDST
 		// textType: is only for Intra 4x4, to decide to do IDST or IDCT
-		void idct(short* out, int* in, uint32_t tuWidth, bool isIntra, TextType textType);
+		void idct(short* out, int* in, uint32_t tuWidth, bool isIntra, eTextType textType);
 
 
 		/* transform */
@@ -280,12 +325,14 @@ namespace x265 {
 
 		// isIntra: intra(1), inter(0), when is Intra, 4x4 luma do IDST
 		// textType: is only for Intra 4x4, to decide to do IDST or IDCT
-		void dct(int* out, short* in, uint32_t tuWidth, bool isIntra, TextType textType);	
+		void dct(int* out, short* in, uint32_t tuWidth, bool isIntra, eTextType textType);
 
 		uint32_t quant(int* coeffTQ, int* coeffT, int quantScale, int qBits, int add, int numCoeff, int32_t* lastPos);//return absSum
 		void dequant(int* coeffTQIQ, int* coeffTQ, int dequantScale, int num, int shift);
 	};
+#if X265_TEST_MODE
 }
+#endif
 //! \}
 
 #endif
