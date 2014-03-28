@@ -100,6 +100,10 @@ TEncSearch::~TEncSearch()
             m_qtTempTComYuv[i].destroy();
         }
     }
+#ifdef RK_INTRA_PRED
+	delete m_rkIntraPred;
+#endif
+	
     delete[] m_qtTempCoeffY;
     delete[] m_qtTempCoeffCb;
     delete[] m_qtTempCoeffCr;
