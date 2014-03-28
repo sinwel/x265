@@ -222,9 +222,9 @@ namespace x265 {
 		/*                       debug in x265                                   */
 		/************************************************************************/
 		// get input from x265
-		void hevcQT::getInputFromX265(int16_t *inResi, TComDataCU* cu,
+		void getInputFromX265(int16_t *inResi, TComDataCU* cu,
 			uint32_t absPartIdx, TextType ttype, uint32_t cuStride, uint32_t tuWidth); 
-		void hevcQT::getFromX265();
+		void getFromX265();
 	
 		// get output from x265
 		void getOutputFromX265(int16_t *outResi); // intra

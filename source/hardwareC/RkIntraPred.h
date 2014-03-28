@@ -260,6 +260,7 @@ public:
     int16_t     rk_residualCr[X265_AND_RK][16*16];
 
     uint64_t    rk_modeCostsSadAndCabac[35];
+    uint64_t    rk_modeCostsSadAndCabacCorrect[35];
 
 };
    

@@ -1714,7 +1714,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 
 		}
 
-		RK_CheckSad(costTotal, rk_modeCostsSadAndCabac);
+		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect);
 
 
 		// step 5 //

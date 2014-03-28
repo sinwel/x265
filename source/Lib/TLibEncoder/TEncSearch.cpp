@@ -743,7 +743,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			{
 			    RK_HEVC_PRINT("%s do not support for RK_HEVC encoder.\n",__FUNCTION__);
 			}
-		
+		#if 0
 			// 计算 35 种 cost
 			pixelcmp_t sa8d = primitives.sa8d[g_convertToBit[width]];
 			//  获取 square的 SAD，
@@ -769,6 +769,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			uint64_t cost = m_rdCost->calcRdSADCost(sad_value, bits);
 			
 			m_rkIntraPred->rk_modeCostsSadAndCabac[dirMode] = cost;
+		#endif
 			//
 			m_rkIntraPred->rk_puwidth_35 = width;
 			m_rkIntraPred->rk_dirMode = dirMode;
@@ -2524,12 +2525,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
                 uint32_t sad = modeCosts[mode];
 #endif
                 uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
-#ifdef RK_INTRA_PRED
-				// 存储所有的bits
-				m_rkIntraPred->rk_bits[mode] = bits;
-				m_rkIntraPred->rk_lambdaMotionSAD = m_rdCost->getlambdaMotionSAD();
 
-#endif
                 #if 0
                 for(int j=0; j<numCand_sad; j++)
                     if(mode == preds_sad[j]){
@@ -2544,7 +2540,13 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
                 #endif
 
                 uint64_t cost = m_rdCost->calcRdSADCost(sad, bits);
-				
+#ifdef RK_INTRA_PRED
+				// 存储所有的bits
+				m_rkIntraPred->rk_bits[mode] = bits;
+				m_rkIntraPred->rk_modeCostsSadAndCabacCorrect[mode] = cost;
+				m_rkIntraPred->rk_lambdaMotionSAD = m_rdCost->getlambdaMotionSAD();
+			
+#endif				
 #ifdef RK_INTRA_MODE_CHOOSE
 				modeCostsWithCabac[mode] = cost;
                 candNum += xUpdateCandList(mode, cost, 35, rdModeList, candCostList);
