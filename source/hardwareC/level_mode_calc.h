@@ -6,6 +6,9 @@
 
 //#include "hardwareC.h"
 
+//using namespace RK_HEVC;
+
+
 class hardwareC;
 
 struct COST_DATA{
@@ -25,6 +28,10 @@ struct COST_DATA{
 
 class CU_LEVEL_CALC
 {
+#ifdef RK_INTRA_PRED
+public:
+    Rk_IntraPred*    m_rkIntraPred; 
+#endif
 public:
 
     struct INTERFACE_TQ     inf_tq;
