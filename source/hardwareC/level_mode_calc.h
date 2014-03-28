@@ -5,8 +5,8 @@
 #include "module_interface.h"
 
 //#include "hardwareC.h"
-
-//using namespace RK_HEVC;
+#include "RkIntraPred.h"
+using namespace RK_HEVC;
 
 
 class hardwareC;

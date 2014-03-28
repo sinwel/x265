@@ -33,7 +33,7 @@
 
 #define RK_INTRA_PRED
 
-#define CONNECT_QT
+//#define CONNECT_QT
 
 //#define RK_INTRA_MODE_CHOOSE
 #endif

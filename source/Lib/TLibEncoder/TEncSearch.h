@@ -57,6 +57,8 @@
 #include "RkIntraPred.h"
 #endif
 
+using namespace RK_HEVC;
+
 
 //! \ingroup TLibEncoder
 //! \{
