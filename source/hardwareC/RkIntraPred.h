@@ -32,6 +32,8 @@ typedef enum X265_AND_RKs   // Routines can be indexed using log2n(width)
     X265_AND_RK
 };
 
+#define FAST_MODE_STEP          2
+
 #define SIZE_4x4                4
 #define SIZE_8x8                8
 #define SIZE_16x16              16

@@ -1410,16 +1410,16 @@ void Rk_IntraPred::RkIntraPriorModeChoose(int rdModeCandidate[], uint32_t rdMode
 		// 如果最优和次优相邻，取夹在中间的方向，外加另一方向的各4种
 		if ( abs(index[0] - index[1]) == 1)
 		{
+			int k = 2;
 			int min_idx = std::min<int>(Mode[0], Mode[1]) - 4;
 			int max_idx = std::max<int>(Mode[0], Mode[1]) + 4;
 			// 限定方向在 2~34之间		
 			min_idx = min_idx < 2 ? 2 : min_idx;
 			max_idx = max_idx > 34 ? 34 : max_idx;
-			
 			// 16种方向
-		    for ( i = min_idx ; i < max_idx ; i++ )
+		    for ( i = min_idx ; i < max_idx ; i += FAST_MODE_STEP  )
 		    {
-		        rdModeCandidate[2 + (i-min_idx)] = i;
+		        rdModeCandidate[k++] = i;
 		    }
 		}
 		else
@@ -1432,7 +1432,7 @@ void Rk_IntraPred::RkIntraPriorModeChoose(int rdModeCandidate[], uint32_t rdMode
 			min_idx = min_idx < 2 ? 2 : min_idx;
 			max_idx = max_idx > 34 ? 34 : max_idx;
 			// 16种方向
-		    for ( i = min_idx ; i < max_idx ; i++ )
+		    for ( i = min_idx ; i < max_idx ; i += FAST_MODE_STEP  )
 		    {
 		        rdModeCandidate[k++] = i;
 		    }
@@ -1442,7 +1442,7 @@ void Rk_IntraPred::RkIntraPriorModeChoose(int rdModeCandidate[], uint32_t rdMode
 			min_idx = min_idx < 2 ? 2 : min_idx;
 			max_idx = max_idx > 34 ? 34 : max_idx;
 			// 16种方向
-		    for ( i = min_idx ; i < max_idx ; i++ )
+		    for ( i = min_idx ; i < max_idx ; i += FAST_MODE_STEP )
 		    {
 		        rdModeCandidate[k++] = i;
 		    }
