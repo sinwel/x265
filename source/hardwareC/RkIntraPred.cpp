@@ -59,7 +59,7 @@ Rk_IntraPred::Rk_IntraPred()
 	{
 	    RK_HEVC_PRINT("creat file failed.\n");
 	}
-	rk_logIntraPred[4] = fopen(PATH_NAME("intra_input.txt"), "w+" );
+	rk_logIntraPred[4] = fopen(PATH_NAME("bNeigbours_rk.txt"), "w+" );
 	if ( rk_logIntraPred[4] == NULL )
 	{
 	    RK_HEVC_PRINT("creat file failed.\n");
@@ -1188,6 +1188,76 @@ void Rk_IntraPred::RkIntraSmoothing(RK_Pel* refLeft,
 
 
 
+int BubbleSort(int Index[], uint32_t Value[], int len)
+{
+    int i, j;
+    int flag;
+    int temp;
+
+    if (len <= 0)
+    {
+        return 0;
+    }
+
+    // bubble sort increase
+	for(i = 0; i < len - 1; i++)
+    {
+        flag = 1;
+        for(j = 0; j < len - i - 1; j++)
+        {
+            if (Value[Index[j]] > Value[Index[j+1]])
+			{
+                temp = Index[j];
+                Index[j] = Index[j + 1];
+                Index[j + 1] = temp;
+
+                flag = 0;
+            }
+        }
+
+        if(1 == flag)
+        {   
+            break;
+        }
+    }
+	return 1;
+}
+
+int BubbleSort(uint32_t Index[], uint64_t Value[], uint32_t len)
+{
+    uint32_t i, j;
+    uint32_t flag;
+    uint32_t temp;
+
+    if (len <= 0)
+    {
+        return 0;
+    }
+
+    // bubble sort low -> high
+	for(i = 0; i < len - 1; i++)
+    {
+        flag = 1;
+        for(j = 0; j < len - i - 1; j++)
+        {
+            if (Value[Index[j]] > Value[Index[j+1]])
+			{
+                temp = Index[j];
+                Index[j] = Index[j + 1];
+                Index[j + 1] = temp;
+
+                flag = 0;
+            }
+        }
+
+        if(1 == flag)
+        {   
+            break;
+        }
+    }
+	return 1;
+} 
+
 
 
 #ifdef RK_INTRA_MODE_CHOOSE
@@ -1401,76 +1471,6 @@ void Rk_IntraPred::RkIntraPriorModeChoose(int rdModeCandidate[], uint32_t rdMode
 	}
 }
 #endif
-
-int BubbleSort(int Index[], uint32_t Value[], int len)
-{
-    int i, j;
-    int flag;
-    int temp;
-
-    if (len <= 0)
-    {
-        return 0;
-    }
-
-    // bubble sort increase
-	for(i = 0; i < len - 1; i++)
-    {
-        flag = 1;
-        for(j = 0; j < len - i - 1; j++)
-        {
-            if (Value[Index[j]] > Value[Index[j+1]])
-			{
-                temp = Index[j];
-                Index[j] = Index[j + 1];
-                Index[j + 1] = temp;
-
-                flag = 0;
-            }
-        }
-
-        if(1 == flag)
-        {   
-            break;
-        }
-    }
-	return 1;
-}
-
-int BubbleSort(uint32_t Index[], uint64_t Value[], uint32_t len)
-{
-    uint32_t i, j;
-    uint32_t flag;
-    uint32_t temp;
-
-    if (len <= 0)
-    {
-        return 0;
-    }
-
-    // bubble sort low -> high
-	for(i = 0; i < len - 1; i++)
-    {
-        flag = 1;
-        for(j = 0; j < len - i - 1; j++)
-        {
-            if (Value[Index[j]] > Value[Index[j+1]])
-			{
-                temp = Index[j];
-                Index[j] = Index[j + 1];
-                Index[j + 1] = temp;
-
-                flag = 0;
-            }
-        }
-
-        if(1 == flag)
-        {   
-            break;
-        }
-    }
-	return 1;
-} 
 
 
 // ------------------------------------------------------------------------------

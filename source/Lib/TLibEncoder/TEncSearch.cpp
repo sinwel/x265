@@ -59,6 +59,10 @@ TEncSearch::TEncSearch()
 #ifdef RK_INTRA_PRED
 	m_rkIntraPred = NULL;
 #endif
+#ifdef RK_INTRA_MODE_CHOOSE
+	m_rkIntraPredFast = NULL;
+#endif
+
 
     m_qtTempCoeffY  = NULL;
     m_qtTempCoeffCb = NULL;
@@ -103,7 +107,9 @@ TEncSearch::~TEncSearch()
 #ifdef RK_INTRA_PRED
 	delete m_rkIntraPred;
 #endif
-	
+#ifdef RK_INTRA_MODE_CHOOSE
+	delete m_rkIntraPredFast;
+#endif	
     delete[] m_qtTempCoeffY;
     delete[] m_qtTempCoeffCb;
     delete[] m_qtTempCoeffCr;
@@ -174,9 +180,11 @@ void TEncSearch::init(TEncCfg* cfg, TComRdCost* rdCost, TComTrQuant* trQuant)
     m_qtTempTComYuv  = new TShortYUV[numLayersToAllocate];
 
 #ifdef RK_INTRA_PRED
-	m_rkIntraPred = new Rk_IntraPred;
+	m_rkIntraPred 		= new Rk_IntraPred;
 #endif
-
+#ifdef RK_INTRA_MODE_CHOOSE
+	m_rkIntraPredFast 	= new Rk_IntraPred;
+#endif	
     m_hChromaShift = CHROMA_H_SHIFT(cfg->param.internalCsp);
     m_vChromaShift = CHROMA_V_SHIFT(cfg->param.internalCsp);
 
@@ -2595,13 +2603,13 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 #ifdef RK_INTRA_MODE_CHOOSE
 		bool missflag[2] = {true,true};
 		assert(rk_candidate[18] == -1);
-		m_rkIntraPred->RkIntraPriorModeChoose(rk_candidate,modeCosts,false);
+		m_rkIntraPredFast->RkIntraPriorModeChoose(rk_candidate,modeCosts,false);
 
 	#if 1
-		RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"%02d\n",rdModeList[0]);			
+		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[3],"%02d\n",rdModeList[0]);			
         for (uint32_t mode = 0; mode < 18; mode++)
     	{
-			RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"%02d ",rk_candidate[mode] );
+			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[3],"%02d ",rk_candidate[mode] );
 			// 判断是否命中
 			if ( rdModeList[0] == rk_candidate[mode] )
 			{
@@ -2609,10 +2617,10 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 			}
 		
 		}
-		RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"\n");			
+		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[3],"\n");			
 	//#else
 		// 从rk_candidate的18种选择SAD/SATD最小的作为 bestMode
-		m_rkIntraPred->RkIntraPriorModeChoose(rk_candidate,modeCostsWithCabac,true);		
+		m_rkIntraPredFast->RkIntraPriorModeChoose(rk_candidate,modeCostsWithCabac,true);		
 		//RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"%02d\n",rk_candidate[0]);			
 	
 		if ( rdModeList[0] == rk_candidate[0] )
@@ -2624,14 +2632,14 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 		    missflag[0] = missflag[0];
 		}
 	#endif
-		RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"\n");	
+		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[3],"\n");	
 		if( !missflag[0] )
 		{
-			RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"yes\n");			    
+			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[3],"yes\n");			    
 		}
 		else
 		{
-			RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[3],"miss\n");			    
+			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[3],"miss\n");			    
 		}
 #endif
 
@@ -2768,7 +2776,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				m_rkIntraPred->rk_hevcqt->proc();
 			#endif	
 
-			#if 0
+			#if 1
 				// log rk_Interface_Intra.bNeighborFlags
 				bool* bNeighbour = rk_Interface_Intra.bNeighborFlags;
 				RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[5],"[size = %d]\n",cu->getWidth(0) >> initTrDepth);

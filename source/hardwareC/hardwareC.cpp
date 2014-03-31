@@ -29,6 +29,11 @@ void cuData::init(uint8_t w)
     ReconY = (uint8_t *)malloc(w*w);
     ReconU = (uint8_t *)malloc(w*w/4);
     ReconV = (uint8_t *)malloc(w*w/4);
+    cbfY = (uint8_t *)malloc((w/4)*(w/4));
+    mv = (MV_INFO *)malloc(sizeof(MV_INFO)*(w/8)*(w/8));
+    cuPartSize = (uint8_t *)malloc((w/8)*(w/8));
+    cuSkipFlag = (uint8_t *)malloc((w/8)*(w/8));
+    cuPredMode = (uint8_t *)malloc((w/8)*(w/8));
 }
 
 void cuData::deinit()
@@ -40,6 +45,11 @@ void cuData::deinit()
     free(ReconY);
     free(ReconU);
     free(ReconV);
+    free(cbfY);
+    free(mv);
+    free(cuPartSize);
+    free(cuSkipFlag);
+    free(cuPredMode);
 }
 
 void hardwareC::proc()

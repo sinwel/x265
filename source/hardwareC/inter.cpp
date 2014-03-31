@@ -78,6 +78,21 @@ void motionEstimate(InterInfo *pInterInfo)
 	int *pImeSR = new int[(width - nSampDist + 1)*(height - nSampDist + 1)];
 	int *pCurrCtu = new int[(nCtuSize/nSampDist)*(nCtuSize/nSampDist)];
 	ImePrefetch(&pInterInfo->imeinput, EdgeMinusPelNum, pImeSR, width, height);
+	for (int i = 0; i < nCtuSize / nSampDist; i++)
+	{
+		for (int j = 0; j < nCtuSize / nSampDist; j++)
+		{
+			int sum = 0;
+			for (int x = 0; x < nSampDist; x++)
+			{
+				for (int y = 0; y < nSampDist; y++)
+				{
+					sum += (pInterInfo->imeinput.pCurrCtu[(j*nSampDist + y) + (i*nSampDist + x)*nCtuSize]);
+				}
+			}
+			pCurrCtu[j + (nCtuSize / nSampDist)*i] = sum;
+		}
+	}
 	ImeProc(&pInterInfo->imeinput, pImeSR, pCurrCtu, width, height, nCtuSize, &pInterInfo->imeoutput);
 	memcpy(&pInterInfo->fmeinput.imeoutput, &pInterInfo->imeoutput, sizeof(InterInfo::ImeOutput));
 	FmeProc(&pInterInfo->fmeinput, nCtuSize, nSplitDepth, pInterInfo->imeinput.pCurrCtu, &pInterInfo->fmeoutput);
@@ -180,21 +195,6 @@ void ImeProc(InterInfo::ImeInput *pImeInput, int *pImeSR, int *pCurrCtu, int mer
 	default: nCuInCtu = 85;
 	}
 	//int *pCurrCtu = (int *)Create(nCtuSize/nSampDist, nCtuSize/nSampDist, BT_INT);//保存CTU下采样的点
-	for (int i = 0; i < nCtuSize/nSampDist; i ++)
-	{
-		for (int j = 0; j < nCtuSize / nSampDist; j++)
-		{
-			int sum = 0;
-			for (int x = 0; x < nSampDist; x ++)
-			{
-				for (int y = 0; y < nSampDist; y ++)
-				{
-					sum += (pImeInput->pCurrCtu[(j*nSampDist + y) + (i*nSampDist + x)*nCtuSize]) >> (8 - PelBit);
-				}
-			}
-			pCurrCtu[j + (nCtuSize / nSampDist)*i] = sum>>RightMove;
-		}
-	}
 	if (64 == nCtuSize)
 	{
 		for (int i = 0; i < nCuInCtu; i++)

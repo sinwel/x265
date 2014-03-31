@@ -579,23 +579,23 @@ void copy_cu_data(cuData *p, TComDataCU *CU)
     p->cu_x = 0;
     p->cu_y = 0;
     p->width = CU->m_width[0];
-    for(m=0; m<4; m++)
-    {
-        p->Cbf[0][m] = CU->m_cbf[0][m];
-        p->Cbf[1][m] = CU->m_cbf[1][m];
-        p->Cbf[2][m] = CU->m_cbf[2][m];
-    }
+    //for(m=0; m<4; m++)
+    //{
+    //    p->Cbf[0][m] = CU->m_cbf[0][m];
+    //    p->Cbf[1][m] = CU->m_cbf[1][m];
+    //    p->Cbf[2][m] = CU->m_cbf[2][m];
+    //}
 
     if(CU->m_partSizes[0] == SIZE_NxN)
         p->tu_split_flag = 1;
     else
         p->tu_split_flag = 0;
 
-    p->PredictionMode   = CU->m_predModes[0];
-    p->cuSkipFlag       = CU->m_skipFlag[0];
+    p->cuPredMode[0]    = CU->m_predModes[0];
+    p->cuSkipFlag[0]    = CU->m_skipFlag[0];
     p->MergeFlag        = CU->m_bMergeFlags[0];
     p->MergeIndex       = CU->m_mergeIndex[0];
-    p->partSize         = CU->m_partSizes[0];
+    p->cuPartSize[0]      = CU->m_partSizes[0];
 
     for(m=0; m<cu_w*cu_w; m++) {
         p->CoeffY[m] = CU->m_trCoeffY[m];
@@ -724,7 +724,6 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
                 for(m=0; m<cu_w*cu_w;   m++) pHardWare->ctu_calc.cu_ori_data[1][pos]->ReconY[m] = m_bestRecoYuv[depth]->m_bufY[m];
                 for(m=0; m<cu_w*cu_w/4; m++) pHardWare->ctu_calc.cu_ori_data[1][pos]->ReconU[m] = m_bestRecoYuv[depth]->m_bufU[m];
                 for(m=0; m<cu_w*cu_w/4; m++) pHardWare->ctu_calc.cu_ori_data[1][pos]->ReconV[m] = m_bestRecoYuv[depth]->m_bufV[m];
-                pHardWare->ctu_calc.best_pos[1]++;
                 break;
             case 2:
                 pos = pHardWare->ctu_calc.best_pos[2];
@@ -732,7 +731,6 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
                 for(m=0; m<cu_w*cu_w;   m++) pHardWare->ctu_calc.cu_ori_data[2][pos]->ReconY[m] = m_bestRecoYuv[depth]->m_bufY[m];
                 for(m=0; m<cu_w*cu_w/4; m++) pHardWare->ctu_calc.cu_ori_data[2][pos]->ReconU[m] = m_bestRecoYuv[depth]->m_bufU[m];
                 for(m=0; m<cu_w*cu_w/4; m++) pHardWare->ctu_calc.cu_ori_data[2][pos]->ReconV[m] = m_bestRecoYuv[depth]->m_bufV[m];
-                pHardWare->ctu_calc.best_pos[2]++;
                 break;
             case 3:
                 pos = pHardWare->ctu_calc.best_pos[3];
@@ -740,7 +738,6 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
                 for(m=0; m<cu_w*cu_w;   m++) pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconY[m] = m_bestRecoYuv[depth]->m_bufY[m];
                 for(m=0; m<cu_w*cu_w/4; m++) pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconU[m] = m_bestRecoYuv[depth]->m_bufU[m];
                 for(m=0; m<cu_w*cu_w/4; m++) pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconV[m] = m_bestRecoYuv[depth]->m_bufV[m];
-                pHardWare->ctu_calc.best_pos[3]++;
                 break;
             default:
                 break;
@@ -758,6 +755,9 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         bBoundary = true;
         m_addSADDepth++;
     }
+    #if RK_CTU_CALC_PROC_ENABLE
+    pHardWare->ctu_calc.best_pos[depth]++;
+    #endif
 
     outTempCU->initEstData(depth, qp);
 

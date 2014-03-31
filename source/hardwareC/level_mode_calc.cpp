@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "level_mode_calc.h"
 #include "hardwareC.h"
-
+#include "inter.h"
 #ifndef CLIP
 #define CLIP(a, min, max)			(((a) < min) ? min : (((a) > max) ? max : (a)))
 #endif
@@ -18,7 +18,10 @@ void CU_LEVEL_CALC::init(uint8_t size)
 {
     m_size = size;
     cu_w = size;
-
+#ifdef RK_INTRA_PRED
+	m_rkIntraPred = new Rk_IntraPred;
+	inf_intra_proc.size = m_size;
+#endif
     inf_intra.pred = (uint8_t *)malloc(m_size*m_size);
     inf_intra.resi = (int16_t *)malloc(m_size*m_size*2);
 
@@ -56,10 +59,18 @@ void CU_LEVEL_CALC::init(uint8_t size)
     cost_temp.resi_y = (int16_t *)malloc(m_size*m_size*2);
     cost_temp.resi_u = (int16_t *)malloc(m_size*m_size*2/4);
     cost_temp.resi_v = (int16_t *)malloc(m_size*m_size*2/4);
+    cu_matrix_data = (cuData *)malloc(4*sizeof(cuData));
+	for(int i=0; i<((cu_w == 64) ? 1 : 4); i++)
+		cu_matrix_data[i].init(cu_w);
 }
 
 void CU_LEVEL_CALC::deinit()
 {
+#ifdef RK_INTRA_PRED
+	delete m_rkIntraPred;
+#endif
+
+    uint8_t i;
     free(inf_intra.pred);
     free(inf_intra.resi);
 
@@ -89,6 +100,9 @@ void CU_LEVEL_CALC::deinit()
     free(cost_intra.resi_y);
     free(cost_intra.resi_u);
     free(cost_intra.resi_v);
+	for(i=0; i<((cu_w == 64)? 1 : 4); i++)
+        cu_matrix_data[i].deinit();
+	free(cu_matrix_data);
 }
 
 
@@ -119,7 +133,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         bottom_left_valid = 0;
         if(0) { //constrain_intra
             for (m=0; m<cu_w/8; m++) {
-                inf_intra.NeighborFlags[cu_w/8 - m - 1] = pHardWare->ctu_calc.intra_buf_cu_type[(x_pos/8 - 1) - (y_pos/8 + m + cu_w/8) + 8];
+                inf_intra.NeighborFlags[cu_w/8 - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m + cu_w/8) + 8];
                 bottom_left_valid |= inf_intra.NeighborFlags[cu_w/8 - m - 1];
             }
         }
@@ -139,7 +153,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         left_valid = 0;
         if(0) { //constrain_intra
             for (m=0; m<cu_w/8; m++) {
-                inf_intra.NeighborFlags[2*cu_w/8 - m - 1] = pHardWare->ctu_calc.intra_buf_cu_type[(x_pos/8 - 1) - (y_pos/8 + m) + 8];
+                inf_intra.NeighborFlags[2*cu_w/8 - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m) + 8];
                 left_valid |= inf_intra.NeighborFlags[2*cu_w/8 - m - 1];
             }
         }
@@ -159,7 +173,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
     if(top_left_valid) {
         top_left_valid = 0;
         if(0) { //constrain_intra
-            inf_intra.NeighborFlags[8] = pHardWare->ctu_calc.intra_buf_cu_type[(x_pos/8) - (y_pos/8) + 8];
+            inf_intra.NeighborFlags[8] = pHardWare->ctu_calc.L_cu_type[(x_pos/8) - (y_pos/8) + 8];
             top_left_valid |= inf_intra.NeighborFlags[8];
         }
         else {
@@ -177,7 +191,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         top_valid = 0;
         if(0) { //constrain_intra
             for(m=0; m<cu_w/8; m++) {
-                inf_intra.NeighborFlags[8 + m + 1] = pHardWare->ctu_calc.intra_buf_cu_type[(x_pos/8 + m + 1) - (y_pos/8) + 8];
+                inf_intra.NeighborFlags[8 + m + 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 + m + 1) - (y_pos/8) + 8];
                 top_valid |= inf_intra.NeighborFlags[8 + m + 1];
             }
         }
@@ -197,7 +211,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         top_right_valid = 0;
         if(0) { //constrain_intra
             for(m=0; m<cu_w/8; m++) {
-                inf_intra.NeighborFlags[8 + m + 1 + cu_w/8] = pHardWare->ctu_calc.intra_buf_cu_type[((x_pos + cu_w)/8 + m + 1) - (y_pos/8) + 8];
+                inf_intra.NeighborFlags[8 + m + 1 + cu_w/8] = pHardWare->ctu_calc.L_cu_type[((x_pos + cu_w)/8 + m + 1) - (y_pos/8) + 8];
                 top_right_valid |= inf_intra.NeighborFlags[8 + m + 1 + cu_w/8];
             }
         }
@@ -227,7 +241,32 @@ void CU_LEVEL_CALC::begin()
         memcpy(curr_cu_v, pHardWare->ctu_calc.input_curr_v + pos, cu_w/2);
     }
 
+    memcpy(intra_buf_y + 64 - cu_w,   pHardWare->ctu_calc.L_intra_buf_y + 64 + x_pos   - (y_pos + cu_w),   2*cu_w + 1);
+    memcpy(intra_buf_u + 32 - cu_w/2, pHardWare->ctu_calc.L_intra_buf_u + 32 + x_pos/2 - (y_pos + cu_w)/2, 2*cu_w/2 + 1);
+    memcpy(intra_buf_v + 32 - cu_w/2, pHardWare->ctu_calc.L_intra_buf_v + 32 + x_pos/2 - (y_pos + cu_w)/2, 2*cu_w/2 + 1);
+    memcpy(cu_type + 8 - cu_w/8,      pHardWare->ctu_calc.L_cu_type + 8 + x_pos/8 - (y_pos + cu_w)/8, 2*cu_w/8 + 1);
+    if(!(x_pos + cu_w >= pHardWare->ctu_calc.ctu_w)) {
+        memcpy(intra_buf_y + 65 + cu_w,   pHardWare->ctu_calc.L_intra_buf_y + 64 + (x_pos + cu_w)   + 1 - (y_pos),   cu_w);
+        memcpy(intra_buf_u + 33 + cu_w/2, pHardWare->ctu_calc.L_intra_buf_u + 32 + (x_pos + cu_w)/2 + 1 - (y_pos/2), cu_w/2);
+        memcpy(intra_buf_v + 33 + cu_w/2, pHardWare->ctu_calc.L_intra_buf_v + 32 + (x_pos + cu_w)/2 + 1 - (y_pos/2), cu_w/2);
+        memcpy(cu_type + 9 + cu_w/8,      pHardWare->ctu_calc.L_cu_type + 8 + (x_pos + cu_w)/8 + 1 - (y_pos/8), cu_w/8);
+    }
+    if(!(y_pos + cu_w >= pHardWare->ctu_calc.ctu_w)) {
+        memcpy(intra_buf_y + 64 - cu_w*2, pHardWare->ctu_calc.L_intra_buf_y + 64 + x_pos   - (y_pos + 2*cu_w),   cu_w);
+        memcpy(intra_buf_u + 32 - cu_w,   pHardWare->ctu_calc.L_intra_buf_u + 32 + x_pos/2 - (y_pos + 2*cu_w)/2, cu_w/2);
+        memcpy(intra_buf_v + 32 - cu_w,   pHardWare->ctu_calc.L_intra_buf_v + 32 + x_pos/2 - (y_pos + 2*cu_w)/2, cu_w/2);
+        memcpy(cu_type + 8 - 2*cu_w/8,    pHardWare->ctu_calc.L_cu_type + 8 + (x_pos + cu_w)/8 + 1 - (y_pos/8), cu_w/8);
+    }
     intra_neighbour_flag_descion();
+
+    inf_intra_proc.reconEdgePixelY = intra_buf_y + 64;
+    inf_intra_proc.reconEdgePixelU = intra_buf_u + 32;
+    inf_intra_proc.reconEdgePixelV = intra_buf_v + 32;
+    inf_intra_proc.bNeighborFlags  = cu_type + 8;
+
+    inf_intra_proc.fencY = curr_cu_y;
+    inf_intra_proc.fencU = curr_cu_u;
+    inf_intra_proc.fencV = curr_cu_v;
 }
 
 void CU_LEVEL_CALC::end()
@@ -235,36 +274,30 @@ void CU_LEVEL_CALC::end()
     uint8_t m, n;
     cuData  *cu_src;
 
-    cu_src = pHardWare->ctu_calc.cu_temp_data[depth][temp_pos];
+    cu_src = &cu_matrix_data[matrix_pos];
     /* Y */
     for(m=0; m<cu_w; m++){
-        pHardWare->ctu_calc.intra_buf_y[(x_pos + cu_w - 1) - (y_pos + m) + 64] = cu_src->ReconY[m*cu_w + cu_w - 1];
-        pHardWare->ctu_calc.intra_buf_y[(x_pos + m) - (y_pos + cu_w - 1) + 64] = cu_src->ReconY[(cu_w - 1)*cu_w + m];
+        pHardWare->ctu_calc.L_intra_buf_y[(x_pos + cu_w - 1) - (y_pos + m) + 64] = cu_src->ReconY[m*cu_w + cu_w - 1];
+        pHardWare->ctu_calc.L_intra_buf_y[(x_pos + m) - (y_pos + cu_w - 1) + 64] = cu_src->ReconY[(cu_w - 1)*cu_w + m];
      }
 
     /* U */
     for(m=0; m<cu_w/2; m++){
-        pHardWare->ctu_calc.intra_buf_u[(x_pos/2 + cu_w/2 - 1) - (y_pos/2 + m) + 32] = cu_src->ReconU[m*cu_w/2 + cu_w/2 - 1];
-        pHardWare->ctu_calc.intra_buf_u[(x_pos/2 + m) - (y_pos/2 + cu_w/2 - 1) + 32] = cu_src->ReconU[(cu_w/2 - 1)*cu_w/2 + m];
+        pHardWare->ctu_calc.L_intra_buf_u[(x_pos/2 + cu_w/2 - 1) - (y_pos/2 + m) + 32] = cu_src->ReconU[m*cu_w/2 + cu_w/2 - 1];
+        pHardWare->ctu_calc.L_intra_buf_u[(x_pos/2 + m) - (y_pos/2 + cu_w/2 - 1) + 32] = cu_src->ReconU[(cu_w/2 - 1)*cu_w/2 + m];
     }
 
     /* V */
     for(m=0; m<cu_w/2; m++){
-        pHardWare->ctu_calc.intra_buf_v[(x_pos/2 + cu_w/2 - 1) - (y_pos/2 + m) + 32] = cu_src->ReconV[m*cu_w/2 + cu_w/2 - 1];
-        pHardWare->ctu_calc.intra_buf_v[(x_pos/2 + m) - (y_pos/2 + cu_w/2 - 1) + 32] = cu_src->ReconV[(cu_w/2 - 1)*cu_w/2 + m];
+        pHardWare->ctu_calc.L_intra_buf_v[(x_pos/2 + cu_w/2 - 1) - (y_pos/2 + m) + 32] = cu_src->ReconV[m*cu_w/2 + cu_w/2 - 1];
+        pHardWare->ctu_calc.L_intra_buf_v[(x_pos/2 + m) - (y_pos/2 + cu_w/2 - 1) + 32] = cu_src->ReconV[(cu_w/2 - 1)*cu_w/2 + m];
     }
 
     /* cu_type */
     for(m=0; m<cu_w/8; m++) {
         for(n=0; n<cu_w/8; n++) {
-            pHardWare->ctu_calc.intra_buf_cu_type[(x_pos/8 + n) - (y_pos/8 + m) + 8] = (!cost_best->predMode);
+            pHardWare->ctu_calc.L_cu_type[(x_pos/8 + n) - (y_pos/8 + m) + 8] = (!cost_best->predMode);
         }
-    }
-
-    /* inter cbf for BS */
-    for(m=0; m<cu_w/4; m++) {
-        pHardWare->ctu_calc.inter_cbf[(x_pos/4 + cu_w/4 - 1) - (y_pos/4 + m) + 16] = cbfY;
-        pHardWare->ctu_calc.inter_cbf[(x_pos/4 + m) - (y_pos/4 + cu_w/4 - 1) + 16] = cbfY;
     }
 }
 
@@ -335,7 +368,7 @@ void CU_LEVEL_CALC::intra_proc()
     inf_recon.size = m_size;
     inf_recon.Recon = cost_intra.recon_y;
     inf_intra.fenc = curr_cu_y;
-    inf_intra.reconEdgePixel = pHardWare->ctu_calc.intra_buf_y + x_pos - y_pos + 64;
+    inf_intra.reconEdgePixel = pHardWare->ctu_calc.L_intra_buf_y + x_pos - y_pos + 64;
     inf_recon.ori = curr_cu_y;
     inf_recon.size = cu_w;
     //Intra();
@@ -348,7 +381,7 @@ void CU_LEVEL_CALC::intra_proc()
     inf_recon.size = m_size/2;
     inf_recon.Recon = cost_intra.recon_u;
     inf_intra.fenc = curr_cu_u;
-    inf_intra.reconEdgePixel = pHardWare->ctu_calc.intra_buf_u + x_pos/2 - y_pos/2 + 32;
+    inf_intra.reconEdgePixel = pHardWare->ctu_calc.L_intra_buf_u + x_pos/2 - y_pos/2 + 32;
     inf_intra.lumaDirMode = inf_intra.DirMode;
     inf_recon.ori = curr_cu_u;
     inf_recon.size = cu_w/2;
@@ -361,7 +394,7 @@ void CU_LEVEL_CALC::intra_proc()
     /*V*/
     inf_recon.Recon = cost_intra.recon_v;
     inf_intra.fenc = curr_cu_v;
-    inf_intra.reconEdgePixel = pHardWare->ctu_calc.intra_buf_v + x_pos/2 - y_pos/2 + 32;
+    inf_intra.reconEdgePixel = pHardWare->ctu_calc.L_intra_buf_v + x_pos/2 - y_pos/2 + 32;
     inf_recon.ori = curr_cu_v;
     inf_recon.size = cu_w/2;
     //Intra();
@@ -389,7 +422,7 @@ void CU_LEVEL_CALC::intra_4_proc()
     inf_recon.size = m_size;
     inf_recon.Recon = cost_intra.recon_y;
     inf_intra.fenc = curr_cu_y;
-    inf_intra.reconEdgePixel = pHardWare->ctu_calc.intra_buf_y + x_pos - y_pos + 64;
+    inf_intra.reconEdgePixel = pHardWare->ctu_calc.L_intra_buf_y + x_pos - y_pos + 64;
     inf_recon.ori = curr_cu_y;
     inf_recon.size = cu_w;
     //Intra();
@@ -402,7 +435,7 @@ void CU_LEVEL_CALC::intra_4_proc()
     inf_recon.size = m_size/2;
     inf_recon.Recon = cost_intra.recon_u;
     inf_intra.fenc = curr_cu_u;
-    inf_intra.reconEdgePixel = pHardWare->ctu_calc.intra_buf_u + x_pos/2 - y_pos/2 + 32;
+    inf_intra.reconEdgePixel = pHardWare->ctu_calc.L_intra_buf_u + x_pos/2 - y_pos/2 + 32;
     inf_intra.lumaDirMode = inf_intra.DirMode;
     inf_recon.ori = curr_cu_u;
     inf_recon.size = cu_w/2;
@@ -415,7 +448,7 @@ void CU_LEVEL_CALC::intra_4_proc()
     /*V*/
     inf_recon.Recon = cost_intra.recon_v;
     inf_intra.fenc = curr_cu_v;
-    inf_intra.reconEdgePixel = pHardWare->ctu_calc.intra_buf_v + x_pos/2 - y_pos/2 + 32;
+    inf_intra.reconEdgePixel = pHardWare->ctu_calc.L_intra_buf_v + x_pos/2 - y_pos/2 + 32;
     inf_recon.ori = curr_cu_v;
     inf_recon.size = cu_w/2;
     //Intra();
@@ -469,6 +502,25 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
     }
 
     begin();
+#ifdef RK_INTRA_PRED
+	// log rk_Interface_Intra.bNeighborFlags
+	if ( inf_intra_proc.size < 64)
+	{
+		uint8_t* bNeighbour = inf_intra_proc.bNeighborFlags;
+		RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[4],"[size = %d]\n",inf_intra_proc.size);
+
+		for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/4; i++ )
+		{
+		    RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[4],"%d ",*bNeighbour++ );
+		}
+		RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[4],"	 %d   ",*bNeighbour++ );
+		for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/4 ; i++ )
+		{
+		    RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[4],"%d ",*bNeighbour++ );
+		}
+		RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[4],"\n\n");
+ 	}
+#endif	
     //inter_proc();
     //intra_proc();
     //intra_4_proc();
@@ -477,12 +529,13 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 
     cost_best = &cost_intra;
 
+    memset(cu_matrix_data[matrix_pos].cuPredMode, cu_matrix_data[matrix_pos].cuPredMode[0], (cu_w/8)*(cu_w/8));
 
     //-------------------------------------------//
     // temp use for debug                        //
     //-------------------------------------------//
     src_cu = pHardWare->ctu_calc.cu_ori_data[depth][cu_pos++];
-    dst_cu = pHardWare->ctu_calc.cu_temp_data[depth][temp_pos];
+    dst_cu = &cu_matrix_data[matrix_pos];
 
     memcpy(dst_cu->ReconY, src_cu->ReconY, cu_w*cu_w);
     memcpy(dst_cu->ReconU, src_cu->ReconU, cu_w*cu_w/4);

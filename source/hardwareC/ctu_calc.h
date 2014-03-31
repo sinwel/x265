@@ -4,6 +4,7 @@
 #include "../Lib/TLibCommon/CommonDef.h"
 #include "../Lib/TLibCommon/TComDataCU.h"
 
+#include "rk_define.h"
 #include "level_mode_calc.h"
 
 
@@ -32,23 +33,23 @@ public:
     uint8_t  height;
     uint8_t  depth;
 
-    uint8_t  partSize;       // Nx2N NxN
-    uint8_t  cuSkipFlag;     // CU Skip
-    uint8_t  PredictionMode; // P:0 I:1
+    uint8_t  *cuPartSize;       // Nx2N NxN
+    uint8_t  *cuSkipFlag;     // CU Skip
+    uint8_t  *cuPredMode;    // P:0 I:1
 
     uint8_t  MergeFlag;      // CU Merge
     uint8_t  MergeIndex;     // CU MergeIndex
-    uint32_t mv;             // TODO inter relation
+    struct MV_INFO *mv;             // TODO inter relation
     uint32_t mvd;            // TODO
     uint8_t  mvdIndex;       // TODO
 
     uint8_t  intraDirMode[4];// intraLumaDirMode
 
-    //uint8_t  m_TransformSkipY;  //TODO
-    //uint8_t  m_TransformSkipU;
+    uint8_t  *cbfY;      //
+    uint8_t  *cbfU;      //
     //uint8_t  m_TransformSkipV;
 
-    uint8_t  Cbf[3][4];      //
+    uint8_t  *cbfV;      //
 
     int16_t  *CoeffY;
     int16_t  *CoeffU;
@@ -67,15 +68,6 @@ public:
 };
 
 
-struct MV
-{
-    int16_t mv_x_l0;
-    int16_t mv_y_l0;
-    int16_t mv_x_l1;
-    int16_t mv_y_l1;
-    uint8_t pred_flag_l0;
-    uint8_t pred_flag_l1;
-};
 
 class CTU_CALC
 {
@@ -88,7 +80,9 @@ public:
     uint8_t  input_curr_ref_y[256*128];
     uint8_t  input_curr_ref_u[128*64];
     uint8_t  input_curr_ref_v[128*64];
+    uint8_t  QP;
 
+    struct IME_MV  ***ime_mv;
     /* output */
     uint8_t *output_recon_y;            //64*64
     uint8_t *output_recon_u;            //32*32
@@ -118,7 +112,8 @@ public:
     uint32_t MVD[64];
     uint32_t MVD_index[64];
 
-    uint8_t  BS_flag[256][2];       //BS flag for Deblocking
+    uint8_t  BS_horizontal_flag[16][8];       //BS horizontal flag for Deblocking
+    uint8_t  BS_vertical_flag[16][8];         //BS vertical   flag for Deblocking
 
 
     /* inline */
@@ -141,26 +136,29 @@ public:
     uint8_t  line_intra_buf_y[1920];
     uint8_t  line_intra_buf_u[1920/2];
     uint8_t  line_intra_buf_v[1920/2];
-    uint8_t  line_intra_cu_type[1920/8];
+    uint8_t  line_cu_type[1920/8];
+    uint8_t  line_tu_cbfY_flag[1920/4];
 
-    struct MV line_mv_buf[1920/8];
+    struct MV_INFO line_mv_buf[1920/8];
 
-    uint8_t intra_buf_y[32*5+1];                //相邻L型buf，用于存储重构像素
-    uint8_t intra_buf_u[16*5+1];                //相邻L型buf，用于存储重构像素
-    uint8_t intra_buf_v[16*5+1];                //相邻L型buf，用于存储重构像素
-    uint8_t intra_buf_cu_type[(32*5)/8 + 1];    //相邻L型buf，用于存储相邻CU块的属性，用于MV及constra_intra
+    uint8_t     L_intra_buf_y[32*5+1];                //相邻L型buf，用于存储重构像素
+    uint8_t     L_intra_buf_u[16*5+1];                //相邻L型buf，用于存储重构像素
+    uint8_t     L_intra_buf_v[16*5+1];                //相邻L型buf，用于存储重构像素
+    uint8_t     L_cu_type[(32*5)/8 + 1];              //相邻L型buf，用于存储相邻CU块的属性，用于MV及constra_intra 以及BS计算
+    struct MV_INFO   L_mv_buf[(32*5)/8 + 1];          //相邻L型buf,用于存储相邻CU块的MV信息
 
     uint8_t cu_data_valid[8*8];                 //cu data valid,用于判断相邻CU块是否有效。
 
-    struct MV mv_buf[(32*5)/8 + 1];             //相邻L型buf,用于存储相邻CU块的MV信息
 
     uint8_t inter_cbf[32+1];                    //相邻L型buf，用于存储相邻inter pu块的残差是否为0
 
     //TODO
-    uint32_t bs_flag_bak[32];                   //mv、cu_type、tu_cbf_flag
+    uint8_t  bs_tu_cbf_flag[256];
+    uint8_t  bs_cu_type[64];
+    MV_INFO  bs_mv[64];
 
     class CU_LEVEL_CALC cu_level_calc[4];
-    class cuData***     cu_temp_data;           //4层CU存储，每一层有4个，用于向上更新。所有的数据都会存储在这个Tempdata中
+
 
     //TODO
     //MVP Relation data

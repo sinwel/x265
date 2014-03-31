@@ -152,7 +152,7 @@ static const char * const x265_motion_est_names[] = { "dia", "hex", "umh", "star
 
 // merge by zxy in 2014 03 26
 #define X265_LOG_DEBUG_ROCKCHIP 4
-#define X265_LOG_FILE_ROCKCHIP  5
+//#define X265_LOG_FILE_ROCKCHIP  5
 
 #ifdef X265_LOG_DEBUG_ROCKCHIP
 #define RK_HEVC_PRINT(fmt, ...) \
@@ -176,7 +176,7 @@ static const char * const x265_motion_est_names[] = { "dia", "hex", "umh", "star
     
 #else
 #define RK_HEVC_FPRINT(fp,fmt, ...) 
-
+#define RK_HEVC_LOGING(fp,fmt, ...)
 #endif
 
 #define X265_B_ADAPT_NONE       0

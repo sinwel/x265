@@ -53,9 +53,8 @@
 #include "bitcost.h"
 #include "motion.h"
 
-#ifdef RK_INTRA_PRED
+
 #include "RkIntraPred.h"
-#endif
 
 using namespace RK_HEVC;
 
@@ -86,6 +85,11 @@ public:
     INTERFACE_INTRA  rk_Interface_Intra;  
     INTERFACE_INTRA  rk_Interface_IntraCb;     
     INTERFACE_INTRA  rk_Interface_IntraCr;     
+#endif
+
+#ifdef RK_INTRA_MODE_CHOOSE
+public:
+    Rk_IntraPred*    m_rkIntraPredFast; 
 #endif
 
 public:

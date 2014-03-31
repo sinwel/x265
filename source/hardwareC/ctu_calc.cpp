@@ -52,30 +52,23 @@ CTU_CALC::CTU_CALC()
         cu_ori_data[3][i]->init(8);
     }
 
+    ime_mv = new IME_MV **[4];
+    ime_mv[0] = new IME_MV *[1];
+	ime_mv[0][0] = new IME_MV;
 
-
-    cu_temp_data = new cuData**[4];
-
-    cu_temp_data[0] = new cuData*[1];
-	cu_temp_data[0][0] = new cuData;
-    cu_temp_data[0][0]->init(64);
-
-	cu_temp_data[1] = new cuData*[4];
+    ime_mv[1] = new IME_MV *[4];
     for(i=0; i<4; i++) {
-        cu_temp_data[1][i] = new cuData;
-        cu_temp_data[1][i]->init(32);
+        ime_mv[1][i] = new IME_MV;
     }
 
-	cu_temp_data[2] = new cuData*[4];
-    for(i=0; i<4; i++) {
-        cu_temp_data[2][i] = new cuData;
-        cu_temp_data[2][i]->init(16);
+    ime_mv[2] = new IME_MV *[16];
+    for(i=0; i<16; i++) {
+        ime_mv[2][i] = new IME_MV;
     }
 
-	cu_temp_data[3] = new cuData*[4];
-    for(i=0; i<4; i++) {
-        cu_temp_data[3][i] = new cuData;
-        cu_temp_data[3][i]->init(8);
+    ime_mv[3] = new IME_MV *[64];
+    for(i=0; i<64; i++) {
+        ime_mv[3][i] = new IME_MV;
     }
 }
 
@@ -127,31 +120,24 @@ CTU_CALC::~CTU_CALC()
     delete [] cu_ori_data[3];
     delete [] cu_ori_data;
 
-
-
-
-    cu_temp_data[0][0]->deinit();
-    delete cu_temp_data[0][0];
-    delete [] cu_temp_data[0];
+    delete ime_mv[0][0];
+    delete [] ime_mv[0];
 
     for(i=0; i<4; i++) {
-        cu_temp_data[1][i]->deinit();
-        delete cu_temp_data[1][i];
+        delete ime_mv[1][i];
     }
-    delete [] cu_temp_data[1];
+    delete [] ime_mv[1];
 
-    for(i=0; i<4; i++) {
-        cu_temp_data[2][i]->deinit();
-        delete cu_temp_data[2][i];
+    for(i=0; i<16; i++) {
+        delete ime_mv[2][i];
     }
-    delete [] cu_temp_data[2];
+    delete [] ime_mv[2];
 
-    for(i=0; i<4; i++) {
-		cu_temp_data[3][i]->deinit();
-        delete cu_temp_data[3][i];
+    for(i=0; i<16; i++) {
+        delete ime_mv[3][i];
     }
-    delete [] cu_temp_data[3];
-    delete [] cu_temp_data;
+    delete [] ime_mv[3];
+    delete [] ime_mv;
 }
 
 void CTU_CALC::init()
@@ -175,37 +161,31 @@ void CTU_CALC::deinit()
 
 void CTU_CALC::begin()
 {
-    uint32_t i;
     uint32_t pos;
     uint32_t len;
     uint8_t *buf_y, *buf_u, *buf_v, *buf_t;
-    struct MV *buf_mv;
+    struct MV_INFO *buf_mv;
 
     /* intra */
     pos = ctu_x;
     buf_y = line_intra_buf_y + (pos);
     buf_u = line_intra_buf_u + (pos >> 1);
     buf_v = line_intra_buf_v + (pos >> 1);
-    buf_t = line_intra_cu_type + (pos >> 8);
+    buf_t = line_cu_type + (pos >> 8);
     buf_mv= line_mv_buf + (pos >> 8);
 
     if(pos) {
-        memcpy(intra_buf_y + 64, buf_y - 1, 1);
-        memcpy(intra_buf_u + 32, buf_u - 1, 1);
-        memcpy(intra_buf_v + 32, buf_v - 1, 1);
-        memcpy(intra_buf_cu_type + 8, buf_t - 1, 1);
+        memcpy(L_intra_buf_y + 64, buf_y - 1, 1);
+        memcpy(L_intra_buf_u + 32, buf_u - 1, 1);
+        memcpy(L_intra_buf_v + 32, buf_v - 1, 1);
+        memcpy(L_cu_type + 8, buf_t - 1, 1);
     }
 
-    memcpy(intra_buf_y + 65, buf_y, ctu_w);
-    memcpy(intra_buf_u + 33, buf_u, ctu_w >> 1);
-    memcpy(intra_buf_v + 33, buf_v, ctu_w >> 1);
-    memcpy(intra_buf_cu_type + 9, buf_t, ctu_w >> 8);
+    memcpy(L_intra_buf_y + 65, buf_y, ctu_w);
+    memcpy(L_intra_buf_u + 33, buf_u, ctu_w >> 1);
+    memcpy(L_intra_buf_v + 33, buf_v, ctu_w >> 1);
+    memcpy(L_cu_type + 9, buf_t, ctu_w >> 8);
 
-    for(i=0; i<ctu_w/8; i++)
-    {
-        inter_cbf[17 + i*2 + 0] = (intra_buf_cu_type[9 + i] >> 1) & 1;
-        inter_cbf[17 + i*2 + 1] = (intra_buf_cu_type[9 + i] >> 2) & 1;
-    }
 
 
     len = ctu_w;
@@ -213,19 +193,19 @@ void CTU_CALC::begin()
         len = pHardWare->pic_w - (pos + ctu_w);
     }
 
-    memcpy(intra_buf_y + 65 + (ctu_w),      buf_y + (ctu_w),      len);
-    memcpy(intra_buf_u + 33 + (ctu_w >> 1), buf_u + (ctu_w >> 1), len >> 1);
-    memcpy(intra_buf_v + 33 + (ctu_w >> 1), buf_v + (ctu_w >> 1), len >> 1);
-    memcpy(intra_buf_cu_type + 9 + (ctu_w >> 8), buf_t + (ctu_w >> 8), len >> 8);
+    memcpy(L_intra_buf_y + 65 + (ctu_w),      buf_y + (ctu_w),      len);
+    memcpy(L_intra_buf_u + 33 + (ctu_w >> 1), buf_u + (ctu_w >> 1), len >> 1);
+    memcpy(L_intra_buf_v + 33 + (ctu_w >> 1), buf_v + (ctu_w >> 1), len >> 1);
+    memcpy(L_cu_type + 9 + (ctu_w >> 8), buf_t + (ctu_w >> 8), len >> 8);
 
     /* inter */
     if(pos) {
-        memcpy(mv_buf + 8, buf_mv - 1, sizeof(MV));
+        memcpy(L_mv_buf + 8, buf_mv - 1, sizeof(MV));
     }
 
-    memcpy(mv_buf + 9, buf_mv, (ctu_w >> 8)*sizeof(MV));
+    memcpy(L_mv_buf + 9, buf_mv, (ctu_w >> 8)*sizeof(MV));
 
-    memcpy(mv_buf + 9 + (ctu_w >> 8), buf_mv + (ctu_w >> 8), (len >> 8)*sizeof(MV));
+    memcpy(L_mv_buf + 9 + (ctu_w >> 8), buf_mv + (ctu_w >> 8), (len >> 8)*sizeof(MV));
 
     valid_left = 1;
     valid_left_top = 1;
@@ -266,7 +246,7 @@ void CTU_CALC::end()
     uint32_t pos;
     uint8_t *buf_y, *buf_u, *buf_v, *buf_t;
     uint8_t i;
-    struct MV *buf_mv;
+    struct MV_INFO *buf_mv;
 
     /* intra */
 
@@ -274,37 +254,35 @@ void CTU_CALC::end()
     buf_y = line_intra_buf_y + (pos);
     buf_u = line_intra_buf_u + (pos >> 1);
     buf_v = line_intra_buf_v + (pos >> 1);
-    buf_t = line_intra_cu_type + (pos >> 8);
+    buf_t = line_cu_type + (pos >> 8);
 
     /* ver to hor */
     for(i=0; i<ctu_w; i++){
-        buf_y[i] = intra_buf_y[64 - ctu_w + i + 1];
+        buf_y[i] = L_intra_buf_y[64 - ctu_w + i + 1];
     }
 
     for(i=0; i<ctu_w>>1; i++){
-        buf_u[i] = intra_buf_u[32 - (ctu_w>>1) + i + 1];
-        buf_v[i] = intra_buf_v[32 - (ctu_w>>1) + i + 1];
+        buf_u[i] = L_intra_buf_u[32 - (ctu_w>>1) + i + 1];
+        buf_v[i] = L_intra_buf_v[32 - (ctu_w>>1) + i + 1];
     }
 
     for(i=0; i<ctu_w>>8; i++){
-        buf_t[i] = intra_buf_cu_type[8 - ctu_w/8 + i + 1] | (inter_cbf[16 - ctu_w/4 + i*2 + 1] << 1) | (inter_cbf[16 - ctu_w/4 + i*2 + 2] << 2);
+        buf_t[i] = L_cu_type[8 - ctu_w/8 + i + 1] | (inter_cbf[16 - ctu_w/4 + i*2 + 1] << 1) | (inter_cbf[16 - ctu_w/4 + i*2 + 2] << 2);
     }
 
     /* hor to ver */
     for(i=0; i<ctu_w; i++){
-        intra_buf_y[i] = intra_buf_y[64 + i];
+        L_intra_buf_y[i] = L_intra_buf_y[64 + i];
     }
 
     for(i=0; i<ctu_w>>1; i++){
-        intra_buf_u[i] = intra_buf_u[32 + i];
-        intra_buf_v[i] = intra_buf_v[32 + i];
+        L_intra_buf_u[i] = L_intra_buf_u[32 + i];
+        L_intra_buf_v[i] = L_intra_buf_v[32 + i];
     }
 
     for(i=0; i<ctu_w>>8; i++){
-        intra_buf_cu_type[i] = intra_buf_cu_type[8 + i];
+        L_cu_type[i] = L_cu_type[8 + i];
 
-        inter_cbf[i*2 + 0] = inter_cbf[16 + i*2 + 0];
-        inter_cbf[i*2 + 1] = inter_cbf[16 + i*2 + 1];
     }
 
 
@@ -315,12 +293,12 @@ void CTU_CALC::end()
     buf_mv = line_mv_buf + (pos>>8);
 
     for(i=0; i<(ctu_w>>8); i++){
-        buf_mv[i] = mv_buf[8 - ctu_w/8 + i];
+        buf_mv[i] = L_mv_buf[8 - ctu_w/8 + i];
     }
 
     /* hor to ver */
     for(i=0; i<(ctu_w>>8); i++){
-        mv_buf[i] = mv_buf[8 + i];
+        L_mv_buf[i] = L_mv_buf[8 + i];
     }
 }
 
@@ -335,12 +313,12 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
 
     pHardWare->ctu_calc.cu_split_flag[depth*4 + cu_level_calc[depth].ori_pos] = 0;
 
-    dst_cu = cu_temp_data[depth][cu_level_calc[depth].temp_pos];
+    dst_cu = &cu_level_calc[depth].cu_matrix_data[cu_level_calc[depth].matrix_pos];
     if((bestCU_cost > tempCU_cost) || (cu_valid_flag[depth][cu_level_calc[depth].ori_pos] == 0))
     {
         for(m=0; m<4; m++)
         {
-            src_cu = cu_temp_data[depth + 1][m];
+            src_cu = &cu_level_calc[depth+1].cu_matrix_data[m];
             memcpy(dst_cu->CoeffY + len*m,   src_cu->CoeffY, len*2);
             memcpy(dst_cu->CoeffU + len*m/4, src_cu->CoeffU, len/2);
             memcpy(dst_cu->CoeffV + len*m/4, src_cu->CoeffV, len/2);
@@ -354,6 +332,15 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
                 memcpy(dst_cu->ReconU + pos + n*cu_w, src_cu->ReconU + n*cu_w/2, cu_w/2);
                 memcpy(dst_cu->ReconV + pos + n*cu_w, src_cu->ReconV + n*cu_w/2, cu_w/2);
             }
+            pos = (m & 1)*cu_w/8 + (m >> 1)*(cu_w/4)*(cu_w/8);
+            for(n=0; n<cu_w/8; n++) {
+                memcpy(dst_cu->cuPredMode + pos + n*cu_w/4, src_cu->cuPredMode + n*cu_w/8, cu_w/8);
+                memcpy(dst_cu->mv + pos + n*cu_w/4, src_cu->mv + n*cu_w/8, sizeof(MV_INFO)*cu_w/8);
+            }
+            pos = (m & 1)*cu_w/4 + (m >> 1)*(cu_w/2)*(cu_w/4);
+            for(n=0; n<cu_w/4; n++) {
+                memcpy(dst_cu->cbfY + pos + n*cu_w/2, src_cu->cbfY + n*cu_w/4, cu_w/4);
+            }
         }
 
         pHardWare->ctu_calc.cu_split_flag[(depth>>1)*5 + (depth&1) + cu_level_calc[depth].ori_pos] = 1;
@@ -364,7 +351,6 @@ void CTU_CALC::compare()
 {
     uint32_t i, j;
     uint32_t w, h;
-    uint32_t m, n;
 
     w = ctu_w;
     h = ctu_w;
@@ -377,7 +363,7 @@ void CTU_CALC::compare()
 
     for(j=0; j<h; j++) {
         for(i=0; i<w; i++) {
-            if(cu_temp_data[0][0]->ReconY[j*ctu_w + i]!= (ori_recon_y[j*ctu_w + i])) {
+            if(cu_level_calc[0].cu_matrix_data[0].ReconY[j*ctu_w + i]!= (ori_recon_y[j*ctu_w + i])) {
                 printf("ERROR RECON Y is diff Y %d X %d\n", j, i);
                 assert(0);
             }
@@ -388,7 +374,7 @@ void CTU_CALC::compare()
     {
         for(i=0; i<w/2; i++)
         {
-            if(cu_temp_data[0][0]->ReconU[j*ctu_w/2 + i] != (ori_recon_u[j*ctu_w/2 + i])) {
+            if(cu_level_calc[0].cu_matrix_data[0].ReconU[j*ctu_w/2 + i] != (ori_recon_u[j*ctu_w/2 + i])) {
                 printf("ERROR RECON u is diff Y %d X %d\n", j, i);
                 assert(0);
             }
@@ -399,7 +385,7 @@ void CTU_CALC::compare()
     {
         for(i=0; i<w/2; i++)
         {
-            if (cu_temp_data[0][0]->ReconV[j*ctu_w/2 + i] != (ori_recon_v[j*ctu_w/2 + i])) {
+            if (cu_level_calc[0].cu_matrix_data[0].ReconV[j*ctu_w/2 + i] != (ori_recon_v[j*ctu_w/2 + i])) {
                 printf("ERROR RECON v is diff Y %d X %d\n", j, i);
                 assert(0);
             }
@@ -410,8 +396,8 @@ void CTU_CALC::proc()
 {
     unsigned int cost_0, cost_1, cost_2, cost_3;
     unsigned int cost_1_total = 0, cost_2_total = 0, cost_3_total = 0;
-    unsigned int totalBits_0 = 0, totalBits_1 = 0, totalBits_2 = 0, totalBits_3 = 0;
-    unsigned int totalDist_0 = 0, totalDist_1 = 0, totalDist_2 = 0, totalDist_3 = 0;
+    unsigned int totalBits_1 = 0, totalBits_2 = 0, totalBits_3 = 0;
+    unsigned int totalDist_1 = 0, totalDist_2 = 0, totalDist_3 = 0;
     unsigned int m, n, k;
     unsigned int cu_x_1 = 0, cu_y_1 = 0;
     unsigned int cu_x_2 = 0, cu_y_2 = 0;
@@ -431,7 +417,7 @@ void CTU_CALC::proc()
     for(m=0; m<4; m++)
     {
         cu_level_calc[1].depth = 1;
-        cu_level_calc[1].temp_pos = m;
+        cu_level_calc[1].matrix_pos = m;
         cu_x_1 = (m & 1)*(ctu_w>>1);
         cu_y_1 = (m >>1)*(ctu_w>>1);
 
@@ -447,7 +433,7 @@ void CTU_CALC::proc()
         for(n=0; n<4; n++)
         {
             cu_level_calc[2].depth = 2;
-            cu_level_calc[2].temp_pos = n;
+            cu_level_calc[2].matrix_pos = n;
             cu_x_2 = cu_x_1 + (n & 1)*(ctu_w>>2);
             cu_y_2 = cu_y_1 + (n >>1)*(ctu_w>>2);
 
@@ -466,7 +452,7 @@ void CTU_CALC::proc()
             for(k=0; k<4; k++)
             {
                 cu_level_calc[3].depth = 3;
-                cu_level_calc[3].temp_pos = k;
+                cu_level_calc[3].matrix_pos = k;
                 cu_x_3 = cu_x_2 + (k & 1)*(ctu_w>>3);
                 cu_y_3 = cu_y_2 + (k >>1)*(ctu_w>>3);
 

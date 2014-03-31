@@ -31,9 +31,9 @@
  * prevents linking against a different version of the static lib */
 #define X265_BUILD ${X265_BUILD}
 
-#define RK_INTRA_PRED
+//#define RK_INTRA_PRED
 
 //#define CONNECT_QT
 
-//#define RK_INTRA_MODE_CHOOSE
+#define RK_INTRA_MODE_CHOOSE
 #endif

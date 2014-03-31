@@ -3,12 +3,13 @@
 
 #include "../Lib/TLibCommon/CommonDef.h"
 #include "module_interface.h"
+#include "rk_define.h"
 
-//#include "hardwareC.h"
 #include "RkIntraPred.h"
 using namespace RK_HEVC;
+//#include "hardwareC.h"
 
-
+class cuData;
 class hardwareC;
 
 struct COST_DATA{
@@ -16,6 +17,15 @@ struct COST_DATA{
     uint32_t Distortion;
     uint32_t Bits;
     uint32_t predMode;
+    uint32_t partSize;
+    uint8_t  skipFlag;
+    uint8_t  mergeFlag;
+    uint8_t  interDir;
+    uint8_t  refIdx;
+    MV_INFO  mv;
+    int32_t  mvd;
+    uint8_t  mvpindex;
+    uint8_t  cbf[4][3];    //[0][0] cbf_y, [0][1] cbf_u, [0][2] cbf_v else...
 
     uint8_t *recon_y;
     uint8_t *recon_u;
@@ -32,8 +42,11 @@ class CU_LEVEL_CALC
 public:
     Rk_IntraPred*    m_rkIntraPred; 
 #endif
+
 public:
 
+    struct INTERFACE_INTRA_PROC inf_intra_proc;
+    struct INTERFACE_INTER_PROC inf_inter_proc;
     struct INTERFACE_TQ     inf_tq;
     struct INTERFACE_INTRA  inf_intra;
     struct INTERFACE_RECON  inf_recon;
@@ -57,28 +70,41 @@ public:
     uint8_t curr_cu_v[32*32];
 
     uint8_t cuPredMode; // 0:B 1:P 2:I
-    uint8_t tuSplitFlag;
-    uint8_t cbfY;
-    uint8_t cbfU;
-    uint8_t cbfV;
-    uint8_t intraDirMode;
+
     uint8_t mergeFlag;
     uint8_t mergeIndex;
-    uint32_t MVD;       //TODO
-    uint32_t MVDIndex;  //TODO
+    uint8_t MVDIndex;        //TODO
+    struct MV_INFO MV;       //TODO
+    uint8_t inter_cbfY[4];
+    uint8_t inter_cbfU;
+    uint8_t inter_cbfV;
+    uint8_t inter_tuSplitFlag;
 
+    uint8_t intra_cbfY[4];
+    uint8_t intra_cbfU;
+    uint8_t intra_cbfV;
+    uint8_t intra_tuSplitFlag;
+    uint8_t intra_dirMode[4];
+    uint8_t intra_buf_y[32*5+1];
+    uint8_t intra_buf_u[16*5+1];
+    uint8_t intra_buf_v[16*5+1];
+    uint8_t cu_type[4*5 + 1];
+    uint8_t tu_cbfY_flag[16*16];
+    struct MV_INFO mv_info[8*5+1];
     struct COST_DATA  cost_inter;
     struct COST_DATA  cost_intra;
     struct COST_DATA  cost_intra_4;
     struct COST_DATA *cost_best;
     struct COST_DATA  cost_temp;
 
+    class cuData *cu_matrix_data;   //4?buf
+    unsigned int  matrix_pos;       //4?buf??
     unsigned int depth;
     unsigned int ori_pos;
-    unsigned int temp_pos;
 
     unsigned int cu_pos;
 
+public:
 	unsigned int proc(unsigned int level, unsigned int pos_x, unsigned int pos_y);
 
     CU_LEVEL_CALC(void);

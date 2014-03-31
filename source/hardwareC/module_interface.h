@@ -2,6 +2,61 @@
 #define __MODULE_INTERFACE_H__
 
 #include "../Lib/TLibCommon/CommonDef.h"
+#include "rk_define.h"
+#include "inter.h"
+struct INTERFACE_INTRA_PROC
+{
+    /* input */
+    uint8_t *fencY;
+    uint8_t *fencU;
+    uint8_t *fencV;
+    uint8_t *reconEdgePixelY;
+    uint8_t *reconEdgePixelU;
+    uint8_t *reconEdgePixelV;
+    uint8_t *bNeighborFlags;
+    uint8_t  numIntraNeighbor;
+    uint8_t  size;
+    uint8_t  useStrongIntraSmoothing;
+
+    /* output */
+    uint32_t Distortion;
+    uint32_t Bits;
+    uint32_t totalCost;
+    uint16_t *ResiY;
+    uint16_t *ResiU;
+    uint16_t *ResiV;
+    uint8_t  *ReconY;
+    uint8_t  *ReconU;
+    uint8_t  *ReconV;
+    uint8_t   partSize;
+    uint8_t   predMode;
+};
+
+struct INTERFACE_INTER_PROC
+{
+    /* input */
+
+    /* output */
+    uint32_t Distortion;
+    uint32_t Bits;
+    uint32_t totalCost;
+    uint16_t *ResiY;
+    uint16_t *ResiU;
+    uint16_t *ResiV;
+    uint8_t  *ReconY;
+    uint8_t  *ReconU;
+    uint8_t  *ReconV;
+    uint8_t   partSize;
+    uint8_t   predMode;
+    uint8_t   skipFlag;
+    uint8_t   mergeFlag;
+    uint8_t   interDir;
+    uint8_t   refIdx;
+    MV_INFO   mv;
+    uint32_t  mvd;
+    uint8_t   mvpIndex;
+    uint8_t   **cbf;
+};
 
 struct INTERFACE_TQ
 {
@@ -34,7 +89,7 @@ struct INTERFACE_INTRA
     uint8_t     numintraNeighbor;
     uint8_t     size;
     bool	    useStrongIntraSmoothing;	//LEVEL	cu->getSlice()->getSPS()->getUseStrongIntraSmoothing()
-    uint8_t     cidx;           // didx = 0 is luma(Y), cidx = 1 is U, cidx = 2 is V   
+    uint8_t     cidx;           // didx = 0 is luma(Y), cidx = 1 is U, cidx = 2 is V
     uint8_t     lumaDirMode;    // chroma direct derivated from luma
 
     /* output */
@@ -78,12 +133,16 @@ struct INTERFACE_ME
     int16_t  *resiY;
     int16_t  *resiU;
     int16_t  *resiV;
-    uint8_t   partSize;
+	int32_t   predModes; //inter或intra的模式标识
+    uint8_t   partSize; //pu的划分模式
+	bool       skipFlag;
+	uint32_t  interDir;
+	int32_t    refPicIdx; //参考图像的标识,只有在多参考帧的时候有效
     uint8_t   mergeFlag;
     uint8_t   mergeIdx;
-    uint32_t  mvd;
+    Mv         mvd;
     uint32_t  mvdIdx;
-    uint32_t  mvp;
+    Mv         mv;
 };
 
 struct INTERFACE_CABAC
