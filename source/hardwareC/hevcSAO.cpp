@@ -32,21 +32,29 @@
  */
 
 /**
- \file     TEncSampleAdaptiveOffset.cpp
+ \file     hevcSAO.cpp
  \brief       estimation part of sample adaptive offset class
  */
-#include "TEncSampleAdaptiveOffset.h"
+#include "hevcSAO.h"
 #include <string.h>
 #include <cstdlib>
 #include <stdio.h>
 #include <math.h>
+#include "rk_define.h"
 
 using namespace x265;
 
 //! \ingroup TLibEncoder
 //! \{
+#define  HWC_SAO_RDO_MODULE 1
+#define  SAO_TEMP 1
 
-TEncSampleAdaptiveOffset::TEncSampleAdaptiveOffset()
+
+#define  HWC_SAO_RDO_CTU_ROW_LEVEL 0
+#define  HWC_SAO_RDO_CTU_LEVEL 0
+#define  HWC_SAO_RDO_GLOBAL_PAPRAM 0
+
+hevcSAO::hevcSAO()
     : m_entropyCoder(NULL)
     , m_rdSbacCoders(NULL)
     , m_rdGoOnSbacCoder(NULL)
@@ -79,20 +87,34 @@ TEncSampleAdaptiveOffset::TEncSampleAdaptiveOffset()
     m_saoBitIncreaseC = X265_MAX(X265_DEPTH - 10, 0);
     m_offsetThY = 1 << X265_MIN(X265_DEPTH - 5, 5);
     m_offsetThC = 1 << X265_MIN(X265_DEPTH - 5, 5);
-#if SAO_RUN_IN_X265
-	m_hevcSAO = new hevcSAO;
+
+	creatHWC();
+#if SAO_LOG_IN_X265
+	m_fpSaoLogX265 = fopen(PATH_NAME("SAO_LOG_X265.txt"), "w+");
+	if (m_fpSaoLogX265 == NULL)
+		printf("open sao_log_x265 file failed!\n");
+#endif
+
+#if SAO_LOG_IN_HWC
+	m_fpSaoLogHWC = fopen(PATH_NAME("SAO_LOG_HWC.txt"), "w+");
+	if (m_fpSaoLogHWC == NULL)
+		printf("open SAO_LOG_HWC file failed!\n");
 #endif
 }
 
-TEncSampleAdaptiveOffset::~TEncSampleAdaptiveOffset()
+hevcSAO::~hevcSAO()
 {
-#if SAO_RUN_IN_X265
-	delete m_hevcSAO;
+	destoryHWC();
+#if SAO_LOG_IN_X265
+	fclose(m_fpSaoLogX265); m_fpSaoLogX265 = NULL;
+#endif
+#if SAO_LOG_IN_HWC
+	fclose(m_fpSaoLogHWC);  m_fpSaoLogHWC = NULL;
 #endif
 }
 
 // ====================================================================================================================
-// Static
+// Static or Global values
 // ====================================================================================================================
 
 // ====================================================================================================================
@@ -126,7 +148,7 @@ inline double xRoundIbdi(double x)
 /** process SAO for one partition
  * \param  *psQTPart, partIdx, lambda
  */
-void TEncSampleAdaptiveOffset::rdoSaoOnePart(SAOQTPart *psQTPart, int partIdx, double lambda, int yCbCr)
+void hevcSAO::rdoSaoOnePart(SAOQTPart *psQTPart, int partIdx, double lambda, int yCbCr)
 {
     int typeIdx;
     int numTotalType = MAX_NUM_SAO_TYPE;
@@ -309,7 +331,7 @@ void TEncSampleAdaptiveOffset::rdoSaoOnePart(SAOQTPart *psQTPart, int partIdx, d
 
 /** Run partition tree disable
  */
-void TEncSampleAdaptiveOffset::disablePartTree(SAOQTPart *psQTPart, int partIdx)
+void hevcSAO::disablePartTree(SAOQTPart *psQTPart, int partIdx)
 {
     SAOQTPart* pOnePart = &(psQTPart[partIdx]);
 
@@ -329,7 +351,7 @@ void TEncSampleAdaptiveOffset::disablePartTree(SAOQTPart *psQTPart, int partIdx)
 /** Run quadtree decision function
  * \param  partIdx, pcPicOrg, pcPicDec, pcPicRest, &costFinal
  */
-void TEncSampleAdaptiveOffset::runQuadTreeDecision(SAOQTPart *qtPart, int partIdx, double &costFinal, int maxLevel, double lambda, int yCbCr)
+void hevcSAO::runQuadTreeDecision(SAOQTPart *qtPart, int partIdx, double &costFinal, int maxLevel, double lambda, int yCbCr)
 {
     SAOQTPart* onePart = &(qtPart[partIdx]);
 
@@ -393,9 +415,9 @@ void TEncSampleAdaptiveOffset::runQuadTreeDecision(SAOQTPart *qtPart, int partId
     }
 }
 
-/** delete allocated memory of TEncSampleAdaptiveOffset class.
+/** delete allocated memory of hevcSAO class.
  */
-void TEncSampleAdaptiveOffset::destroyEncBuffer()
+void hevcSAO::destroyEncBuffer()
 {
     for (int i = 0; i < m_numTotalParts; i++)
     {
@@ -462,7 +484,7 @@ void TEncSampleAdaptiveOffset::destroyEncBuffer()
 /** create Encoder Buffer for SAO
  * \param
  */
-void TEncSampleAdaptiveOffset::createEncBuffer()
+void hevcSAO::createEncBuffer()
 {
     m_distOrg = new int64_t[m_numTotalParts];
     m_costPartBest = new double[m_numTotalParts];
@@ -523,7 +545,7 @@ void TEncSampleAdaptiveOffset::createEncBuffer()
 /** Start SAO encoder
  * \param pic, entropyCoder, rdSbacCoder, rdGoOnSbacCoder
  */
-void TEncSampleAdaptiveOffset::startSaoEnc(TComPic* pic, TEncEntropy* entropyCoder, TEncSbac* rdGoOnSbacCoder)
+void hevcSAO::startSaoEnc(TComPic* pic, TEncEntropy* entropyCoder, TEncSbac* rdGoOnSbacCoder)
 {
     m_pic = pic;
     m_entropyCoder = entropyCoder;
@@ -535,30 +557,14 @@ void TEncSampleAdaptiveOffset::startSaoEnc(TComPic* pic, TEncEntropy* entropyCod
 
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_NEXT_BEST]);
     m_rdSbacCoders[0][CI_CURR_BEST]->load(m_rdSbacCoders[0][CI_NEXT_BEST]);
-#if SAO_RUN_IN_X265
-	m_hevcSAO->m_pic = pic;
-	m_hevcSAO->m_entropyCoder = entropyCoder;
-
-	m_hevcSAO->m_rdGoOnSbacCoder = rdGoOnSbacCoder;
-	m_hevcSAO->m_entropyCoder->setEntropyCoder(m_rdGoOnSbacCoder, pic->getSlice());
-	m_hevcSAO->m_entropyCoder->resetEntropy();
-	m_hevcSAO->m_entropyCoder->resetBits();
-
-	m_hevcSAO->m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_NEXT_BEST]);
-	m_hevcSAO->m_rdSbacCoders[0][CI_CURR_BEST]->load(m_rdSbacCoders[0][CI_NEXT_BEST]);
-#endif
 }
 
 /** End SAO encoder
  */
-void TEncSampleAdaptiveOffset::endSaoEnc()
+void hevcSAO::endSaoEnc()
 {
     m_pic = NULL;
     m_entropyCoder = NULL;
-#if SAO_RUN_IN_X265
-	m_hevcSAO->m_pic = NULL;
-	m_hevcSAO->m_entropyCoder = NULL;
-#endif
 }
 
 inline int xSign(int x)
@@ -576,7 +582,712 @@ inline int xSign(int x)
  * \param  height block height
  * \param  bBorderAvail availabilities of block border pixels
  */
-void TEncSampleAdaptiveOffset::calcSaoStatsBlock(Pel* recStart, Pel* orgStart, int stride, int64_t** stats, int64_t** counts, uint32_t width, uint32_t height, bool* bBorderAvail, int yCbCr)
+
+/************************************************************************/
+/*                       X265 DEBUG START                               */
+/************************************************************************/
+
+void hevcSAO::creatHWC()
+{
+	m_infoFromX265 = new InfoFromX265;
+	m_infoForSAO = new InfoForSAO;
+	m_saoRdoParam = new SaoRdoParam;
+	
+	m_saoParam = new SaoParam;
+	m_saoParam->saoLcuParam[0] = new SaoLcuParam[MAX_NUM_HOR_CTU*MAX_NUM_VER_CTU];
+	m_saoParam->saoLcuParam[1] = new SaoLcuParam[MAX_NUM_HOR_CTU*MAX_NUM_VER_CTU];
+	m_saoParam->saoLcuParam[2] = new SaoLcuParam[MAX_NUM_HOR_CTU*MAX_NUM_VER_CTU];
+
+		
+
+	//just for debug
+	m_saoParam->saoPart[0] = new SAOQTPart[341];
+	m_saoParam->saoPart[1] = new SAOQTPart[341];
+	m_saoParam->saoPart[2] = new SAOQTPart[341];
+}
+
+void hevcSAO::destoryHWC()
+{
+	delete m_infoForSAO;						m_infoForSAO = NULL;
+	delete m_infoFromX265;						m_infoFromX265 = NULL;
+	delete m_saoRdoParam;						m_saoRdoParam = NULL;
+
+	delete[] m_saoParam->saoLcuParam[0];		m_saoParam->saoLcuParam[0] = NULL;
+	delete[] m_saoParam->saoLcuParam[1];		m_saoParam->saoLcuParam[1] = NULL;
+	delete[] m_saoParam->saoLcuParam[2];		m_saoParam->saoLcuParam[2] = NULL;
+	
+	//just for debug
+	delete[] m_saoParam->saoPart[0]; 			m_saoParam->saoPart[0] = NULL;
+	delete[] m_saoParam->saoPart[1]; 			m_saoParam->saoPart[1] = NULL;
+	delete[] m_saoParam->saoPart[2];			m_saoParam->saoPart[2] = NULL;
+
+	delete[] m_saoParam;						m_saoParam = NULL;
+}
+
+void hevcSAO::getSaoParamFromX265(SAOParam* saoParam)
+{
+	m_saoParam->bSaoFlag[0] = saoParam->bSaoFlag[0];
+	m_saoParam->bSaoFlag[1] = saoParam->bSaoFlag[1];
+	m_saoParam->maxSplitLevel = saoParam->maxSplitLevel;
+	m_saoParam->oneUnitFlag[0] = saoParam->oneUnitFlag[0];
+	m_saoParam->oneUnitFlag[1] = saoParam->oneUnitFlag[1];
+	m_saoParam->oneUnitFlag[2] = saoParam->oneUnitFlag[2];
+	m_saoParam->numCuInWidth = saoParam->numCuInWidth;
+	m_saoParam->numCuInHeight = saoParam->numCuInHeight;
+
+
+	for (int k = 0; k < saoParam->numCuInWidth*saoParam->numCuInHeight; k++)
+	{
+		copySaoUnit(&m_saoParam->saoLcuParam[0][k], &saoParam->saoLcuParam[0][k]);
+		copySaoUnit(&m_saoParam->saoLcuParam[1][k], &saoParam->saoLcuParam[1][k]);
+		copySaoUnit(&m_saoParam->saoLcuParam[2][k], &saoParam->saoLcuParam[2][k]);
+	}
+
+	//just for debug
+	m_saoParam->maxSplitLevel = saoParam->maxSplitLevel;
+	for (int k = 0; k < m_numCulPartsLevel[saoParam->maxSplitLevel];k++)
+	{
+		m_saoParam->saoPart[0][k] = saoParam->saoPart[0][k];
+		m_saoParam->saoPart[1][k] = saoParam->saoPart[1][k];
+		m_saoParam->saoPart[2][k] = saoParam->saoPart[2][k];
+	}
+	m_saoParam->oneUnitFlag[0] = saoParam->oneUnitFlag[0];
+	m_saoParam->oneUnitFlag[1] = saoParam->oneUnitFlag[1];
+	m_saoParam->oneUnitFlag[2] = saoParam->oneUnitFlag[2];
+}
+
+void hevcSAO::setSaoParamToX265(SAOParam * saoParam, int addr)
+{
+#if 0
+	saoParam->bSaoFlag[0] = m_saoParam->bSaoFlag[0];
+	saoParam->bSaoFlag[1] = m_saoParam->bSaoFlag[1];
+	saoParam->maxSplitLevel = m_saoParam->maxSplitLevel;
+	saoParam->oneUnitFlag[0] = m_saoParam->oneUnitFlag[0];
+	saoParam->oneUnitFlag[1] = m_saoParam->oneUnitFlag[1];
+	saoParam->oneUnitFlag[2] = m_saoParam->oneUnitFlag[2];
+	saoParam->numCuInWidth = m_saoParam->numCuInWidth;
+	saoParam->numCuInHeight = m_saoParam->numCuInHeight;
+#endif
+	SaoCtuParam* saoCtuParam = m_infoForSAO->saoCtuParam;
+	for(int k=0;k<3;k++)
+	{
+		SaoLcuParam* saoLcuParam = &saoParam->saoLcuParam[k][addr];
+		saoLcuParam->mergeLeftFlag = saoCtuParam[k].mergeLeftFlag;
+		saoLcuParam->mergeUpFlag = saoCtuParam[k].mergeUpFlag;
+		saoLcuParam->typeIdx = saoCtuParam[k].typeIdx;
+	    saoLcuParam->length        = 4;
+
+		if (0 <= saoCtuParam[k].typeIdx <= 3) // EO
+		{
+			saoLcuParam->subTypeIdx = saoCtuParam[k].bandIdx;
+		}
+		else // BO, noSAO
+		{
+			saoLcuParam->subTypeIdx = 0;
+		}
+		
+	    for (int i = 0; i < 4; i++)
+	    {
+			saoLcuParam->offset[i] = saoCtuParam[k].offset[i];
+	    }
+	}
+
+#if 0
+	copySaoUnit(&saoParam->saoLcuParam[0][addr], &m_saoCtuParam[0]);
+	copySaoUnit(&saoParam->saoLcuParam[1][addr], &m_saoCtuParam[1]);
+	copySaoUnit(&saoParam->saoLcuParam[2][addr], &m_saoCtuParam[2]);
+#endif
+#if 0
+	//just for debug
+	saoParam->maxSplitLevel = m_saoParam->maxSplitLevel;
+	for (int k = 0; k < m_numCulPartsLevel[saoParam->maxSplitLevel];k++)
+	{
+		saoParam->saoPart[0][k] = m_saoParam->saoPart[0][k];
+		saoParam->saoPart[1][k] = m_saoParam->saoPart[1][k];
+		saoParam->saoPart[2][k] = m_saoParam->saoPart[2][k];
+	}
+	saoParam->oneUnitFlag[0] = m_saoParam->oneUnitFlag[0];
+	saoParam->oneUnitFlag[1] = m_saoParam->oneUnitFlag[1];
+	saoParam->oneUnitFlag[2] = m_saoParam->oneUnitFlag[2];
+#endif	
+}
+void hevcSAO::getInfoFromX265_0(int colIdx, int rowIdx, double lumaLambda, double chromaLambda, int ctuWidth,
+	uint32_t lPelx, uint32_t tPely, int picWidth, int picHeight, uint8_t* inRecPixelY, uint8_t* orgPixelY, int lumaStride,
+	uint8_t* inRecPixelU, uint8_t* orgPixelU, uint8_t* inRecPixelV, uint8_t* orgPixelV, int chromaStride,
+	uint8_t* inRecPixelLeftY, uint8_t* inRecPixelLeftU, uint8_t* inRecPixelLeftV, uint8_t* inRecPixelUpY, uint8_t* inRecPixelUpU, uint8_t* inRecPixelUpV,
+	double compDist[3], SaoLcuParam* saoLcuParamY, SaoLcuParam* saoLcuParamU, SaoLcuParam* saoLcuParamV)
+{
+	uint8_t k;
+	// ===============  get input from X265 ==================
+	m_infoFromX265->ctuPosY = (uint8_t)rowIdx;
+	m_infoFromX265->ctuPosX = (uint8_t)colIdx;
+	m_infoFromX265->lumaLambda = lumaLambda;
+	m_infoFromX265->chromaLambda = chromaLambda;
+	m_infoFromX265->size = (uint8_t)ctuWidth;
+	uint8_t size = m_infoFromX265->size;
+
+	SaoCtuParam* saoCtuParam = m_infoFromX265->saoCtuParam[colIdx];
+	
+	uint8_t validWidth = size;
+	uint8_t validHeight = size;
+	uint32_t rPelx = lPelx + validWidth;
+	uint32_t bPely = tPely + validHeight;
+	rPelx = rPelx > picWidth ? picWidth : rPelx;
+	bPely = bPely > picHeight ? picHeight : bPely;
+	validWidth = rPelx - lPelx;
+	validHeight = bPely - tPely;
+	m_infoFromX265->validWidth = validWidth;
+	m_infoFromX265->validHeight = validHeight;
+	m_infoFromX265->bLastCol = (rPelx == picWidth);
+	m_infoFromX265->bLastRow = (bPely == picHeight);
+
+
+	// Y component
+	for (k = 0; k < size; k++)
+	{
+		memcpy(&m_infoFromX265->inRecPixelY[k*size], &inRecPixelY[k*lumaStride], size*sizeof(uint8_t));
+		memcpy(&m_infoFromX265->orgPixelY[k*size], &orgPixelY[k*lumaStride], size*sizeof(uint8_t));
+		
+		// last col in left CTU 
+		if (m_infoFromX265->ctuPosX>0)
+		{
+			m_infoFromX265->inRecPixelLeftY[k] = inRecPixelLeftY[size-1+k*lumaStride];
+		}	
+	}
+	// U, V components
+	for (k = 0; k < (size / 2); k++)
+	{
+		memcpy(&m_infoFromX265->inRecPixelU[k*size / 2], &inRecPixelU[k*chromaStride], size / 2 * sizeof(uint8_t));
+		memcpy(&m_infoFromX265->orgPixelU[k*size / 2], &orgPixelU[k*chromaStride], size / 2 * sizeof(uint8_t));
+		memcpy(&m_infoFromX265->inRecPixelV[k*size / 2], &inRecPixelV[k*chromaStride], size / 2 * sizeof(uint8_t));
+		memcpy(&m_infoFromX265->orgPixelV[k*size / 2], &orgPixelV[k*chromaStride], size / 2 * sizeof(uint8_t));
+
+		// last col in left CTU 
+		if (m_infoFromX265->ctuPosX>0)
+		{
+			m_infoFromX265->inRecPixelLeftU[k] = inRecPixelLeftU[size/2 - 1 + k*chromaStride];
+			m_infoFromX265->inRecPixelLeftV[k] = inRecPixelLeftV[size/2 - 1 + k*chromaStride];
+		}
+	}
+
+	
+	if (m_infoFromX265->ctuPosY>0)
+	{
+		// last row in Up CTU
+		memcpy(&m_infoFromX265->inRecPixelUpY[0], inRecPixelUpY + (size - 1)*lumaStride, size*sizeof(uint8_t));
+		memcpy(&m_infoFromX265->inRecPixelUpU[0], inRecPixelUpU + (size / 2 - 1)*chromaStride, size / 2 * sizeof(uint8_t));
+		memcpy(&m_infoFromX265->inRecPixelUpV[0], inRecPixelUpV + (size / 2 - 1)*chromaStride, size / 2 * sizeof(uint8_t));
+	
+
+		// extra needed pixels (right_top)
+		if (!m_infoFromX265->bLastCol)
+		{
+			m_infoFromX265->inRecPixelExtraY[1] = inRecPixelY[-lumaStride + size];
+			m_infoFromX265->inRecPixelExtraU[1] = inRecPixelU[-chromaStride + size / 2];
+			m_infoFromX265->inRecPixelExtraV[1] = inRecPixelV[-chromaStride + size / 2];
+		}
+
+		// extra needed pixels (left_top)
+		if (m_infoFromX265->ctuPosX>0)
+		{
+			m_infoFromX265->inRecPixelExtraY[0] = inRecPixelY[-lumaStride-1];
+			m_infoFromX265->inRecPixelExtraU[0] = inRecPixelU[-chromaStride-1];
+			m_infoFromX265->inRecPixelExtraV[0] = inRecPixelV[-chromaStride-1];
+		}
+
+	}
+
+	// ===============  get debugInfo from X265 ==================
+	
+	m_infoFromX265->compDist[colIdx][0] = compDist[0]; //notMerge
+	m_infoFromX265->compDist[colIdx][1] = compDist[1]; //mergeLeft
+	m_infoFromX265->compDist[colIdx][2] = compDist[2]; //mergeUp
+
+	// Y component
+	saoCtuParam[0].typeIdx = saoLcuParamY->typeIdx;
+	saoCtuParam[0].bandIdx = saoLcuParamY->subTypeIdx;
+	saoCtuParam[0].mergeLeftFlag= saoLcuParamY->mergeLeftFlag;
+	saoCtuParam[0].mergeUpFlag = saoLcuParamY->mergeUpFlag;
+	for (int k = 0; k < 4;k++)
+	{
+		saoCtuParam[0].offset[k] = saoLcuParamY->offset[k];
+	}
+
+	// U component
+	saoCtuParam[1].typeIdx = saoLcuParamU->typeIdx;
+	saoCtuParam[1].bandIdx = saoLcuParamU->subTypeIdx;
+	saoCtuParam[1].mergeLeftFlag = saoLcuParamU->mergeLeftFlag;
+	saoCtuParam[1].mergeUpFlag = saoLcuParamU->mergeUpFlag;
+
+	for (int k = 0; k < 4; k++)
+	{
+		saoCtuParam[1].offset[k] = saoLcuParamU->offset[k];
+	}
+
+	// V component
+	saoCtuParam[2].typeIdx = saoLcuParamV->typeIdx;
+	saoCtuParam[2].bandIdx = saoLcuParamV->subTypeIdx;
+	saoCtuParam[2].mergeLeftFlag = saoLcuParamV->mergeLeftFlag;
+	saoCtuParam[2].mergeUpFlag = saoLcuParamV->mergeUpFlag;
+
+	for (int k = 0; k < 4; k++)
+	{
+		saoCtuParam[2].offset[k] = saoLcuParamV->offset[k];
+	}
+
+}
+
+void hevcSAO::getFromX265()
+{
+	m_infoForSAO->ctuPosY = m_infoFromX265->ctuPosY;
+	m_infoForSAO->ctuPosX = m_infoFromX265->ctuPosX;
+	m_infoForSAO->lumaLambda = m_infoFromX265->lumaLambda;
+	m_infoForSAO->chromaLambda = m_infoFromX265->chromaLambda;
+	m_infoForSAO->size = m_infoFromX265->size;
+	m_infoForSAO->validWidth = m_infoFromX265->validWidth;
+	m_infoForSAO->validHeight = m_infoFromX265->validHeight;
+	m_infoForSAO->bLastCol = m_infoFromX265->bLastCol;
+	m_infoForSAO->bLastRow = m_infoFromX265->bLastRow;
+
+	memcpy(&m_infoForSAO->inRecPixelY[0], &m_infoFromX265->inRecPixelY[0], m_infoForSAO->size*m_infoForSAO->size*sizeof(uint8_t));
+	memcpy(&m_infoForSAO->inRecPixelU[0], &m_infoFromX265->inRecPixelU[0], m_infoForSAO->size*m_infoForSAO->size/4*sizeof(uint8_t));
+	memcpy(&m_infoForSAO->inRecPixelV[0], &m_infoFromX265->inRecPixelV[0], m_infoForSAO->size*m_infoForSAO->size/4*sizeof(uint8_t));
+	
+	memcpy(&m_infoForSAO->orgPixelY[0], &m_infoFromX265->orgPixelY[0], m_infoForSAO->size*m_infoForSAO->size*sizeof(uint8_t));
+	memcpy(&m_infoForSAO->orgPixelU[0], &m_infoFromX265->orgPixelU[0], m_infoForSAO->size*m_infoForSAO->size/4*sizeof(uint8_t));
+	memcpy(&m_infoForSAO->orgPixelV[0], &m_infoFromX265->orgPixelV[0], m_infoForSAO->size*m_infoForSAO->size/4*sizeof(uint8_t));
+
+}
+
+/////////////////////////////////////////////////////////////
+
+
+
+////////////////////////// Global Param operations ///////////////////////////
+void hevcSAO::setRdoParam(int colIdx, int addr)
+{
+	uint8_t size = m_infoForSAO->size;
+	uint8_t* inRecPixelY = m_infoForSAO->inRecPixelY;
+	uint8_t* inRecPixelU = m_infoForSAO->inRecPixelU;
+	uint8_t* inRecPixelV = m_infoForSAO->inRecPixelV;
+	SaoCtuParam* saoCtuParam = m_infoForSAO->saoCtuParam;
+
+	for (int j = 0; j < 3; j++) // components idx(Y, Cb, Cr)
+	{
+		for (int k = 0; k < 4; k++) // offset idx
+		{
+			m_saoRdoParam->frameLineParam[j][colIdx].offset[k] = saoCtuParam[j].offset[k];
+			m_saoRdoParam->ctuParam[j].offset[k] = saoCtuParam[j].offset[k];
+		}
+		m_saoRdoParam->frameLineParam[j][colIdx].bandIdx = saoCtuParam[j].bandIdx;
+		m_saoRdoParam->frameLineParam[j][colIdx].typeIdx = saoCtuParam[j].typeIdx;
+		m_saoRdoParam->ctuParam[j].bandIdx = saoCtuParam[j].bandIdx;
+		m_saoRdoParam->ctuParam[j].typeIdx = saoCtuParam[j].typeIdx;
+	}
+
+	//update frameLine buffer (store last Row of current CTU)
+	//NOTE: temply doned after deblocking
+
+	//update left CTU line buffer (store last Column of current CTU)
+	for (uint8_t k = 0; k < size;k++)
+	{
+		m_saoRdoParam->leftCtuLineBuffer[0][k] = inRecPixelY[k*size+  (size   - 1)]; //Y
+		m_saoRdoParam->leftCtuLineBuffer[1][k] = inRecPixelU[k*size/2+(size/2 - 1)]; //Cb
+		m_saoRdoParam->leftCtuLineBuffer[2][k] = inRecPixelV[k*size/2+(size/2 - 1)]; //Cr
+	}
+}
+
+
+/* input: inRecAfterDblk --- input rec pixel after deblocking, pointer to current CTU Row start addr
+*		  	
+*        
+*/
+void hevcSAO::setRdoParam(uint8_t* inRecAfterDblkY, uint8_t* inRecAfterDblkU, uint8_t*  inRecAfterDblkV)
+{
+	memcpy(m_saoRdoParam->frameLineBuffer[0], inRecAfterDblkY, m_picWidth*sizeof(uint8_t));
+	memcpy(m_saoRdoParam->frameLineBuffer[1], inRecAfterDblkU, m_picWidth*sizeof(uint8_t));
+	memcpy(m_saoRdoParam->frameLineBuffer[2], inRecAfterDblkV, m_picWidth*sizeof(uint8_t));
+}
+void hevcSAO::resetRdoParam(int colIdx)
+{
+
+}
+
+void hevcSAO::resetSaoCtuParam(SaoCtuParam* saoCtuParam)
+{
+	saoCtuParam->typeIdx = -1; // default: noSAO
+	saoCtuParam->bandIdx = 0;
+	saoCtuParam->mergeLeftFlag = 0;
+	saoCtuParam->mergeUpFlag = 0;
+	for (int k = 0; k < 4; k++)
+	{
+		saoCtuParam->offset[k] = 0;
+	}
+}
+
+void hevcSAO::copySaoCtuParam(SaoCtuParam* dst, SaoCtuParam* src)
+{
+	dst->typeIdx = src->typeIdx;
+	dst->bandIdx = src->bandIdx;
+	dst->mergeLeftFlag = src->mergeLeftFlag;
+	dst->mergeUpFlag = src->mergeUpFlag;
+	for(int k=0; k<4; k++)
+	{
+		dst->offset[k] = src->offset[k];
+	}
+}
+
+void hevcSAO::copySaoCtuParam(SaoCtuParam* dst, SaoGlobalCtuParam* src)
+{
+	dst->typeIdx = src->typeIdx;
+	dst->bandIdx = src->bandIdx;
+	for(int k=0; k<4; k++)
+	{
+		dst->offset[k] = src->offset[k];
+	}
+}
+
+#if 0
+void hevcSAO::initGlobalParam()
+{
+	g_saoGlobalParam = new SaoGlobalParam;
+	g_saoGlobalParam->cnt = -1; //check failure
+}
+
+void hevcSAO::resetGlobalParam()
+{
+	delete g_saoGlobalParam;
+	g_saoGlobalParam = NULL;
+}
+
+void hevcSAO::setGlobalParam(int colIdx, int addr)
+{
+	// update count
+	if (colIdx == 0)
+	{
+		g_saoGlobalParam->cnt = 0;
+	}
+	else
+	{
+		g_saoGlobalParam->cnt++;
+	}
+
+	int cnt = g_saoGlobalParam->cnt;
+	
+	// update Up and Left CTU param
+	for (int j = 0; j < 3;j++)
+	{
+		for (int k = 0; k < 4; k++)
+		{
+			g_saoGlobalParam->frameLineParam[j][cnt].offset[k] = m_saoParam->saoLcuParam[j][addr].offset[k];
+			g_saoGlobalParam->ctuParam[j].offset[k] = m_saoParam->saoLcuParam[j][addr].offset[k];
+		}
+		g_saoGlobalParam->frameLineParam[j][cnt].bandIdx = m_saoParam->saoLcuParam[j][addr].subTypeIdx;
+		g_saoGlobalParam->ctuParam[j].bandIdx = m_saoParam->saoLcuParam[j][addr].subTypeIdx;
+#if SAO_DBG
+// 		assert(g_saoGlobalParam->frameLineParam[j][cnt].bandIdx != (-842150451));
+// 		assert(g_saoGlobalParam->ctuParam[j].bandIdx != (-842150451));
+#endif
+	}	
+}
+#endif
+// void hevcSAO::getGlobalParam(SaoLcuParam* saoLcuParamLeft, SaoLcuParam* saoLcuParamUp)
+// {
+// 	int cnt = g_saoGlobalParam->cnt;
+// 
+// 	// get Up and Left param
+// 	for (int k = 0; k < 4; k++)
+// 	{
+// 		saoLcuParamLeft->offset[k] = g_saoGlobalParam->frameLineParam[cnt].offset[k];
+// 		saoLcuParamUp->offset[k] = g_saoGlobalParam->ctuParam.offset[k];
+// 	}
+// 
+// }
+
+//////////////////////////// main process functions ///////////////////////////////
+void hevcSAO::RDO(SaoParam* saoParam, int addr)
+{
+	uint8_t ctuPosX = m_infoForSAO->ctuPosX; // colIdx
+	uint8_t ctuPosY = m_infoForSAO->ctuPosY; // rowIdx
+	//double lumaLambda = m_infoForSAO->lumaLambda;
+	//double lumaLambda = m_infoForSAO->chromaLambda;
+	SaoCtuParam* saoCtuParam = &m_infoForSAO->saoCtuParam[0];
+
+	int j, k;
+	int compIdx = 0;
+	double compDistortion[3];
+
+	SaoCtuParam mergeCtuParam[3][2];
+
+	uint32_t rate;
+	double bestCost, mergeCost;
+#if HWC_SAO_RDO_MODULE
+	bool allowMergeLeft = (ctuPosX != 0);
+	bool allowMergeUp = (ctuPosY != 0);
+#endif
+
+	// init
+	compDistortion[0] = 0;
+	compDistortion[1] = 0;
+	compDistortion[2] = 0;
+	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_CURR_BEST]);
+	if (allowMergeLeft)
+	{
+		m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
+	}
+	if (allowMergeUp)
+	{
+		m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
+	}
+	m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
+	// reset stats Y, Cb, Cr
+	for (compIdx = 0; compIdx < 3; compIdx++)
+	{
+		for (j = 0; j < MAX_NUM_SAO_TYPE; j++)
+		{
+			for (k = 0; k < MAX_NUM_SAO_CLASS; k++)
+			{
+				m_offset[compIdx][j][k] = 0;
+				if (m_saoLcuBasedOptimization && m_saoLcuBoundary)
+				{
+					m_count[compIdx][j][k] = m_countPreDblk[addr][compIdx][j][k];
+					m_offsetOrg[compIdx][j][k] = m_offsetOrgPreDblk[addr][compIdx][j][k];
+				}
+				else
+				{
+					m_count[compIdx][j][k] = 0;
+					m_offsetOrg[compIdx][j][k] = 0;
+				}
+			}
+		}
+
+		calcCtuSaoStats(compIdx);
+
+	}
+
+	resetSaoCtuParam(&saoCtuParam[0]); // Y
+	resetSaoCtuParam(&saoCtuParam[1]); // U
+	resetSaoCtuParam(&saoCtuParam[2]); // V
+
+	calcLumaDist(allowMergeLeft, allowMergeUp, m_infoForSAO->lumaLambda, &mergeCtuParam[0][0], &compDistortion[0]);
+	calcChromaDist(allowMergeLeft, allowMergeUp, m_infoForSAO->chromaLambda, &mergeCtuParam[1][0], &mergeCtuParam[2][0], &compDistortion[0]);
+
+	m_infoForSAO->compDist[0] = compDistortion[0];
+	m_infoForSAO->compDist[1] = compDistortion[1];
+	m_infoForSAO->compDist[2] = compDistortion[2];
+
+	// Cost of new SAO_params
+	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_CURR_BEST]);
+	m_rdGoOnSbacCoder->resetBits();
+	if (allowMergeLeft)
+	{
+		m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
+	}
+	if (allowMergeUp)
+	{
+		m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
+	}
+	for (compIdx = 0; compIdx < 3; compIdx++)
+	{
+		m_entropyCoder->encodeSaoOffset(&saoCtuParam[compIdx], compIdx);
+	}
+
+	rate = m_entropyCoder->getNumberOfWrittenBits();
+#if SAO_DBG
+	assert(rate == m_infoFromX265->rate[m_infoFromX265->ctuPosX]);
+#endif
+	bestCost = compDistortion[0] + (double)rate;
+	m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
+#if HWC_SAO_RDO_MODULE
+	//getInfoFromHWC_1(bestCost);
+	m_infoForSAO->notMergeBestCost = bestCost;
+#if SAO_DBG
+	assert(bestCost == m_infoFromX265->notMergeBestCost[m_infoFromX265->ctuPosX]);
+	assert(m_infoForSAO->notMergeBestCost == m_infoFromX265->notMergeBestCost[m_infoFromX265->ctuPosX]);
+#endif
+#endif
+	// Cost of Merge
+	for (int mergeUp = 0; mergeUp < 2; ++mergeUp)
+	{
+		if ((allowMergeLeft && (mergeUp == 0)) || (allowMergeUp && (mergeUp == 1)))
+		{
+			m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_CURR_BEST]);
+			m_rdGoOnSbacCoder->resetBits();
+			if (allowMergeLeft)
+			{
+				m_entropyCoder->m_entropyCoderIf->codeSaoMerge(1 - mergeUp);
+			}
+			if (allowMergeUp && (mergeUp == 1))
+			{
+				m_entropyCoder->m_entropyCoderIf->codeSaoMerge(1);
+			}
+
+			rate = m_entropyCoder->getNumberOfWrittenBits();
+			mergeCost = compDistortion[mergeUp + 1] + (double)rate;
+#if HWC_SAO_RDO_MODULE
+			//getInfoFromHWC_1(mergeCost, mergeUp);
+			if (mergeUp == 0) //mergeLeft
+			{
+				m_infoForSAO->mergeLeftCost = mergeCost;
+			}
+			else //mergeUp
+			{
+				m_infoForSAO->mergeUpCost = mergeCost;
+			}
+#endif
+			if (mergeCost < bestCost)
+			{
+				bestCost = mergeCost;
+				m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
+				for (compIdx = 0; compIdx < 3; compIdx++)
+				{
+					mergeCtuParam[compIdx][mergeUp].mergeLeftFlag = 1 - mergeUp;
+					mergeCtuParam[compIdx][mergeUp].mergeUpFlag = mergeUp;
+
+					copySaoCtuParam(&saoCtuParam[compIdx], &mergeCtuParam[compIdx][mergeUp]);
+
+				}
+			}
+		}
+	}
+
+	if (saoCtuParam[0].typeIdx == -1)
+	{
+		numNoSao[0]++;
+	}
+	if (saoCtuParam[1].typeIdx == -1)
+	{
+		numNoSao[1] += 2;
+	}
+	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
+	m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_CURR_BEST]);
+
+#if HWC_SAO_RDO_MODULE
+	//getInfoFromHWC_1(lumaLambda, chromaLambda, &compDistortion[0],
+	//	&saoParam->saoLcuParam[0][addr], &saoParam->saoLcuParam[1][addr], &saoParam->saoLcuParam[2][addr]);
+#if SAO_DBG	
+	assert(!(m_infoForSAO->compDist[0] != m_infoFromX265->compDist[m_infoFromX265->ctuPosX][0]));
+	assert(!(m_infoForSAO->compDist[1] != m_infoFromX265->compDist[m_infoFromX265->ctuPosX][1]));
+	assert(!(m_infoForSAO->compDist[2] != m_infoFromX265->compDist[m_infoFromX265->ctuPosX][2]));
+#endif
+
+#endif
+}
+
+void hevcSAO::printRecon(FILE* fp, uint8_t* rec, uint8_t width, uint8_t height)
+{
+	fprintf(fp, "-------------- print rec begin --------------\n");
+	for (int k = 0; k < height;k++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			fprintf(fp, "%02x ", rec[k*width + j] & 0xff);
+		}
+		fprintf(fp, "\n");
+	}
+	fprintf(fp, "-------------- print rec end --------------\n\n");
+}
+
+void hevcSAO::copyGlobalSaoCtuParam(SaoGlobalCtuParam* dst, SaoGlobalCtuParam* src)
+{
+
+	dst->typeIdx = src->typeIdx;
+	dst->bandIdx = src->bandIdx;
+	for(uint8_t k=0;k<4;k++)
+	{
+		dst->offset[k] = src->offset[k];
+	}
+}
+
+void hevcSAO::copyGlobalSaoCtuParam(SaoLcuParam* dst, SaoGlobalCtuParam* src)
+{
+	dst->typeIdx = src->typeIdx;
+	dst->subTypeIdx = src->bandIdx;
+	for(uint8_t k=0;k<4;k++)
+	{
+		dst->offset[k] = src->offset[k];
+	}
+	dst->length = 4; // number of class, fix to 4.
+}
+
+
+////////////////////////////////////////////////////////////////////////
+#if HWC_SAO_RDO_CTU_ROW_LEVEL 
+int hevcSAO::compareX265andHWC()
+{
+	int flag = 0;
+
+	flag += (m_infoForSAO->rowIdx != m_infoFromX265->rowIdx); assert(!flag);
+	flag += (m_infoForSAO->colIdx != m_infoFromX265->colIdx); assert(!flag);
+	flag += (m_infoForSAO->lumaLambda != m_infoFromX265->lumaLambda); assert(!flag);
+	flag += (m_infoForSAO->chromaLambda != m_infoFromX265->chromaLambda); assert(!flag);
+
+	for (int k = 0; k < MAX_NUM_HOR_CTU;k++)
+	{
+		for (int j = 0; j < 3;j++)
+		{
+			flag += (m_infoForSAO->compDist[k][j] != m_infoFromX265->compDist[k][j]); assert(!flag);
+			flag += (m_infoForSAO->saoType[k][j] != m_infoFromX265->saoType[k][j]); assert(!flag);
+			flag += (m_infoForSAO->bestBandIdx[k][j] != m_infoFromX265->bestBandIdx[k][j]); assert(!flag);
+			flag += (m_infoForSAO->mergeLeftFlag[k][j] != m_infoFromX265->mergeLeftFlag[k][j]); assert(!flag);
+			flag += (m_infoForSAO->mergeUpFlag[k][j] != m_infoFromX265->mergeUpFlag[k][j]); assert(!flag);
+			for (int i = 0; i < 4;i++)
+			{
+				flag += (m_infoForSAO->bestOffset[k][j][i] != m_infoFromX265->bestOffset[k][j][i]); assert(!flag);
+			}		
+		}
+		flag += (m_infoForSAO->notMergeBestCost[k] != m_infoFromX265->notMergeBestCost[k]); assert(!flag);
+		flag += (m_infoForSAO->mergeLeftCost[k] != m_infoFromX265->mergeLeftCost[k]); assert(!flag);
+		flag += (m_infoForSAO->mergeUpCost[k] != m_infoFromX265->mergeUpCost[k]); assert(!flag);
+	}
+	return flag;
+}
+#endif
+
+
+int hevcSAO::compareX265andHWC(int colIdx)
+{
+	int flag = 0;
+	SaoCtuParam* hwcSaoCtuParam = m_infoForSAO->saoCtuParam;
+	// compare input
+	flag += (m_infoForSAO->lumaLambda != m_infoFromX265->lumaLambda); assert(!flag);
+	flag += (m_infoForSAO->chromaLambda != m_infoFromX265->chromaLambda); assert(!flag);
+
+	// compare debug info
+	flag += (m_infoForSAO->notMergeBestCost != m_infoFromX265->notMergeBestCost[colIdx]); assert(!flag);		
+	if (hwcSaoCtuParam[0].mergeLeftFlag)
+	{
+		flag += (m_infoForSAO->mergeLeftCost != m_infoFromX265->mergeLeftCost[colIdx]); assert(!flag);
+	}
+	if (hwcSaoCtuParam[0].mergeUpFlag)
+	{
+		flag += (m_infoForSAO->mergeUpCost != m_infoFromX265->mergeUpCost[colIdx]); assert(!flag);
+	}
+	
+	// compare output
+	for (int j = 0; j < 3; j++) // Y, Cb, Cr
+	{
+		flag += (m_infoForSAO->compDist[j] != m_infoFromX265->compDist[colIdx][j]); assert(!flag);
+		flag += (hwcSaoCtuParam[j].typeIdx != m_infoFromX265->saoCtuParam[colIdx][j].typeIdx); assert(!flag);
+		flag += (hwcSaoCtuParam[j].bandIdx != m_infoFromX265->saoCtuParam[colIdx][j].bandIdx); assert(!flag);
+		flag += (hwcSaoCtuParam[j].mergeLeftFlag != m_infoFromX265->saoCtuParam[colIdx][j].mergeLeftFlag); assert(!flag);
+		flag += (hwcSaoCtuParam[j].mergeUpFlag != m_infoFromX265->saoCtuParam[colIdx][j].mergeUpFlag); assert(!flag);
+		for (int i = 0; i < 4; i++)
+		{
+			flag += (hwcSaoCtuParam[j].offset[i] != m_infoFromX265->saoCtuParam[colIdx][j].offset[i]); assert(!flag);
+		}
+	}
+	
+
+	
+	return flag;
+}
+
+
+/************************************************************************/
+/*                       X265 DEBUG END                                 */
+/************************************************************************/
+void hevcSAO::calcSaoStatsBlock(Pel* recStart, Pel* orgStart, int stride, int64_t** stats, int64_t** counts, uint32_t width, uint32_t height, bool* bBorderAvail, int yCbCr)
 {
     int64_t *stat, *count;
     int classIdx, posShift, startX, endX, startY, endY, signLeft, signRight, signDown, signDown1;
@@ -827,26 +1538,42 @@ void TEncSampleAdaptiveOffset::calcSaoStatsBlock(Pel* recStart, Pel* orgStart, i
 /** Calculate SAO statistics for current LCU without non-crossing slice
  * \param  addr,  partIdx,  yCbCr
  */
-void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
+void hevcSAO::calcCtuSaoStats(int yCbCr)
 {
-    int x, y;
-    TComDataCU *pTmpCu = m_pic->getCU(addr);
-    TComSPS *pTmpSPS =  m_pic->getSlice()->getSPS();
+	uint8_t size = m_infoForSAO->size;
+	uint8_t validWidth = m_infoForSAO->validWidth;
+	uint8_t validHeight = m_infoForSAO->validHeight;
+	bool bLastCol = m_infoForSAO->bLastCol;
+	bool bLastRow = m_infoForSAO->bLastRow;
+	bool bFirstCol = (m_infoForSAO->ctuPosX == 0);
+	bool bFirstRow = (m_infoForSAO->ctuPosY == 0);
 
-    Pel* fenc;
-    Pel* pRec;
-    int stride;
-    int iLcuHeight = pTmpSPS->getMaxCUHeight();
-    int iLcuWidth  = pTmpSPS->getMaxCUWidth();
-    uint32_t lpelx   = pTmpCu->getCUPelX();
-    uint32_t tpely   = pTmpCu->getCUPelY();
-    uint32_t rpelx;
-    uint32_t bpely;
+	uint8_t* inRecPixel = yCbCr == 0 ? m_infoForSAO->inRecPixelY : (yCbCr == 1 ? m_infoForSAO->inRecPixelU : m_infoForSAO->inRecPixelV);
+	uint8_t* orgPixel = yCbCr == 0 ? m_infoForSAO->orgPixelY : (yCbCr == 1 ? m_infoForSAO->orgPixelU : m_infoForSAO->orgPixelV);
+	uint8_t* inRecPixelLeft = m_saoRdoParam->leftCtuLineBuffer[yCbCr];
+   
+	//uint8_t* inRecPixelUp = yCbCr == 0 ? m_infoFromX265->inRecPixelUpY : (yCbCr == 1 ? m_infoFromX265->inRecPixelUpU : m_infoFromX265->inRecPixelUpV);
+
+uint8_t* inRecPixelExtra = yCbCr == 0 ? m_infoFromX265->inRecPixelExtraY : (yCbCr == 1 ? m_infoFromX265->inRecPixelExtraU : m_infoFromX265->inRecPixelExtraV);
+
+    int x, y;
+
+    uint8_t* fenc;
+    uint8_t* pRec;
+	uint8_t* pRecLeft;
+	uint8_t* pRecUp;
+	uint8_t* pRecExtra = inRecPixelExtra;
+
+	int iIsChroma = (yCbCr != 0) ? 1 : 0;
+	int ctuWidth = validWidth >> iIsChroma;
+	int ctuHeight = validHeight >> iIsChroma;
+	int stride = iIsChroma ? (size / 2) : size;
+	uint8_t* inRecPixelUp = &m_saoRdoParam->frameLineBuffer[yCbCr][m_infoForSAO->ctuPosX*stride];
+
     int64_t* iStats;
     int64_t* iCount;
     int iClassIdx;
-    int iPicWidthTmp;
-    int iPicHeightTmp;
+
     int iStartX;
     int iStartY;
     int iEndX;
@@ -854,34 +1581,19 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
     Pel* pTableBo = (yCbCr == 0) ? m_lumaTableBo : m_chromaTableBo;
     int32_t *tmp_swap;
 
-    int iIsChroma = (yCbCr != 0) ? 1 : 0;
-    int numSkipLine = iIsChroma ? 2 : 4;
+	int numSkipLine = iIsChroma ? 2 : 4;
 
-    if (m_saoLcuBasedOptimization == 0)
-    {
-        numSkipLine = 0;
-    }
+	if (m_saoLcuBasedOptimization == 0)
+	{
+		numSkipLine = 0;
+	}
 
-    int numSkipLineRight = iIsChroma ? 3 : 5;
-    if (m_saoLcuBasedOptimization == 0)
-    {
-        numSkipLineRight = 0;
-    }
+	int numSkipLineRight = iIsChroma ? 3 : 5;
+	if (m_saoLcuBasedOptimization == 0)
+	{
+		numSkipLineRight = 0;
+	}
 
-    iPicWidthTmp  = m_picWidth  >> iIsChroma;
-    iPicHeightTmp = m_picHeight >> iIsChroma;
-    iLcuWidth     = iLcuWidth    >> iIsChroma;
-    iLcuHeight    = iLcuHeight   >> iIsChroma;
-    lpelx       = lpelx      >> iIsChroma;
-    tpely       = tpely      >> iIsChroma;
-    rpelx       = lpelx + iLcuWidth;
-    bpely       = tpely + iLcuHeight;
-    rpelx       = rpelx > iPicWidthTmp  ? iPicWidthTmp  : rpelx;
-    bpely       = bpely > iPicHeightTmp ? iPicHeightTmp : bpely;
-    iLcuWidth     = rpelx - lpelx;
-    iLcuHeight    = bpely - tpely;
-
-    stride    =  (yCbCr == 0) ? m_pic->getStride() : m_pic->getCStride();
 
 //if(iSaoType == BO_0 || iSaoType == BO_1)
     {
@@ -890,15 +1602,16 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
             numSkipLine = iIsChroma ? 1 : 3;
             numSkipLineRight = iIsChroma ? 2 : 4;
         }
-        iStats = m_offsetOrg[partIdx][SAO_BO];
-        iCount = m_count[partIdx][SAO_BO];
+        iStats = m_offsetOrg[yCbCr][SAO_BO];
+        iCount = m_count[yCbCr][SAO_BO];
 
-        fenc = getPicYuvAddr(m_pic->getPicYuvOrg(), yCbCr, addr);
-        pRec = getPicYuvAddr(m_pic->getPicYuvRec(), yCbCr, addr);
+		fenc = orgPixel;
+		pRec = inRecPixel;
 
-        iEndX   = (rpelx == iPicWidthTmp) ? iLcuWidth : iLcuWidth - numSkipLineRight;
-        iEndY   = (bpely == iPicHeightTmp) ? iLcuHeight : iLcuHeight - numSkipLine;
-        for (y = 0; y < iEndY; y++)
+		iEndX   = (bLastCol) ? ctuWidth : ctuWidth - numSkipLineRight;
+		iEndY   = (bLastRow) ? ctuHeight : ctuHeight - numSkipLine;
+
+		for (y = 0; y < iEndY; y++)
         {
             for (x = 0; x < iEndX; x++)
             {
@@ -909,9 +1622,8 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
                     iCount[iClassIdx]++;
                 }
             }
-
-            fenc += stride;
-            pRec += stride;
+			fenc += stride;
+			pRec += stride;
         }
     }
     int iSignLeft;
@@ -931,17 +1643,27 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
                 numSkipLine = iIsChroma ? 1 : 3;
                 numSkipLineRight = iIsChroma ? 3 : 5;
             }
-            iStats = m_offsetOrg[partIdx][SAO_EO_0];
-            iCount = m_count[partIdx][SAO_EO_0];
+            iStats = m_offsetOrg[yCbCr][SAO_EO_0];
+            iCount = m_count[yCbCr][SAO_EO_0];
 
-            fenc = getPicYuvAddr(m_pic->getPicYuvOrg(), yCbCr, addr);
-            pRec = getPicYuvAddr(m_pic->getPicYuvRec(), yCbCr, addr);
+			fenc = orgPixel;
+			pRec = inRecPixel;
+			pRecLeft = inRecPixelLeft;
 
-            iStartX = (lpelx == 0) ? 1 : 0;
-            iEndX   = (rpelx == iPicWidthTmp) ? iLcuWidth - 1 : iLcuWidth - numSkipLineRight;
-            for (y = 0; y < iLcuHeight - numSkipLine; y++)
+			iStartX = (bFirstCol) ? 1 : 0;
+			iEndX   = (bLastCol) ? ctuWidth - 1 : ctuWidth - numSkipLineRight;
+ 
+			for (y = 0; y < ctuHeight - numSkipLine; y++)
             {
-                iSignLeft = xSign(pRec[iStartX] - pRec[iStartX - 1]);
+				if (iStartX == 0) // need Left CTU pixels
+				{
+					iSignLeft = xSign(pRec[iStartX] - pRecLeft[y]);
+				}
+				else
+				{
+					iSignLeft = xSign(pRec[iStartX] - pRec[iStartX - 1]);
+				}                
+
                 for (x = iStartX; x < iEndX; x++)
                 {
                     iSignRight =  xSign(pRec[x] - pRec[x + 1]);
@@ -951,10 +1673,10 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
                     iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
                     iCount[m_eoTable[uiEdgeType]]++;
                 }
-
-                fenc += stride;
-                pRec += stride;
-            }
+				fenc += stride;
+				pRec += stride;
+     
+			}
         }
 
         //if (iSaoType == EO_1)
@@ -964,77 +1686,120 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
                 numSkipLine = iIsChroma ? 2 : 4;
                 numSkipLineRight = iIsChroma ? 2 : 4;
             }
-            iStats = m_offsetOrg[partIdx][SAO_EO_1];
-            iCount = m_count[partIdx][SAO_EO_1];
+            iStats = m_offsetOrg[yCbCr][SAO_EO_1];
+            iCount = m_count[yCbCr][SAO_EO_1];
 
-            fenc = getPicYuvAddr(m_pic->getPicYuvOrg(), yCbCr, addr);
-            pRec = getPicYuvAddr(m_pic->getPicYuvRec(), yCbCr, addr);
+			fenc = orgPixel;
+			pRec = inRecPixel;
+			pRecUp = inRecPixelUp;
 
-            iStartY = (tpely == 0) ? 1 : 0;
-            iEndX   = (rpelx == iPicWidthTmp) ? iLcuWidth : iLcuWidth - numSkipLineRight;
-            iEndY   = (bpely == iPicHeightTmp) ? iLcuHeight - 1 : iLcuHeight - numSkipLine;
-            if (tpely == 0)
-            {
-                fenc += stride;
-                pRec += stride;
-            }
+			iStartY = (bFirstRow) ? 1 : 0;
+			iEndX   = (bLastCol) ? ctuWidth : ctuWidth - numSkipLineRight;
+			iEndY   = (bLastRow) ? ctuHeight - 1 : ctuHeight - numSkipLine;
 
-            for (x = 0; x < iLcuWidth; x++)
-            {
-                m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride]);
-            }
+			if (bFirstRow)
+			{
+				fenc += stride;
+				pRec += stride;
+			}
 
-            for (y = iStartY; y < iEndY; y++)
-            {
-                for (x = 0; x < iEndX; x++)
-                {
-                    iSignDown     =  xSign(pRec[x] - pRec[x + stride]);
-                    uiEdgeType    =  iSignDown + m_upBuff1[x] + 2;
-                    m_upBuff1[x] = -iSignDown;
+			for (x = 0; x < ctuWidth; x++)
+			{
+				if (iStartY==0) // need Up CTU pixels
+				{
+					m_upBuff1[x] = xSign(pRec[x] - pRecUp[x]);
+				}
+				else
+				{
+					m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride]);
+				}
+			}
+	
+			for (y = iStartY; y < iEndY; y++)
+			{
+				for (x = 0; x < iEndX; x++)
+				{
+					iSignDown = xSign(pRec[x] - pRec[x + stride]);
+					uiEdgeType    =  iSignDown + m_upBuff1[x] + 2;
+					m_upBuff1[x] = -iSignDown;
 
-                    iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
-                    iCount[m_eoTable[uiEdgeType]]++;
-                }
+					iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
+					iCount[m_eoTable[uiEdgeType]]++;
+				}
 
-                fenc += stride;
-                pRec += stride;
-            }
-        }
-        //if (iSaoType == EO_2)
+				fenc += stride;
+				pRec += stride;
+			}
+	}
+
+        //if (iSaoType == EO_2) 135 degree
         {
             if (m_saoLcuBasedOptimization && m_saoLcuBoundary)
             {
                 numSkipLine = iIsChroma ? 2 : 4;
                 numSkipLineRight = iIsChroma ? 3 : 5;
             }
-            iStats = m_offsetOrg[partIdx][SAO_EO_2];
-            iCount = m_count[partIdx][SAO_EO_2];
+            iStats = m_offsetOrg[yCbCr][SAO_EO_2];
+            iCount = m_count[yCbCr][SAO_EO_2];
 
-            fenc = getPicYuvAddr(m_pic->getPicYuvOrg(), yCbCr, addr);
-            pRec = getPicYuvAddr(m_pic->getPicYuvRec(), yCbCr, addr);
+			fenc = orgPixel;
+			pRec = inRecPixel;
+			pRecUp = inRecPixelUp;
 
-            iStartX = (lpelx == 0) ? 1 : 0;
-            iEndX   = (rpelx == iPicWidthTmp) ? iLcuWidth - 1 : iLcuWidth - numSkipLineRight;
+			iStartX = (bFirstCol) ? 1 : 0;
+			iEndX = (bLastCol) ? ctuWidth - 1 : ctuWidth - numSkipLineRight;
 
-            iStartY = (tpely == 0) ? 1 : 0;
-            iEndY   = (bpely == iPicHeightTmp) ? iLcuHeight - 1 : iLcuHeight - numSkipLine;
-            if (tpely == 0)
-            {
-                fenc += stride;
-                pRec += stride;
-            }
+			iStartY = (bFirstRow) ? 1 : 0;
+			iEndY   = (bLastRow) ? ctuHeight - 1 : ctuHeight - numSkipLine;
+			if (bFirstRow)
+			{
+				fenc += stride;
+				pRec += stride;
 
+			}
+  
             for (x = iStartX; x < iEndX; x++)
             {
-                m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride - 1]);
-            }
+
+				if (iStartY == 0)
+				{
+					if (x == 0) // need extra pixel(left_top)
+					{
+						m_upBuff1[0] = xSign(pRec[0] - pRecExtra[0]);
+					}
+					else // need Up CTU pixels
+					{
+						m_upBuff1[x] = xSign(pRec[x] - pRecUp[x-1]);
+					}
+				}
+				else // bFirstRow, begin with 2nd row
+				{
+					if(x==0) // need Left CTU pixel
+					{
+						m_upBuff1[0] = xSign(pRec[0] - pRecLeft[0]);
+					}
+					else
+					{
+						m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride - 1]);
+					}
+				}
+			}
 
             for (y = iStartY; y < iEndY; y++)
             {
-                iSignDown2 = xSign(pRec[stride + iStartX] - pRec[iStartX - 1]);
-                for (x = iStartX; x < iEndX; x++)
+
+				if (iStartX==0)
+				{
+					iSignDown2 = xSign(pRec[stride + iStartX] - pRecLeft[y]);
+				}
+				else
+				{
+					iSignDown2 = xSign(pRec[stride + iStartX] - pRec[iStartX - 1]);
+				}
+				
+				for (x = iStartX; x < iEndX; x++)
                 {
-                    iSignDown1      =  xSign(pRec[x] - pRec[x + stride + 1]);
+					iSignDown1 = xSign(pRec[x] - pRec[x + stride + 1]);
                     uiEdgeType      =  iSignDown1 + m_upBuff1[x] + 2;
                     m_upBufft[x + 1] = -iSignDown1;
                     iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
@@ -1046,9 +1811,11 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
                 m_upBuff1 = m_upBufft;
                 m_upBufft = tmp_swap;
 
-                pRec += stride;
-                fenc += stride;
-            }
+				pRec += stride;
+				fenc += stride;
+
+
+			}
         }
         //if (iSaoType == EO_3  )
         {
@@ -1057,49 +1824,417 @@ void TEncSampleAdaptiveOffset::calcSaoStatsCu(int addr, int partIdx, int yCbCr)
                 numSkipLine = iIsChroma ? 2 : 4;
                 numSkipLineRight = iIsChroma ? 3 : 5;
             }
-            iStats = m_offsetOrg[partIdx][SAO_EO_3];
-            iCount = m_count[partIdx][SAO_EO_3];
+            iStats = m_offsetOrg[yCbCr][SAO_EO_3];
+            iCount = m_count[yCbCr][SAO_EO_3];
 
-            fenc = getPicYuvAddr(m_pic->getPicYuvOrg(), yCbCr, addr);
-            pRec = getPicYuvAddr(m_pic->getPicYuvRec(), yCbCr, addr);
+			fenc = orgPixel;
+			pRec = inRecPixel;
 
-            iStartX = (lpelx == 0) ? 1 : 0;
-            iEndX   = (rpelx == iPicWidthTmp) ? iLcuWidth - 1 : iLcuWidth - numSkipLineRight;
+			iStartX = (bFirstCol) ? 1 : 0;
+			iEndX = (bLastCol) ? ctuWidth - 1 : ctuWidth - numSkipLineRight;
 
-            iStartY = (tpely == 0) ? 1 : 0;
-            iEndY   = (bpely == iPicHeightTmp) ? iLcuHeight - 1 : iLcuHeight - numSkipLine;
-            if (iStartY == 1)
+			iStartY = (bFirstRow) ? 1 : 0;
+			iEndY   = (bLastRow) ? ctuHeight - 1 : ctuHeight - numSkipLine;
+     
+			if (iStartY == 1) // when bFirstRow, the first row in currCTU  isn't calculate
             {
-                fenc += stride;
-                pRec += stride;
+				fenc += stride;
+				pRec += stride;
+
             }
 
-            for (x = iStartX - 1; x < iEndX; x++)
-            {
-                m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride + 1]);
-            }
 
-            for (y = iStartY; y < iEndY; y++)
-            {
-                for (x = iStartX; x < iEndX; x++)
-                {
-                    iSignDown1      =  xSign(pRec[x] - pRec[x + stride - 1]);
-                    uiEdgeType      =  iSignDown1 + m_upBuff1[x] + 2;
-                    m_upBuff1[x - 1] = -iSignDown1;
-                    iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
-                    iCount[m_eoTable[uiEdgeType]]++;
-                }
+			for (x = iStartX; x < iEndX; x++)
+			{
+				// 1th row, xSign(current - right)
+				if (iStartY == 0)
+				{
+					//NOTE: the lastCol in currCTU is not calculated, so no extra pixels are needed
+					m_upBuff1[x] = xSign(pRec[x] - pRecUp[x+1]);// need UP CTU pixels
+				}
+				else
+				{
+					m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride + 1]);
+				}
+			}
 
-                m_upBuff1[iEndX - 1] = xSign(pRec[iEndX - 1 + stride] - pRec[iEndX]);
+			for (y = iStartY; y < iEndY; y++)
+			{
+				for (x = iStartX; x < iEndX; x++)
+				{
 
-                pRec += stride;
-                fenc += stride;
-            }
+					//xSign(current - left)
+					if (x == 0) //need Left CTU pixels
+					{
+						iSignDown1 = xSign(pRec[0] - pRecLeft[y + 1]);
+					}
+					else
+					{
+						iSignDown1 = xSign(pRec[x] - pRec[x + stride - 1]);
+					}
+
+					uiEdgeType = iSignDown1 + m_upBuff1[x] + 2;
+					m_upBuff1[x - 1] = -iSignDown1;
+					iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
+					iCount[m_eoTable[uiEdgeType]]++;
+				}
+
+				m_upBuff1[iEndX - 1] = xSign(pRec[iEndX - 1 + stride] - pRec[iEndX]);
+
+				pRec += stride;
+				fenc += stride;
+			}
         }
     }
 }
 
-void TEncSampleAdaptiveOffset::calcSaoStatsRowCus_BeforeDblk(TComPic* pic, int idxY)
+
+
+/** Calculate SAO statistics for current LCU without non-crossing slice
+ * \param  addr,  partIdx,  yCbCr
+ */
+void hevcSAO::calcCtuSaoStatsAll(int yCbCr)
+{
+	uint8_t size = m_infoForSAO->size;
+	uint8_t validWidth = m_infoForSAO->validWidth;
+	uint8_t validHeight = m_infoForSAO->validHeight;
+	bool bLastCol = m_infoForSAO->bLastCol;
+	bool bLastRow = m_infoForSAO->bLastRow;
+	bool bFirstCol = (m_infoForSAO->ctuPosX == 0);
+	bool bFirstRow = (m_infoForSAO->ctuPosY == 0);
+
+	uint8_t* inRecPixel = yCbCr == 0 ? m_infoForSAO->inRecPixelY : (yCbCr == 1 ? m_infoForSAO->inRecPixelU : m_infoForSAO->inRecPixelV);
+	uint8_t* orgPixel = yCbCr == 0 ? m_infoForSAO->orgPixelY : (yCbCr == 1 ? m_infoForSAO->orgPixelU : m_infoForSAO->orgPixelV);
+	uint8_t* inRecPixelLeft = m_saoRdoParam->leftCtuLineBuffer[yCbCr];
+   
+	//uint8_t* inRecPixelUp = yCbCr == 0 ? m_infoFromX265->inRecPixelUpY : (yCbCr == 1 ? m_infoFromX265->inRecPixelUpU : m_infoFromX265->inRecPixelUpV);
+
+uint8_t* inRecPixelExtra = yCbCr == 0 ? m_infoFromX265->inRecPixelExtraY : (yCbCr == 1 ? m_infoFromX265->inRecPixelExtraU : m_infoFromX265->inRecPixelExtraV);
+
+    int x, y;
+
+    uint8_t* fenc;
+    uint8_t* pRec;
+	uint8_t* pRecLeft;
+	uint8_t* pRecUp;
+	uint8_t* pRecExtra = inRecPixelExtra;
+
+	int iIsChroma = (yCbCr != 0) ? 1 : 0;
+	int ctuWidth = validWidth >> iIsChroma;
+	int ctuHeight = validHeight >> iIsChroma;
+	int stride = iIsChroma ? (size / 2) : size;
+	uint8_t* inRecPixelUp = &m_saoRdoParam->frameLineBuffer[yCbCr][m_infoForSAO->ctuPosX*stride];
+
+    int64_t* iStats;
+    int64_t* iCount;
+    int iClassIdx;
+
+    int iStartX;
+    int iStartY;
+    int iEndX;
+    int iEndY;
+    Pel* pTableBo = (yCbCr == 0) ? m_lumaTableBo : m_chromaTableBo;
+    int32_t *tmp_swap;
+
+	int numSkipLine = iIsChroma ? 2 : 4;
+
+	if (m_saoLcuBasedOptimization == 0)
+	{
+		numSkipLine = 0;
+	}
+
+	int numSkipLineRight = iIsChroma ? 3 : 5;
+	if (m_saoLcuBasedOptimization == 0)
+	{
+		numSkipLineRight = 0;
+	}
+
+
+	/* BO */
+    {
+        iStats = m_offsetOrg[yCbCr][SAO_BO];
+        iCount = m_count[yCbCr][SAO_BO];
+
+		fenc = orgPixel;
+		pRec = inRecPixel;
+
+		iEndX   = (bLastCol) ? ctuWidth : ctuWidth - 1;
+		iEndY   = (bLastRow) ? ctuHeight : ctuHeight - 1;
+
+		for (y = 0; y < iEndY; y++)
+        {
+            for (x = 0; x < iEndX; x++)
+            {
+                iClassIdx = pTableBo[pRec[x]];
+                if (iClassIdx)
+                {
+                    iStats[iClassIdx] += (fenc[x] - pRec[x]);
+                    iCount[iClassIdx]++;
+                }
+            }
+			fenc += stride;
+			pRec += stride;
+        }
+    }
+
+    int iSignLeft;
+    int iSignRight;
+    int iSignDown;
+    int iSignDown1;
+    int iSignDown2;
+
+    uint32_t uiEdgeType;
+
+
+	/* EO_0 */
+    {
+        iStats = m_offsetOrg[yCbCr][SAO_EO_0];
+        iCount = m_count[yCbCr][SAO_EO_0];
+
+		fenc = orgPixel;
+		pRec = inRecPixel;
+		pRecLeft = inRecPixelLeft;
+
+		iStartX = (bFirstCol) ? 1 : 0;
+		iEndX   = (bLastCol) ? ctuWidth - 1 : ctuWidth;
+ 
+		for (y = 0; y < ctuHeight - numSkipLine; y++)
+        {
+			if (iStartX == 0) // need Left CTU pixels
+			{
+				iSignLeft = xSign(pRec[iStartX] - pRecLeft[y]);
+			}
+			else
+			{
+				iSignLeft = xSign(pRec[iStartX] - pRec[iStartX - 1]);
+			}                
+
+            for (x = iStartX; x < iEndX; x++)
+            {
+                iSignRight =  xSign(pRec[x] - pRec[x + 1]);
+                uiEdgeType =  iSignRight + iSignLeft + 2;
+                iSignLeft  = -iSignRight;
+
+                iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
+                iCount[m_eoTable[uiEdgeType]]++;
+            }
+			fenc += stride;
+			pRec += stride;
+     
+		}
+    }
+
+	/* EO_1 */
+    {
+        if (m_saoLcuBasedOptimization && m_saoLcuBoundary)
+        {
+            numSkipLine = iIsChroma ? 2 : 4;
+            numSkipLineRight = iIsChroma ? 2 : 4;
+        }
+        iStats = m_offsetOrg[yCbCr][SAO_EO_1];
+        iCount = m_count[yCbCr][SAO_EO_1];
+
+		fenc = orgPixel;
+		pRec = inRecPixel;
+		pRecUp = inRecPixelUp;
+
+		iStartY = (bFirstRow) ? 1 : 0;
+		iEndX   = (bLastCol) ? ctuWidth : ctuWidth - numSkipLineRight;
+		iEndY   = (bLastRow) ? ctuHeight - 1 : ctuHeight - numSkipLine;
+
+		if (bFirstRow)
+		{
+			fenc += stride;
+			pRec += stride;
+		}
+
+		for (x = 0; x < ctuWidth; x++)
+		{
+			if (iStartY==0) // need Up CTU pixels
+			{
+				m_upBuff1[x] = xSign(pRec[x] - pRecUp[x]);
+			}
+			else
+			{
+				m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride]);
+			}
+		}
+	
+		for (y = iStartY; y < iEndY; y++)
+		{
+			for (x = 0; x < iEndX; x++)
+			{
+				iSignDown = xSign(pRec[x] - pRec[x + stride]);
+				uiEdgeType    =  iSignDown + m_upBuff1[x] + 2;
+				m_upBuff1[x] = -iSignDown;
+
+				iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
+				iCount[m_eoTable[uiEdgeType]]++;
+			}
+
+			fenc += stride;
+			pRec += stride;
+		}
+	}
+
+	/* EO_2  135 degree*/
+    {
+        if (m_saoLcuBasedOptimization && m_saoLcuBoundary)
+        {
+            numSkipLine = iIsChroma ? 2 : 4;
+            numSkipLineRight = iIsChroma ? 3 : 5;
+        }
+        iStats = m_offsetOrg[yCbCr][SAO_EO_2];
+        iCount = m_count[yCbCr][SAO_EO_2];
+
+		fenc = orgPixel;
+		pRec = inRecPixel;
+		pRecUp = inRecPixelUp;
+
+		iStartX = (bFirstCol) ? 1 : 0;
+		iEndX = (bLastCol) ? ctuWidth - 1 : ctuWidth - numSkipLineRight;
+
+		iStartY = (bFirstRow) ? 1 : 0;
+		iEndY   = (bLastRow) ? ctuHeight - 1 : ctuHeight - numSkipLine;
+		if (bFirstRow)
+		{
+			fenc += stride;
+			pRec += stride;
+
+		}
+  
+        for (x = iStartX; x < iEndX; x++)
+        {
+
+			if (iStartY == 0)
+			{
+				if (x == 0) // need extra pixel(left_top)
+				{
+					m_upBuff1[0] = xSign(pRec[0] - pRecExtra[0]);
+				}
+				else // need Up CTU pixels
+				{
+					m_upBuff1[x] = xSign(pRec[x] - pRecUp[x-1]);
+				}
+			}
+			else // bFirstRow, begin with 2nd row
+			{
+				if(x==0) // need Left CTU pixel
+				{
+					m_upBuff1[0] = xSign(pRec[0] - pRecLeft[0]);
+				}
+				else
+				{
+					m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride - 1]);
+				}
+			}
+		}
+
+        for (y = iStartY; y < iEndY; y++)
+        {
+
+			if (iStartX==0)
+			{
+				iSignDown2 = xSign(pRec[stride + iStartX] - pRecLeft[y]);
+			}
+			else
+			{
+				iSignDown2 = xSign(pRec[stride + iStartX] - pRec[iStartX - 1]);
+			}
+				
+			for (x = iStartX; x < iEndX; x++)
+            {
+				iSignDown1 = xSign(pRec[x] - pRec[x + stride + 1]);
+                uiEdgeType      =  iSignDown1 + m_upBuff1[x] + 2;
+                m_upBufft[x + 1] = -iSignDown1;
+                iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
+                iCount[m_eoTable[uiEdgeType]]++;
+            }
+
+            m_upBufft[iStartX] = iSignDown2;
+            tmp_swap  = m_upBuff1;
+            m_upBuff1 = m_upBufft;
+            m_upBufft = tmp_swap;
+
+			pRec += stride;
+			fenc += stride;
+
+
+		}
+    }
+
+
+    /* EO_3  45 degree */
+    {
+        if (m_saoLcuBasedOptimization && m_saoLcuBoundary)
+        {
+            numSkipLine = iIsChroma ? 2 : 4;
+            numSkipLineRight = iIsChroma ? 3 : 5;
+        }
+        iStats = m_offsetOrg[yCbCr][SAO_EO_3];
+        iCount = m_count[yCbCr][SAO_EO_3];
+
+		fenc = orgPixel;
+		pRec = inRecPixel;
+
+		iStartX = (bFirstCol) ? 1 : 0;
+		iEndX = (bLastCol) ? ctuWidth - 1 : ctuWidth - numSkipLineRight;
+
+		iStartY = (bFirstRow) ? 1 : 0;
+		iEndY   = (bLastRow) ? ctuHeight - 1 : ctuHeight - numSkipLine;
+     
+		if (iStartY == 1) // when bFirstRow, the first row in currCTU  isn't calculate
+        {
+			fenc += stride;
+			pRec += stride;
+
+        }
+
+
+		for (x = iStartX; x < iEndX; x++)
+		{
+			// 1th row, xSign(current - right)
+			if (iStartY == 0)
+			{
+				//NOTE: the lastCol in currCTU is not calculated, so no extra pixels are needed
+				m_upBuff1[x] = xSign(pRec[x] - pRecUp[x+1]);// need UP CTU pixels
+			}
+			else
+			{
+				m_upBuff1[x] = xSign(pRec[x] - pRec[x - stride + 1]);
+			}
+		}
+
+		for (y = iStartY; y < iEndY; y++)
+		{
+			for (x = iStartX; x < iEndX; x++)
+			{
+
+				//xSign(current - left)
+				if (x == 0) //need Left CTU pixels
+				{
+					iSignDown1 = xSign(pRec[0] - pRecLeft[y + 1]);
+				}
+				else
+				{
+					iSignDown1 = xSign(pRec[x] - pRec[x + stride - 1]);
+				}
+
+				uiEdgeType = iSignDown1 + m_upBuff1[x] + 2;
+				m_upBuff1[x - 1] = -iSignDown1;
+				iStats[m_eoTable[uiEdgeType]] += (fenc[x] - pRec[x]);
+				iCount[m_eoTable[uiEdgeType]]++;
+			}
+
+			m_upBuff1[iEndX - 1] = xSign(pRec[iEndX - 1 + stride] - pRec[iEndX]);
+
+			pRec += stride;
+			fenc += stride;
+		}
+	}
+}
+
+void hevcSAO::calcSaoStatsRowCus_BeforeDblk(TComPic* pic, int idxY)
 {
     int addr, yCbCr;
     int x, y;
@@ -1405,77 +2540,15 @@ void TEncSampleAdaptiveOffset::calcSaoStatsRowCus_BeforeDblk(TComPic* pic, int i
 /** get SAO statistics
  * \param  *psQTPart,  yCbCr
  */
-void TEncSampleAdaptiveOffset::getSaoStats(SAOQTPart *psQTPart, int yCbCr)
+
+void hevcSAO::getSaoStats(SAOQTPart *psQTPart, int yCbCr)
 {
-    int levelIdx, partIdx, typeIdx, classIdx;
-    int i;
-    int numTotalType = MAX_NUM_SAO_TYPE;
-    int LcuIdxX;
-    int LcuIdxY;
-    int addr;
-    int frameWidthInCU = m_pic->getFrameWidthInCU();
-    int downPartIdx;
-    int partStart;
-    int partEnd;
-    SAOQTPart* onePart;
-
-    if (m_maxSplitLevel == 0)
-    {
-        partIdx = 0;
-        onePart = &(psQTPart[partIdx]);
-        for (LcuIdxY = onePart->startCUY; LcuIdxY <= onePart->endCUY; LcuIdxY++)
-        {
-            for (LcuIdxX = onePart->startCUX; LcuIdxX <= onePart->endCUX; LcuIdxX++)
-            {
-                addr = LcuIdxY * frameWidthInCU + LcuIdxX;
-                calcSaoStatsCu(addr, partIdx, yCbCr);
-            }
-        }
-    }
-    else
-    {
-        for (partIdx = m_numCulPartsLevel[m_maxSplitLevel - 1]; partIdx < m_numCulPartsLevel[m_maxSplitLevel]; partIdx++)
-        {
-            onePart = &(psQTPart[partIdx]);
-            for (LcuIdxY = onePart->startCUY; LcuIdxY <= onePart->endCUY; LcuIdxY++)
-            {
-                for (LcuIdxX = onePart->startCUX; LcuIdxX <= onePart->endCUX; LcuIdxX++)
-                {
-                    addr = LcuIdxY * frameWidthInCU + LcuIdxX;
-                    calcSaoStatsCu(addr, partIdx, yCbCr);
-                }
-            }
-        }
-
-        for (levelIdx = m_maxSplitLevel - 1; levelIdx >= 0; levelIdx--)
-        {
-            partStart = (levelIdx > 0) ? m_numCulPartsLevel[levelIdx - 1] : 0;
-            partEnd   = m_numCulPartsLevel[levelIdx];
-
-            for (partIdx = partStart; partIdx < partEnd; partIdx++)
-            {
-                onePart = &(psQTPart[partIdx]);
-                for (i = 0; i < NUM_DOWN_PART; i++)
-                {
-                    downPartIdx = onePart->downPartsIdx[i];
-                    for (typeIdx = 0; typeIdx < numTotalType; typeIdx++)
-                    {
-                        for (classIdx = 0; classIdx < (typeIdx < SAO_BO ? m_numClass[typeIdx] : SAO_MAX_BO_CLASSES) + 1; classIdx++)
-                        {
-                            m_offsetOrg[partIdx][typeIdx][classIdx] += m_offsetOrg[downPartIdx][typeIdx][classIdx];
-                            m_count[partIdx][typeIdx][classIdx]    += m_count[downPartIdx][typeIdx][classIdx];
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 /** reset offset statistics
  * \param
  */
-void TEncSampleAdaptiveOffset::resetStats()
+void hevcSAO::resetStats()
 {
     for (int i = 0; i < m_numTotalParts; i++)
     {
@@ -1502,27 +2575,8 @@ void TEncSampleAdaptiveOffset::resetStats()
  * \param dLambdaLuma
  * \param lambdaChroma
  */
-void TEncSampleAdaptiveOffset::SAOProcess(SAOParam *saoParam)
+void hevcSAO::SAOProcess(SAOParam *saoParam)
 {
-    assert(m_saoLcuBasedOptimization == false);
-    double costFinal = 0;
-    saoParam->bSaoFlag[0] = 1;
-    saoParam->bSaoFlag[1] = 0;
-    costFinal = 0;
-    getSaoStats(saoParam->saoPart[0], 0);
-    runQuadTreeDecision(saoParam->saoPart[0], 0, costFinal, m_maxSplitLevel, lumaLambda, 0);
-    saoParam->bSaoFlag[0] = costFinal < 0 ? 1 : 0;
-    if (saoParam->bSaoFlag[0])
-    {
-        convertQT2SaoUnit(saoParam, 0, 0);
-        assignSaoUnitSyntax(saoParam->saoLcuParam[0], saoParam->saoPart[0], saoParam->oneUnitFlag[0]);
-        processSaoUnitAll(saoParam->saoLcuParam[0], saoParam->oneUnitFlag[0], 0);
-    }
-    if (saoParam->bSaoFlag[1])
-    {
-        processSaoUnitAll(saoParam->saoLcuParam[1], saoParam->oneUnitFlag[1], 1);
-        processSaoUnitAll(saoParam->saoLcuParam[2], saoParam->oneUnitFlag[2], 2);
-    }
 }
 
 /** Check merge SAO unit
@@ -1530,7 +2584,7 @@ void TEncSampleAdaptiveOffset::SAOProcess(SAOParam *saoParam)
  * \param saoUnitCheck SAO unit tobe check
  * \param dir direction
  */
-void TEncSampleAdaptiveOffset::checkMerge(SaoLcuParam * saoUnitCurr, SaoLcuParam * saoUnitCheck, int dir)
+void hevcSAO::checkMerge(SaoLcuParam * saoUnitCurr, SaoLcuParam * saoUnitCheck, int dir)
 {
     int i;
     int countDiff = 0;
@@ -1589,7 +2643,7 @@ void TEncSampleAdaptiveOffset::checkMerge(SaoLcuParam * saoUnitCurr, SaoLcuParam
  * \param oneUnitFlag SAO one unit flag
  * \param yCbCr color component Index
  */
-void TEncSampleAdaptiveOffset::assignSaoUnitSyntax(SaoLcuParam* saoLcuParam,  SAOQTPart* saoPart, bool &oneUnitFlag)
+void hevcSAO::assignSaoUnitSyntax(SaoLcuParam* saoLcuParam,  SAOQTPart* saoPart, bool &oneUnitFlag)
 {
     if (saoPart->bSplit == 0)
     {
@@ -1648,7 +2702,7 @@ void TEncSampleAdaptiveOffset::assignSaoUnitSyntax(SaoLcuParam* saoLcuParam,  SA
     }
 }
 
-void TEncSampleAdaptiveOffset::rdoSaoUnitRowInit(SAOParam *saoParam)
+void hevcSAO::rdoSaoUnitRowInit(SAOParam *saoParam)
 {
     saoParam->bSaoFlag[0] = true;
     saoParam->bSaoFlag[1] = true;
@@ -1658,6 +2712,7 @@ void TEncSampleAdaptiveOffset::rdoSaoUnitRowInit(SAOParam *saoParam)
 
     numNoSao[0] = 0; // Luma
     numNoSao[1] = 0; // Chroma
+#if 0
     if (depth > 0 && m_depthSaoRate[0][depth - 1] > SAO_ENCODING_RATE)
     {
         saoParam->bSaoFlag[0] = false;
@@ -1666,9 +2721,10 @@ void TEncSampleAdaptiveOffset::rdoSaoUnitRowInit(SAOParam *saoParam)
     {
         saoParam->bSaoFlag[1] = false;
     }
+#endif
 }
 
-void TEncSampleAdaptiveOffset::rdoSaoUnitRowEnd(SAOParam *saoParam, int numlcus)
+void hevcSAO::rdoSaoUnitRowEnd(SAOParam *saoParam, int numlcus)
 {
     if (!saoParam->bSaoFlag[0])
     {
@@ -1688,335 +2744,6 @@ void TEncSampleAdaptiveOffset::rdoSaoUnitRowEnd(SAOParam *saoParam, int numlcus)
     }
 }
 
-void TEncSampleAdaptiveOffset::rdoSaoUnitRow(SAOParam *saoParam, int idxY)
-{
-    int idxX;
-    int frameWidthInCU  = saoParam->numCuInWidth;
-    int j, k;
-    int addr = 0;
-    int addrUp = -1;
-    int addrLeft = -1;
-    int compIdx = 0;
-    SaoLcuParam mergeSaoParam[3][2];
-    double compDistortion[3];
-#if SAO_RUN_IN_X265
-	//m_hevcSAO->getSaoParamFromX265(saoParam);
-#endif
-    {
-        for (idxX = 0; idxX < frameWidthInCU; idxX++)
-        {
-
-            addr     = idxX  + frameWidthInCU * idxY;
-            addrUp   = addr < frameWidthInCU ? -1 : idxX   + frameWidthInCU * (idxY - 1);
-            addrLeft = idxX == 0               ? -1 : idxX - 1 + frameWidthInCU * idxY;
-            int allowMergeLeft = 1;
-            int allowMergeUp   = 1;
-            uint32_t rate;
-            double bestCost, mergeCost;
-
-            if (idxX == 0)
-            {
-                allowMergeLeft = 0;
-            }
-            if (idxY == 0)
-            {
-                allowMergeUp = 0;
-            }
-            compDistortion[0] = 0;
-            compDistortion[1] = 0;
-            compDistortion[2] = 0;
-            m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_CURR_BEST]);
-            if (allowMergeLeft)
-            {
-                m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
-            }
-            if (allowMergeUp)
-            {
-                m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
-            }
-            m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
-            // reset stats Y, Cb, Cr
-            for (compIdx = 0; compIdx < 3; compIdx++)
-            {
-                for (j = 0; j < MAX_NUM_SAO_TYPE; j++)
-                {
-                    for (k = 0; k < MAX_NUM_SAO_CLASS; k++)
-                    {
-                        m_offset[compIdx][j][k] = 0;
-                        if (m_saoLcuBasedOptimization && m_saoLcuBoundary)
-                        {
-                            m_count[compIdx][j][k] = m_countPreDblk[addr][compIdx][j][k];
-                            m_offsetOrg[compIdx][j][k] = m_offsetOrgPreDblk[addr][compIdx][j][k];
-                        }
-                        else
-                        {
-                            m_count[compIdx][j][k] = 0;
-                            m_offsetOrg[compIdx][j][k] = 0;
-                        }
-                    }
-                }
-
-                saoParam->saoLcuParam[compIdx][addr].typeIdx       =  -1;
-                saoParam->saoLcuParam[compIdx][addr].mergeUpFlag   = 0;
-                saoParam->saoLcuParam[compIdx][addr].mergeLeftFlag = 0;
-                saoParam->saoLcuParam[compIdx][addr].subTypeIdx    = 0;
-                if ((compIdx == 0 && saoParam->bSaoFlag[0]) || (compIdx > 0 && saoParam->bSaoFlag[1]))
-                {
-                    calcSaoStatsCu(addr, compIdx,  compIdx);
-                }
-            }
-#if SAO_RUN_IN_X265 // overLoad functions, to get debug info
-			saoComponentParamDist(idxX, allowMergeLeft, allowMergeUp, saoParam, addr, addrUp, addrLeft, 0,  lumaLambda, &mergeSaoParam[0][0], &compDistortion[0]);
-			sao2ChromaParamDist(idxX, allowMergeLeft, allowMergeUp, saoParam, addr, addrUp, addrLeft, chromaLambda, &mergeSaoParam[1][0], &mergeSaoParam[2][0], &compDistortion[0]);
-#else
-            saoComponentParamDist(allowMergeLeft, allowMergeUp, saoParam, addr, addrUp, addrLeft, 0,  lumaLambda, &mergeSaoParam[0][0], &compDistortion[0]);
-            sao2ChromaParamDist(allowMergeLeft, allowMergeUp, saoParam, addr, addrUp, addrLeft, chromaLambda, &mergeSaoParam[1][0], &mergeSaoParam[2][0], &compDistortion[0]);
-#endif
-			if (saoParam->bSaoFlag[0] || saoParam->bSaoFlag[1])
-            {
-                // Cost of new SAO_params
-                m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_CURR_BEST]);
-                m_rdGoOnSbacCoder->resetBits();
-                if (allowMergeLeft)
-                {
-                    m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
-                }
-                if (allowMergeUp)
-                {
-                    m_entropyCoder->m_entropyCoderIf->codeSaoMerge(0);
-                }
-                for (compIdx = 0; compIdx < 3; compIdx++)
-                {
-                    if ((compIdx == 0 && saoParam->bSaoFlag[0]) || (compIdx > 0 && saoParam->bSaoFlag[1]))
-                    {
-                        m_entropyCoder->encodeSaoOffset(&saoParam->saoLcuParam[compIdx][addr], compIdx);
-                    }
-                }
-
-                rate = m_entropyCoder->getNumberOfWrittenBits();
-#if SAO_RUN_IN_X265
-				m_hevcSAO->m_infoFromX265->rate[idxX] = rate;
-#endif
-                bestCost = compDistortion[0] + (double)rate;
-                m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
-#if SAO_RUN_IN_X265 // get debug info from x265 [begin]
-				m_hevcSAO->m_infoFromX265->notMergeBestCost[idxX] = bestCost;
-#endif // get debug info from x265 [end]
-                // Cost of Merge
-                for (int mergeUp = 0; mergeUp < 2; ++mergeUp)
-                {
-                    if ((allowMergeLeft && (mergeUp == 0)) || (allowMergeUp && (mergeUp == 1)))
-                    {
-                        m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_CURR_BEST]);
-                        m_rdGoOnSbacCoder->resetBits();
-                        if (allowMergeLeft)
-                        {
-                            m_entropyCoder->m_entropyCoderIf->codeSaoMerge(1 - mergeUp);
-                        }
-                        if (allowMergeUp && (mergeUp == 1))
-                        {
-                            m_entropyCoder->m_entropyCoderIf->codeSaoMerge(1);
-                        }
-
-                        rate = m_entropyCoder->getNumberOfWrittenBits();
-                        mergeCost = compDistortion[mergeUp + 1] + (double)rate;
-#if SAO_RUN_IN_X265 // get debug info from x265 [degin]
-						if (mergeUp == 0) //mergeLeft
-						{
-							m_hevcSAO->m_infoFromX265->mergeLeftCost[idxX] = mergeCost;
-						}
-						else //mergeUp
-						{
-							m_hevcSAO->m_infoFromX265->mergeUpCost[idxX] = mergeCost;
-						}
-#endif // get debug info from x265 [end]
-                        if (mergeCost < bestCost)
-                        {
-                            bestCost = mergeCost;
-                            m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
-                            for (compIdx = 0; compIdx < 3; compIdx++)
-                            {
-                                mergeSaoParam[compIdx][mergeUp].mergeLeftFlag = 1 - mergeUp;
-                                mergeSaoParam[compIdx][mergeUp].mergeUpFlag = mergeUp;
-                                if ((compIdx == 0 && saoParam->bSaoFlag[0]) || (compIdx > 0 && saoParam->bSaoFlag[1]))
-                                {
-                                    copySaoUnit(&saoParam->saoLcuParam[compIdx][addr], &mergeSaoParam[compIdx][mergeUp]);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (saoParam->saoLcuParam[0][addr].typeIdx == -1)
-                {
-                    numNoSao[0]++;
-                }
-                if (saoParam->saoLcuParam[1][addr].typeIdx == -1)
-                {
-                    numNoSao[1] += 2;
-                }
-                m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-                m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_CURR_BEST]);
-            }
-#if SAO_RUN_IN_X265
-#if 1
-			m_hevcSAO->getInfoFromX265_0(idxX, idxY, lumaLambda, chromaLambda, m_pic->getSlice()->getSPS()->getMaxCUWidth(), 
-				m_pic->getCU(addr)->getCUPelX(), m_pic->getCU(addr)->getCUPelY(), m_picWidth, m_picHeight, getPicYuvAddr(m_pic->getPicYuvRec(), 0, addr), getPicYuvAddr(m_pic->getPicYuvOrg(), 0, addr), m_pic->getStride(),
-				getPicYuvAddr(m_pic->getPicYuvRec(), 1, addr), getPicYuvAddr(m_pic->getPicYuvOrg(), 1, addr),
-				getPicYuvAddr(m_pic->getPicYuvRec(), 2, addr), getPicYuvAddr(m_pic->getPicYuvOrg(), 2, addr), m_pic->getCStride(),
-				getPicYuvAddr(m_pic->getPicYuvRec(), 0, addrLeft), getPicYuvAddr(m_pic->getPicYuvRec(), 1, addrLeft), getPicYuvAddr(m_pic->getPicYuvRec(), 2, addrLeft),
-				getPicYuvAddr(m_pic->getPicYuvRec(), 0, addrUp), getPicYuvAddr(m_pic->getPicYuvRec(), 1, addrUp), getPicYuvAddr(m_pic->getPicYuvRec(), 2, addrUp),
-				&compDistortion[0], &saoParam->saoLcuParam[0][addr], &saoParam->saoLcuParam[1][addr], &saoParam->saoLcuParam[2][addr]);			
-
-#else
-		{
-			uint8_t k;
-			// ===============  get input from X265 ==================
-			m_hevcSAO->m_infoFromX265->ctuPosY = (uint8_t)idxY;
-			m_hevcSAO->m_infoFromX265->ctuPosX = (uint8_t)idxX;
-			m_hevcSAO->m_infoFromX265->lumaLambda = lumaLambda;
-			m_hevcSAO->m_infoFromX265->chromaLambda = chromaLambda;
-			m_hevcSAO->m_infoFromX265->size = (uint8_t)m_pic->getSlice()->getSPS()->getMaxCUWidth();
-			uint8_t size = m_hevcSAO->m_infoFromX265->size;
-
-			uint8_t lPelx = m_pic->getCU(addr)->getCUPelX();
-			uint8_t tPely = m_pic->getCU(addr)->getCUPelY();
-			uint8_t* inRecPixelY = getPicYuvAddr(m_pic->getPicYuvRec(), 0, addr);
-			uint8_t* orgPixelY =  getPicYuvAddr(m_pic->getPicYuvOrg(), 0, addr);
-			int lumaStride = m_pic->getStride();
-			uint8_t* inRecPixelU = getPicYuvAddr(m_pic->getPicYuvRec(), 1, addr);
-			uint8_t* orgPixelU =  getPicYuvAddr(m_pic->getPicYuvOrg(), 1, addr);
-			uint8_t* inRecPixelV = getPicYuvAddr(m_pic->getPicYuvRec(), 2, addr);
-			uint8_t* orgPixelV =  getPicYuvAddr(m_pic->getPicYuvOrg(), 2, addr);
-			int chromaStride = m_pic->getCStride();
-			uint8_t* inRecPixelLeftY = getPicYuvAddr(m_pic->getPicYuvRec(), 0, addrLeft);
-			uint8_t* inRecPixelLeftU = getPicYuvAddr(m_pic->getPicYuvRec(), 1, addrLeft);
-			uint8_t* inRecPixelLeftV = getPicYuvAddr(m_pic->getPicYuvRec(), 2, addrLeft);
-			uint8_t* inRecPixelUpY = getPicYuvAddr(m_pic->getPicYuvRec(), 0, addrUp);
-			uint8_t* inRecPixelUpU = getPicYuvAddr(m_pic->getPicYuvRec(), 1, addrUp);
-			uint8_t* inRecPixelUpV = getPicYuvAddr(m_pic->getPicYuvRec(), 2, addrUp);
-			SaoLcuParam* saoLcuParamY = &saoParam->saoLcuParam[0][addr];
-			SaoLcuParam* saoLcuParamU = &saoParam->saoLcuParam[1][addr];
-			SaoLcuParam* saoLcuParamV = &saoParam->saoLcuParam[2][addr];
-			
-			uint8_t validWidth = size;
-			uint8_t validHeight = size;
-			uint32_t rPelx = lPelx + validWidth;
-			uint32_t bPely = tPely + validHeight;
-			rPelx = rPelx > m_picWidth ? m_picWidth : rPelx;
-			bPely = bPely > m_picHeight ? m_picHeight : bPely;
-			validWidth = rPelx - lPelx;
-			validHeight = bPely - tPely;
-			m_hevcSAO->m_infoFromX265->validWidth = validWidth;
-			m_hevcSAO->m_infoFromX265->validHeight = validHeight;
-			m_hevcSAO->m_infoFromX265->bLastCol = (rPelx == m_picWidth);
-			m_hevcSAO->m_infoFromX265->bLastRow = (bPely == m_picHeight);
-
-
-			// Y component
-			for (k = 0; k < size; k++)
-			{
-				memcpy(&m_hevcSAO->m_infoFromX265->inRecPixelY[k*size], &inRecPixelY[k*lumaStride], size*sizeof(uint8_t));
-				memcpy(&m_hevcSAO->m_infoFromX265->orgPixelY[k*size], &orgPixelY[k*lumaStride], size*sizeof(uint8_t));
-				
-				// last col in left CTU 
-				if (m_hevcSAO->m_infoFromX265->ctuPosX>0)
-				{
-					m_hevcSAO->m_infoFromX265->inRecPixelLeftY[k] = inRecPixelLeftY[size-1+k*lumaStride];
-				}	
-			}
-			// U, V components
-			for (k = 0; k < (size / 2); k++)
-			{
-				memcpy(&m_hevcSAO->m_infoFromX265->inRecPixelU[k*size / 2], &inRecPixelU[k*chromaStride], size / 2 * sizeof(uint8_t));
-				memcpy(&m_hevcSAO->m_infoFromX265->orgPixelU[k*size / 2], &orgPixelU[k*chromaStride], size / 2 * sizeof(uint8_t));
-				memcpy(&m_hevcSAO->m_infoFromX265->inRecPixelV[k*size / 2], &inRecPixelV[k*chromaStride], size / 2 * sizeof(uint8_t));
-				memcpy(&m_hevcSAO->m_infoFromX265->orgPixelV[k*size / 2], &orgPixelV[k*chromaStride], size / 2 * sizeof(uint8_t));
-
-				// last col in left CTU 
-				if (m_hevcSAO->m_infoFromX265->ctuPosX>0)
-				{
-					m_hevcSAO->m_infoFromX265->inRecPixelLeftU[k] = inRecPixelLeftU[size/2 - 1 + k*chromaStride];
-					m_hevcSAO->m_infoFromX265->inRecPixelLeftV[k] = inRecPixelLeftV[size/2 - 1 + k*chromaStride];
-				}
-			}
-
-			
-			if (m_hevcSAO->m_infoFromX265->ctuPosY>0)
-			{
-				// last row in Up CTU
-				memcpy(&m_hevcSAO->m_infoFromX265->inRecPixelUpY[0], inRecPixelUpY + (size - 1)*lumaStride, size*sizeof(uint8_t));
-				memcpy(&m_hevcSAO->m_infoFromX265->inRecPixelUpU[0], inRecPixelUpU + (size / 2 - 1)*chromaStride, size / 2 * sizeof(uint8_t));
-				memcpy(&m_hevcSAO->m_infoFromX265->inRecPixelUpV[0], inRecPixelUpV + (size / 2 - 1)*chromaStride, size / 2 * sizeof(uint8_t));
-			
-
-				// extra needed pixels (right_top)
-				if (!m_hevcSAO->m_infoFromX265->bLastCol)
-				{
-					m_hevcSAO->m_infoFromX265->inRecPixelExtraY[1] = inRecPixelY[-lumaStride + size];
-					m_hevcSAO->m_infoFromX265->inRecPixelExtraU[1] = inRecPixelU[-chromaStride + size / 2];
-					m_hevcSAO->m_infoFromX265->inRecPixelExtraV[1] = inRecPixelV[-chromaStride + size / 2];
-				}
-
-				// extra needed pixels (left_top)
-				if (m_hevcSAO->m_infoFromX265->ctuPosX>0)
-				{
-					m_hevcSAO->m_infoFromX265->inRecPixelExtraY[0] = inRecPixelY[-lumaStride-1];
-					m_hevcSAO->m_infoFromX265->inRecPixelExtraU[0] = inRecPixelU[-chromaStride-1];
-					m_hevcSAO->m_infoFromX265->inRecPixelExtraV[0] = inRecPixelV[-chromaStride-1];
-				}
-
-			}
-
-			// ===============  get debugInfo from X265 ==================			
-			m_hevcSAO->m_infoFromX265->compDist[idxX][0] = compDistortion[0]; //notMerge
-			m_hevcSAO->m_infoFromX265->compDist[idxX][1] = compDistortion[1]; //mergeLeft
-			m_hevcSAO->m_infoFromX265->compDist[idxX][2] = compDistortion[2]; //mergeUp
-
-			// Y component
-			m_hevcSAO->m_infoFromX265->saoType[idxX][0] = saoLcuParamY->typeIdx;
-			m_hevcSAO->m_infoFromX265->bandIdx[idxX][0] = saoLcuParamY->subTypeIdx;
-			m_hevcSAO->m_infoFromX265->mergeLeftFlag[idxX][0] = saoLcuParamY->mergeLeftFlag;
-			m_hevcSAO->m_infoFromX265->mergeUpFlag[idxX][0] = saoLcuParamY->mergeUpFlag;
-			for (int k = 0; k < 4;k++)
-			{
-				m_hevcSAO->m_infoFromX265->offset[idxX][0][k] = saoLcuParamY->offset[k];
-			}
-
-			// U component
-			m_hevcSAO->m_infoFromX265->saoType[idxX][1] = saoLcuParamU->typeIdx;
-			m_hevcSAO->m_infoFromX265->bandIdx[idxX][1] = saoLcuParamU->subTypeIdx;
-			m_hevcSAO->m_infoFromX265->mergeLeftFlag[idxX][1] = saoLcuParamU->mergeLeftFlag;
-			m_hevcSAO->m_infoFromX265->mergeUpFlag[idxX][1] = saoLcuParamU->mergeUpFlag;
-
-			for (int k = 0; k < 4; k++)
-			{
-				m_hevcSAO->m_infoFromX265->offset[idxX][1][k] = saoLcuParamU->offset[k];
-			}
-
-			// V component
-			m_hevcSAO->m_infoFromX265->saoType[idxX][2] = saoLcuParamV->typeIdx;
-			m_hevcSAO->m_infoFromX265->bandIdx[idxX][2] = saoLcuParamV->subTypeIdx;
-			m_hevcSAO->m_infoFromX265->mergeLeftFlag[idxX][2] = saoLcuParamV->mergeLeftFlag;
-			m_hevcSAO->m_infoFromX265->mergeUpFlag[idxX][2] = saoLcuParamV->mergeUpFlag;
-
-			for (int k = 0; k < 4; k++)
-			{
-				m_hevcSAO->m_infoFromX265->offset[idxX][2][k] = saoLcuParamV->offset[k];
-			}
-
-		}
-#endif
-			//============  run HWC_SAO_RDO in x265  and compare results =============
-			m_hevcSAO->getFromX265();
-			m_hevcSAO->RDO(m_hevcSAO->m_saoParam, addr);
-			m_hevcSAO->setRdoParam(idxX, addr);
-			assert(!m_hevcSAO->compareX265andHWC(idxX)); //CTU level
-			m_hevcSAO->setSaoParamToX265(saoParam, addr);
-#endif
-        }
-    }
-}
 
 /** rate distortion optimization of SAO unit
  * \param saoParam SAO parameters
@@ -2026,7 +2753,7 @@ void TEncSampleAdaptiveOffset::rdoSaoUnitRow(SAOParam *saoParam, int idxY)
  * \param yCbCr color component index
  * \param lambda
  */
-inline int64_t TEncSampleAdaptiveOffset::estSaoTypeDist(int compIdx, int typeIdx, int shift, double lambda, int32_t *currentDistortionTableBo, double *currentRdCostTableBo)
+inline int64_t hevcSAO::estSaoTypeDist(int compIdx, int typeIdx, int shift, double lambda, int32_t *currentDistortionTableBo, double *currentRdCostTableBo)
 {
     int64_t estDist = 0;
     int classIdx;
@@ -2071,12 +2798,12 @@ inline int64_t TEncSampleAdaptiveOffset::estSaoTypeDist(int compIdx, int typeIdx
     return estDist;
 }
 
-inline int64_t TEncSampleAdaptiveOffset::estSaoDist(int64_t count, int64_t offset, int64_t offsetOrg, int shift)
+inline int64_t hevcSAO::estSaoDist(int64_t count, int64_t offset, int64_t offsetOrg, int shift)
 {
     return (count * offset * offset - offsetOrg * offset * 2) >> shift;
 }
 
-inline int64_t TEncSampleAdaptiveOffset::estIterOffset(int typeIdx, int classIdx, double lambda, int64_t offsetInput, int64_t count, int64_t offsetOrg, int shift, int bitIncrease, int32_t *currentDistortionTableBo, double *currentRdCostTableBo, int offsetTh)
+inline int64_t hevcSAO::estIterOffset(int typeIdx, int classIdx, double lambda, int64_t offsetInput, int64_t count, int64_t offsetOrg, int shift, int bitIncrease, int32_t *currentDistortionTableBo, double *currentRdCostTableBo, int offsetTh)
 {
     //Clean up, best_q_offset.
     int64_t iterOffset, tempOffset;
@@ -2115,8 +2842,14 @@ inline int64_t TEncSampleAdaptiveOffset::estIterOffset(int typeIdx, int classIdx
     return offsetOutput;
 }
 
-void TEncSampleAdaptiveOffset::saoComponentParamDist(int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, int yCbCr, double lambda, SaoLcuParam *compSaoParam, double *compDistortion)
+void hevcSAO::calcLumaDist(int allowMergeLeft, int allowMergeUp, double lambda, SaoCtuParam* mergeCtuParam, double *compDistortion)
 {
+	uint8_t ctuPosX = m_infoForSAO->ctuPosX;
+	SaoGlobalCtuParam* leftCtuParam = &m_saoRdoParam->ctuParam[0];
+	SaoGlobalCtuParam* upCtuParam = &m_saoRdoParam->frameLineParam[0][ctuPosX];
+	SaoGlobalCtuParam* neighborCtuParam;
+	SaoCtuParam* saoCtuParam = &m_infoForSAO->saoCtuParam[0]; // Y comp
+	//uint8_t size = m_infoForSAO->size;
     int typeIdx;
 
     int64_t estDist;
@@ -2124,13 +2857,10 @@ void TEncSampleAdaptiveOffset::saoComponentParamDist(int allowMergeLeft, int all
     int shift = 2 * DISTORTION_PRECISION_ADJUSTMENT(X265_DEPTH - 8);
     int64_t bestDist;
 
-    SaoLcuParam*  saoLcuParam = &(saoParam->saoLcuParam[yCbCr][addr]);
-    SaoLcuParam*  saoLcuParamNeighbor = NULL;
-
-    resetSaoUnit(saoLcuParam);
-    resetSaoUnit(&compSaoParam[0]);
-    resetSaoUnit(&compSaoParam[1]);
-
+	resetSaoCtuParam(saoCtuParam);
+	resetSaoCtuParam(&mergeCtuParam[0]);
+	resetSaoCtuParam(&mergeCtuParam[1]);	
+	
     double dCostPartBest = MAX_DOUBLE;
 
     double  bestRDCostTableBo = MAX_DOUBLE;
@@ -2138,23 +2868,25 @@ void TEncSampleAdaptiveOffset::saoComponentParamDist(int allowMergeLeft, int all
     int     currentDistortionTableBo[MAX_NUM_SAO_CLASS];
     double  currentRdCostTableBo[MAX_NUM_SAO_CLASS];
 
-    SaoLcuParam   saoLcuParamRdo;
+    SaoCtuParam   saoCtuParamRdo;
     double   estRate = 0;
 
-    resetSaoUnit(&saoLcuParamRdo);
+	resetSaoCtuParam(&saoCtuParamRdo);
 
     m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
     m_rdGoOnSbacCoder->resetBits();
-    m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo, yCbCr);
+	m_entropyCoder->encodeSaoOffset(&saoCtuParamRdo, 0);
 
     dCostPartBest = m_entropyCoder->getNumberOfWrittenBits() * lambda;
-    copySaoUnit(saoLcuParam, &saoLcuParamRdo);
+	copySaoCtuParam(saoCtuParam, &saoCtuParamRdo);
     bestDist = 0;
 
     for (typeIdx = 0; typeIdx < MAX_NUM_SAO_TYPE; typeIdx++)
     {
-        estDist = estSaoTypeDist(yCbCr, typeIdx, shift, lambda, currentDistortionTableBo, currentRdCostTableBo);
-
+        estDist = estSaoTypeDist(0, typeIdx, shift, lambda, currentDistortionTableBo, currentRdCostTableBo);
+#if SAO_DBG
+		assert(estDist == m_infoFromX265->eoEstDist[m_infoFromX265->ctuPosX][typeIdx]);
+#endif
         if (typeIdx == SAO_BO)
         {
             // Estimate Best Position
@@ -2182,81 +2914,108 @@ void TEncSampleAdaptiveOffset::saoComponentParamDist(int allowMergeLeft, int all
             {
                 estDist += currentDistortionTableBo[classIdx];
             }
+#if SAO_DBG
+			assert(estDist == m_infoFromX265->boEstDist[m_infoFromX265->ctuPosX]);
+#endif
         }
-        resetSaoUnit(&saoLcuParamRdo);
-        saoLcuParamRdo.length = m_numClass[typeIdx];
-        saoLcuParamRdo.typeIdx = typeIdx;
-        saoLcuParamRdo.mergeLeftFlag = 0;
-        saoLcuParamRdo.mergeUpFlag   = 0;
-        saoLcuParamRdo.subTypeIdx = (typeIdx == SAO_BO) ? bestClassTableBo : 0;
-        for (classIdx = 0; classIdx < saoLcuParamRdo.length; classIdx++)
+        resetSaoCtuParam(&saoCtuParamRdo);
+		//saoCtuParamRdo.length = 4;
+		saoCtuParamRdo.typeIdx = typeIdx;
+		saoCtuParamRdo.mergeLeftFlag = 0;
+		saoCtuParamRdo.mergeUpFlag = 0;
+		saoCtuParamRdo.bandIdx = (typeIdx == SAO_BO) ? bestClassTableBo : 0;
+        for (classIdx = 0; classIdx < 4; classIdx++)
         {
-            saoLcuParamRdo.offset[classIdx] = (int)m_offset[yCbCr][typeIdx][classIdx + saoLcuParamRdo.subTypeIdx + 1];
+			saoCtuParamRdo.offset[classIdx] = (int)m_offset[0][typeIdx][classIdx + saoCtuParamRdo.bandIdx + 1];
         }
 
         m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
         m_rdGoOnSbacCoder->resetBits();
-        m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo, yCbCr);
+		m_entropyCoder->encodeSaoOffset(&saoCtuParamRdo, 0);
 
         estRate = m_entropyCoder->getNumberOfWrittenBits();
-        m_cost[yCbCr][typeIdx] = (double)((double)estDist + lambda * (double)estRate);
-
-        if (m_cost[yCbCr][typeIdx] < dCostPartBest)
+        m_cost[0][typeIdx] = (double)((double)estDist + lambda * (double)estRate);
+#if SAO_DBG
+		assert(estRate == m_infoFromX265->estRate[m_infoFromX265->ctuPosX][typeIdx]);
+#endif
+        if (m_cost[0][typeIdx] < dCostPartBest)
         {
-            dCostPartBest = m_cost[yCbCr][typeIdx];
-            copySaoUnit(saoLcuParam, &saoLcuParamRdo);
+            dCostPartBest = m_cost[0][typeIdx];
+			copySaoCtuParam(saoCtuParam, &saoCtuParamRdo);
             bestDist = estDist;
         }
     }
 
     compDistortion[0] += ((double)bestDist / lambda);
+#if SAO_DBG
+	assert(lambda == m_infoFromX265->lumaLambda);
+	assert(compDistortion[0] == m_infoFromX265->dist[m_infoFromX265->ctuPosX][0][0]);
+	//assert(m_infoFromX265->compDist[m_infoFromX265->colIdx][0] != -9.5789767833552038);
+#endif
     m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-    m_entropyCoder->encodeSaoOffset(saoLcuParam, yCbCr);
+	m_entropyCoder->encodeSaoOffset(saoCtuParam, 0);
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
 
-    // merge left or merge up
-
+    // merge left or merge up	
     for (int idxNeighbor = 0; idxNeighbor < 2; idxNeighbor++)
     {
-        saoLcuParamNeighbor = NULL;
-        if (allowMergeLeft && addrLeft >= 0 && idxNeighbor == 0)
-        {
-            saoLcuParamNeighbor = &(saoParam->saoLcuParam[yCbCr][addrLeft]);
+        neighborCtuParam = NULL;
+        if (allowMergeLeft  && idxNeighbor == 0) // merge Lefts
+        {	
+            neighborCtuParam = leftCtuParam;
         }
-        else if (allowMergeUp && addrUp >= 0 && idxNeighbor == 1)
+        else if (allowMergeUp && idxNeighbor == 1) // merge Up
         {
-            saoLcuParamNeighbor = &(saoParam->saoLcuParam[yCbCr][addrUp]);
+            neighborCtuParam = upCtuParam;
         }
-        if (saoLcuParamNeighbor != NULL)
+        if (neighborCtuParam != NULL)
         {
             estDist = 0;
-            typeIdx = saoLcuParamNeighbor->typeIdx;
+            typeIdx = neighborCtuParam->typeIdx;
             if (typeIdx >= 0)
             {
-                int mergeBandPosition = (typeIdx == SAO_BO) ? saoLcuParamNeighbor->subTypeIdx : 0;
-                int   merge_iOffset;
+				int mergeBandPosition = (typeIdx == SAO_BO) ? neighborCtuParam->bandIdx : 0;					
+
+				int   merge_iOffset;
                 for (classIdx = 0; classIdx < m_numClass[typeIdx]; classIdx++)
                 {
-                    merge_iOffset = saoLcuParamNeighbor->offset[classIdx];
-                    estDist   += estSaoDist(m_count[yCbCr][typeIdx][classIdx + mergeBandPosition + 1], merge_iOffset, m_offsetOrg[yCbCr][typeIdx][classIdx + mergeBandPosition + 1],  shift);
+					merge_iOffset = neighborCtuParam->offset[classIdx];
+                    estDist   += estSaoDist(m_count[0][typeIdx][classIdx + mergeBandPosition + 1], merge_iOffset, m_offsetOrg[0][typeIdx][classIdx + mergeBandPosition + 1],  shift);
                 }
             }
             else
             {
-                estDist = 0;
+                estDist = 0; // noSAO
             }
 
-            copySaoUnit(&compSaoParam[idxNeighbor], saoLcuParamNeighbor);
-            compSaoParam[idxNeighbor].mergeUpFlag   = idxNeighbor;
-            compSaoParam[idxNeighbor].mergeLeftFlag = !idxNeighbor;
-
+            copySaoCtuParam(&mergeCtuParam[idxNeighbor], neighborCtuParam);
+			mergeCtuParam[idxNeighbor].mergeUpFlag = idxNeighbor;
+			mergeCtuParam[idxNeighbor].mergeLeftFlag = !idxNeighbor;
+			
             compDistortion[idxNeighbor + 1] += ((double)estDist / lambda);
         }
-    }
+    }	
+#if SAO_DBG
+	assert(compDistortion[1] == m_infoFromX265->dist[m_infoFromX265->ctuPosX][1][0]);
+	assert(compDistortion[2] == m_infoFromX265->dist[m_infoFromX265->ctuPosX][2][0]);
+#endif
 }
 
-void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, double lambda, SaoLcuParam *crSaoParam, SaoLcuParam *cbSaoParam, double *distortion)
+void hevcSAO::calcChromaDist(int allowMergeLeft, int allowMergeUp, double lambda, SaoCtuParam* crSaoParam, SaoCtuParam* cbSaoParam, double *distortion)
 {
+
+	uint8_t ctuPosX = m_infoForSAO->ctuPosX;
+	SaoGlobalCtuParam* leftCtuParam[2];
+	SaoGlobalCtuParam* upCtuParam[2];
+	SaoGlobalCtuParam* neighborCtuParam[2];
+	
+	leftCtuParam[0] = &m_saoRdoParam->ctuParam[1]; // Cb
+	leftCtuParam[1] = &m_saoRdoParam->ctuParam[2]; // Cr
+	upCtuParam[0] = &m_saoRdoParam->frameLineParam[1][ctuPosX]; // Cb
+	upCtuParam[1] = &m_saoRdoParam->frameLineParam[2][ctuPosX]; // Cr
+	
+	SaoCtuParam* saoCtuParam[2] = {&m_infoForSAO->saoCtuParam[1], &m_infoForSAO->saoCtuParam[2]}; // Cb, Cr
+	
     int typeIdx;
 
     int64_t estDist[2];
@@ -2264,21 +3023,17 @@ void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allow
     int shift = 2 * DISTORTION_PRECISION_ADJUSTMENT(X265_DEPTH - 8);
     int64_t bestDist = 0;
 
-    SaoLcuParam*  saoLcuParam[2] = { &(saoParam->saoLcuParam[1][addr]), &(saoParam->saoLcuParam[2][addr]) };
-    SaoLcuParam*  saoLcuParamNeighbor[2] = { NULL, NULL };
-    SaoLcuParam*  saoMergeParam[2][2];
+    SaoCtuParam*  saoMergeParam[2][2];
 
     saoMergeParam[0][0] = &crSaoParam[0];
     saoMergeParam[0][1] = &crSaoParam[1];
     saoMergeParam[1][0] = &cbSaoParam[0];
     saoMergeParam[1][1] = &cbSaoParam[1];
 
-    resetSaoUnit(saoLcuParam[0]);
-    resetSaoUnit(saoLcuParam[1]);
-    resetSaoUnit(saoMergeParam[0][0]);
-    resetSaoUnit(saoMergeParam[0][1]);
-    resetSaoUnit(saoMergeParam[1][0]);
-    resetSaoUnit(saoMergeParam[1][1]);
+    resetSaoCtuParam(saoMergeParam[0][0]);
+	resetSaoCtuParam(saoMergeParam[0][1]);
+	resetSaoCtuParam(saoMergeParam[1][0]);
+	resetSaoCtuParam(saoMergeParam[1][1]);
 
     double costPartBest = MAX_DOUBLE;
 
@@ -2287,20 +3042,20 @@ void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allow
     int     currentDistortionTableBo[MAX_NUM_SAO_CLASS];
     double  currentRdCostTableBo[MAX_NUM_SAO_CLASS];
 
-    SaoLcuParam   saoLcuParamRdo[2];
+    SaoCtuParam   saoCtuParamRdo[2];
     double   estRate = 0;
 
-    resetSaoUnit(&saoLcuParamRdo[0]);
-    resetSaoUnit(&saoLcuParamRdo[1]);
+	resetSaoCtuParam(&saoCtuParamRdo[0]);
+	resetSaoCtuParam(&saoCtuParamRdo[1]);
 
     m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
     m_rdGoOnSbacCoder->resetBits();
-    m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo[0], 1);
-    m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo[1], 2);
+	m_entropyCoder->encodeSaoOffset(&saoCtuParamRdo[0], 1);
+	m_entropyCoder->encodeSaoOffset(&saoCtuParamRdo[1], 2);
 
     costPartBest = m_entropyCoder->getNumberOfWrittenBits() * lambda;
-    copySaoUnit(saoLcuParam[0], &saoLcuParamRdo[0]);
-    copySaoUnit(saoLcuParam[1], &saoLcuParamRdo[1]);
+	copySaoCtuParam(saoCtuParam[0], &saoCtuParamRdo[0]);
+	copySaoCtuParam(saoCtuParam[1], &saoCtuParamRdo[1]);
 
     for (typeIdx = 0; typeIdx < MAX_NUM_SAO_TYPE; typeIdx++)
     {
@@ -2347,18 +3102,17 @@ void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allow
 
         for (int compIdx = 0; compIdx < 2; compIdx++)
         {
-            resetSaoUnit(&saoLcuParamRdo[compIdx]);
-            saoLcuParamRdo[compIdx].length = m_numClass[typeIdx];
-            saoLcuParamRdo[compIdx].typeIdx = typeIdx;
-            saoLcuParamRdo[compIdx].mergeLeftFlag = 0;
-            saoLcuParamRdo[compIdx].mergeUpFlag   = 0;
-            saoLcuParamRdo[compIdx].subTypeIdx = (typeIdx == SAO_BO) ? bestClassTableBo[compIdx] : 0;
-            for (classIdx = 0; classIdx < saoLcuParamRdo[compIdx].length; classIdx++)
+            resetSaoCtuParam(&saoCtuParamRdo[compIdx]);
+			saoCtuParamRdo[compIdx].typeIdx = typeIdx;
+			saoCtuParamRdo[compIdx].mergeLeftFlag = 0;
+			saoCtuParamRdo[compIdx].mergeUpFlag = 0;
+			saoCtuParamRdo[compIdx].bandIdx = (typeIdx == SAO_BO) ? bestClassTableBo[compIdx] : 0;
+			for (classIdx = 0; classIdx < 4; classIdx++)
             {
-                saoLcuParamRdo[compIdx].offset[classIdx] = (int)m_offset[compIdx + 1][typeIdx][classIdx + saoLcuParamRdo[compIdx].subTypeIdx + 1];
+				saoCtuParamRdo[compIdx].offset[classIdx] = (int)m_offset[compIdx + 1][typeIdx][classIdx + saoCtuParamRdo[compIdx].bandIdx + 1];
             }
 
-            m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo[compIdx], compIdx + 1);
+			m_entropyCoder->encodeSaoOffset(&saoCtuParamRdo[compIdx], compIdx + 1);
         }
 
         estRate = m_entropyCoder->getNumberOfWrittenBits();
@@ -2367,16 +3121,19 @@ void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allow
         if (m_cost[1][typeIdx] < costPartBest)
         {
             costPartBest = m_cost[1][typeIdx];
-            copySaoUnit(saoLcuParam[0], &saoLcuParamRdo[0]);
-            copySaoUnit(saoLcuParam[1], &saoLcuParamRdo[1]);
+			copySaoCtuParam(saoCtuParam[0], &saoCtuParamRdo[0]);
+			copySaoCtuParam(saoCtuParam[1], &saoCtuParamRdo[1]);
             bestDist = (estDist[0] + estDist[1]);
         }
     }
 
     distortion[0] += ((double)bestDist / lambda);
+#if SAO_DBG
+	assert(distortion[0] == m_infoFromX265->dist[m_infoFromX265->ctuPosX][0][1]);
+#endif
     m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-    m_entropyCoder->encodeSaoOffset(saoLcuParam[0], 1);
-    m_entropyCoder->encodeSaoOffset(saoLcuParam[1], 2);
+	m_entropyCoder->encodeSaoOffset(saoCtuParam[0], 1);
+	m_entropyCoder->encodeSaoOffset(saoCtuParam[1], 2);
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
 
     // merge left or merge up
@@ -2385,26 +3142,26 @@ void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allow
     {
         for (int compIdx = 0; compIdx < 2; compIdx++)
         {
-            saoLcuParamNeighbor[compIdx] = NULL;
-            if (allowMergeLeft && addrLeft >= 0 && idxNeighbor == 0)
+            neighborCtuParam[compIdx] = NULL;
+            if (allowMergeLeft && idxNeighbor == 0) // merge Left
             {
-                saoLcuParamNeighbor[compIdx] = &(saoParam->saoLcuParam[compIdx + 1][addrLeft]);
+                neighborCtuParam[compIdx] = leftCtuParam[compIdx];
             }
-            else if (allowMergeUp && addrUp >= 0 && idxNeighbor == 1)
+            else if (allowMergeUp && idxNeighbor == 1) // merge Up
             {
-                saoLcuParamNeighbor[compIdx] = &(saoParam->saoLcuParam[compIdx + 1][addrUp]);
+				neighborCtuParam[compIdx] = upCtuParam[compIdx];
             }
-            if (saoLcuParamNeighbor[compIdx] != NULL)
+            if (neighborCtuParam[compIdx] != NULL)
             {
                 estDist[compIdx] = 0;
-                typeIdx = saoLcuParamNeighbor[compIdx]->typeIdx;
+                typeIdx = neighborCtuParam[compIdx]->typeIdx;
                 if (typeIdx >= 0)
                 {
-                    int mergeBandPosition = (typeIdx == SAO_BO) ? saoLcuParamNeighbor[compIdx]->subTypeIdx : 0;
-                    int   merge_iOffset;
+					int mergeBandPosition = (typeIdx == SAO_BO) ? neighborCtuParam[compIdx]->bandIdx : 0;
+                    int merge_iOffset;
                     for (classIdx = 0; classIdx < m_numClass[typeIdx]; classIdx++)
                     {
-                        merge_iOffset = saoLcuParamNeighbor[compIdx]->offset[classIdx];
+                        merge_iOffset = neighborCtuParam[compIdx]->offset[classIdx];
                         estDist[compIdx]   += estSaoDist(m_count[compIdx + 1][typeIdx][classIdx + mergeBandPosition + 1], merge_iOffset, m_offsetOrg[compIdx + 1][typeIdx][classIdx + mergeBandPosition + 1],  shift);
                     }
                 }
@@ -2413,345 +3170,17 @@ void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int allowMergeLeft, int allow
                     estDist[compIdx] = 0;
                 }
 
-                copySaoUnit(saoMergeParam[compIdx][idxNeighbor], saoLcuParamNeighbor[compIdx]);
+                copySaoCtuParam(saoMergeParam[compIdx][idxNeighbor], neighborCtuParam[compIdx]);
                 saoMergeParam[compIdx][idxNeighbor]->mergeUpFlag   = idxNeighbor;
                 saoMergeParam[compIdx][idxNeighbor]->mergeLeftFlag = !idxNeighbor;
                 distortion[idxNeighbor + 1] += ((double)estDist[compIdx] / lambda);
             }
         }
     }
-}
-
-/************************************************************************/
-/*  overLoad functions by sao_rdo_module                                */
-/************************************************************************/
-
-void TEncSampleAdaptiveOffset::saoComponentParamDist(int colIdx, int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, int yCbCr, double lambda, SaoLcuParam *compSaoParam, double *compDistortion)
-{
-	int typeIdx;
-
-	int64_t estDist;
-	int classIdx;
-	int shift = 2 * DISTORTION_PRECISION_ADJUSTMENT(X265_DEPTH - 8);
-	int64_t bestDist;
-
-	SaoLcuParam*  saoLcuParam = &(saoParam->saoLcuParam[yCbCr][addr]);
-	SaoLcuParam*  saoLcuParamNeighbor = NULL;
-
-	resetSaoUnit(saoLcuParam);
-	resetSaoUnit(&compSaoParam[0]);
-	resetSaoUnit(&compSaoParam[1]);
-
-	double dCostPartBest = MAX_DOUBLE;
-
-	double  bestRDCostTableBo = MAX_DOUBLE;
-	int     bestClassTableBo = 0;
-	int     currentDistortionTableBo[MAX_NUM_SAO_CLASS];
-	double  currentRdCostTableBo[MAX_NUM_SAO_CLASS];
-
-	SaoLcuParam   saoLcuParamRdo;
-	double   estRate = 0;
-
-	resetSaoUnit(&saoLcuParamRdo);
-
-	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-	m_rdGoOnSbacCoder->resetBits();
-	m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo, yCbCr);
-
-	dCostPartBest = m_entropyCoder->getNumberOfWrittenBits() * lambda;
-	copySaoUnit(saoLcuParam, &saoLcuParamRdo);
-	bestDist = 0;
-
-	for (typeIdx = 0; typeIdx < MAX_NUM_SAO_TYPE; typeIdx++)
-	{
-		estDist = estSaoTypeDist(yCbCr, typeIdx, shift, lambda, currentDistortionTableBo, currentRdCostTableBo);
-#if SAO_RUN_IN_X265
-		m_hevcSAO->m_infoFromX265->eoEstDist[colIdx][typeIdx] = estDist;
-#endif
-		if (typeIdx == SAO_BO)
-		{
-			// Estimate Best Position
-			double currentRDCost = 0.0;
-
-			for (int i = 0; i < SAO_MAX_BO_CLASSES - SAO_BO_LEN + 1; i++)
-			{
-				currentRDCost = 0.0;
-				for (uint32_t uj = i; uj < i + SAO_BO_LEN; uj++)
-				{
-					currentRDCost += currentRdCostTableBo[uj];
-				}
-
-				if (currentRDCost < bestRDCostTableBo)
-				{
-					bestRDCostTableBo = currentRDCost;
-					bestClassTableBo = i;
-				}
-			}
-
-			// Re code all Offsets
-			// Code Center
-			estDist = 0;
-			for (classIdx = bestClassTableBo; classIdx < bestClassTableBo + SAO_BO_LEN; classIdx++)
-			{
-				estDist += currentDistortionTableBo[classIdx];
-			}
-#if SAO_RUN_IN_X265
-			m_hevcSAO->m_infoFromX265->boEstDist[colIdx] = estDist;
-#endif
-		}
-		resetSaoUnit(&saoLcuParamRdo);
-		saoLcuParamRdo.length = m_numClass[typeIdx];
-		saoLcuParamRdo.typeIdx = typeIdx;
-		saoLcuParamRdo.mergeLeftFlag = 0;
-		saoLcuParamRdo.mergeUpFlag = 0;
-		saoLcuParamRdo.subTypeIdx = (typeIdx == SAO_BO) ? bestClassTableBo : 0;
-		for (classIdx = 0; classIdx < saoLcuParamRdo.length; classIdx++)
-		{
-			saoLcuParamRdo.offset[classIdx] = (int)m_offset[yCbCr][typeIdx][classIdx + saoLcuParamRdo.subTypeIdx + 1];
-		}
-
-		m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-		m_rdGoOnSbacCoder->resetBits();
-		m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo, yCbCr);
-
-		estRate = m_entropyCoder->getNumberOfWrittenBits();
-		m_cost[yCbCr][typeIdx] = (double)((double)estDist + lambda * (double)estRate);
-#if SAO_RUN_IN_X265
-		m_hevcSAO->m_infoFromX265->estRate[colIdx][typeIdx] = estRate;
-#endif
-		if (m_cost[yCbCr][typeIdx] < dCostPartBest)
-		{
-			dCostPartBest = m_cost[yCbCr][typeIdx];
-			copySaoUnit(saoLcuParam, &saoLcuParamRdo);
-			bestDist = estDist;
-		}
-	}
-
-	compDistortion[0] += ((double)bestDist / lambda);
-#if SAO_RUN_IN_X265
-	m_hevcSAO->m_infoFromX265->dist[colIdx][0][0] = compDistortion[0];
-#endif
-	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-	m_entropyCoder->encodeSaoOffset(saoLcuParam, yCbCr);
-	m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
-
-	// merge left or merge up
-
-	for (int idxNeighbor = 0; idxNeighbor < 2; idxNeighbor++)
-	{
-		saoLcuParamNeighbor = NULL;
-		if (allowMergeLeft && addrLeft >= 0 && idxNeighbor == 0)
-		{
-			saoLcuParamNeighbor = &(saoParam->saoLcuParam[yCbCr][addrLeft]);
-		}
-		else if (allowMergeUp && addrUp >= 0 && idxNeighbor == 1)
-		{
-			saoLcuParamNeighbor = &(saoParam->saoLcuParam[yCbCr][addrUp]);
-		}
-		if (saoLcuParamNeighbor != NULL)
-		{
-			estDist = 0;
-			typeIdx = saoLcuParamNeighbor->typeIdx;
-			if (typeIdx >= 0)
-			{
-				int mergeBandPosition = (typeIdx == SAO_BO) ? saoLcuParamNeighbor->subTypeIdx : 0;
-				int   merge_iOffset;
-				for (classIdx = 0; classIdx < m_numClass[typeIdx]; classIdx++)
-				{
-					merge_iOffset = saoLcuParamNeighbor->offset[classIdx];
-					estDist += estSaoDist(m_count[yCbCr][typeIdx][classIdx + mergeBandPosition + 1], merge_iOffset, m_offsetOrg[yCbCr][typeIdx][classIdx + mergeBandPosition + 1], shift);
-				}
-			}
-			else
-			{
-				estDist = 0;
-			}
-
-			copySaoUnit(&compSaoParam[idxNeighbor], saoLcuParamNeighbor);
-			compSaoParam[idxNeighbor].mergeUpFlag = idxNeighbor;
-			compSaoParam[idxNeighbor].mergeLeftFlag = !idxNeighbor;
-
-			compDistortion[idxNeighbor + 1] += ((double)estDist / lambda);
-		}
-	}
-#if SAO_RUN_IN_X265
-	m_hevcSAO->m_infoFromX265->dist[colIdx][1][0] = compDistortion[1];
-	m_hevcSAO->m_infoFromX265->dist[colIdx][2][0] = compDistortion[2];
-#endif
-	
-}
-
-void TEncSampleAdaptiveOffset::sao2ChromaParamDist(int colIdx, int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, double lambda, SaoLcuParam *crSaoParam, SaoLcuParam *cbSaoParam, double *distortion)
-{
-	int typeIdx;
-
-	int64_t estDist[2];
-	int classIdx;
-	int shift = 2 * DISTORTION_PRECISION_ADJUSTMENT(X265_DEPTH - 8);
-	int64_t bestDist = 0;
-
-	SaoLcuParam*  saoLcuParam[2] = { &(saoParam->saoLcuParam[1][addr]), &(saoParam->saoLcuParam[2][addr]) };
-	SaoLcuParam*  saoLcuParamNeighbor[2] = { NULL, NULL };
-	SaoLcuParam*  saoMergeParam[2][2];
-
-	saoMergeParam[0][0] = &crSaoParam[0];
-	saoMergeParam[0][1] = &crSaoParam[1];
-	saoMergeParam[1][0] = &cbSaoParam[0];
-	saoMergeParam[1][1] = &cbSaoParam[1];
-
-	resetSaoUnit(saoLcuParam[0]);
-	resetSaoUnit(saoLcuParam[1]);
-	resetSaoUnit(saoMergeParam[0][0]);
-	resetSaoUnit(saoMergeParam[0][1]);
-	resetSaoUnit(saoMergeParam[1][0]);
-	resetSaoUnit(saoMergeParam[1][1]);
-
-	double costPartBest = MAX_DOUBLE;
-
-	double  bestRDCostTableBo;
-	int     bestClassTableBo[2] = { 0, 0 };
-	int     currentDistortionTableBo[MAX_NUM_SAO_CLASS];
-	double  currentRdCostTableBo[MAX_NUM_SAO_CLASS];
-
-	SaoLcuParam   saoLcuParamRdo[2];
-	double   estRate = 0;
-
-	resetSaoUnit(&saoLcuParamRdo[0]);
-	resetSaoUnit(&saoLcuParamRdo[1]);
-
-	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-	m_rdGoOnSbacCoder->resetBits();
-	m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo[0], 1);
-	m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo[1], 2);
-
-	costPartBest = m_entropyCoder->getNumberOfWrittenBits() * lambda;
-	copySaoUnit(saoLcuParam[0], &saoLcuParamRdo[0]);
-	copySaoUnit(saoLcuParam[1], &saoLcuParamRdo[1]);
-
-	for (typeIdx = 0; typeIdx < MAX_NUM_SAO_TYPE; typeIdx++)
-	{
-		if (typeIdx == SAO_BO)
-		{
-			// Estimate Best Position
-			for (int compIdx = 0; compIdx < 2; compIdx++)
-			{
-				double currentRDCost = 0.0;
-				bestRDCostTableBo = MAX_DOUBLE;
-				estDist[compIdx] = estSaoTypeDist(compIdx + 1, typeIdx, shift, lambda, currentDistortionTableBo, currentRdCostTableBo);
-				for (int i = 0; i < SAO_MAX_BO_CLASSES - SAO_BO_LEN + 1; i++)
-				{
-					currentRDCost = 0.0;
-					for (uint32_t uj = i; uj < i + SAO_BO_LEN; uj++)
-					{
-						currentRDCost += currentRdCostTableBo[uj];
-					}
-
-					if (currentRDCost < bestRDCostTableBo)
-					{
-						bestRDCostTableBo = currentRDCost;
-						bestClassTableBo[compIdx] = i;
-					}
-				}
-
-				// Re code all Offsets
-				// Code Center
-				estDist[compIdx] = 0;
-				for (classIdx = bestClassTableBo[compIdx]; classIdx < bestClassTableBo[compIdx] + SAO_BO_LEN; classIdx++)
-				{
-					estDist[compIdx] += currentDistortionTableBo[classIdx];
-				}
-			}
-		}
-		else
-		{
-			estDist[0] = estSaoTypeDist(1, typeIdx, shift, lambda, currentDistortionTableBo, currentRdCostTableBo);
-			estDist[1] = estSaoTypeDist(2, typeIdx, shift, lambda, currentDistortionTableBo, currentRdCostTableBo);
-		}
-
-		m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-		m_rdGoOnSbacCoder->resetBits();
-
-		for (int compIdx = 0; compIdx < 2; compIdx++)
-		{
-			resetSaoUnit(&saoLcuParamRdo[compIdx]);
-			saoLcuParamRdo[compIdx].length = m_numClass[typeIdx];
-			saoLcuParamRdo[compIdx].typeIdx = typeIdx;
-			saoLcuParamRdo[compIdx].mergeLeftFlag = 0;
-			saoLcuParamRdo[compIdx].mergeUpFlag = 0;
-			saoLcuParamRdo[compIdx].subTypeIdx = (typeIdx == SAO_BO) ? bestClassTableBo[compIdx] : 0;
-			for (classIdx = 0; classIdx < saoLcuParamRdo[compIdx].length; classIdx++)
-			{
-				saoLcuParamRdo[compIdx].offset[classIdx] = (int)m_offset[compIdx + 1][typeIdx][classIdx + saoLcuParamRdo[compIdx].subTypeIdx + 1];
-			}
-
-			m_entropyCoder->encodeSaoOffset(&saoLcuParamRdo[compIdx], compIdx + 1);
-		}
-
-		estRate = m_entropyCoder->getNumberOfWrittenBits();
-		m_cost[1][typeIdx] = (double)((double)(estDist[0] + estDist[1]) + lambda * (double)estRate);
-
-		if (m_cost[1][typeIdx] < costPartBest)
-		{
-			costPartBest = m_cost[1][typeIdx];
-			copySaoUnit(saoLcuParam[0], &saoLcuParamRdo[0]);
-			copySaoUnit(saoLcuParam[1], &saoLcuParamRdo[1]);
-			bestDist = (estDist[0] + estDist[1]);
-		}
-	}
-
-	distortion[0] += ((double)bestDist / lambda);
-#if SAO_RUN_IN_X265
-	m_hevcSAO->m_infoFromX265->dist[colIdx][0][1] = distortion[0];
-#endif
-	m_rdGoOnSbacCoder->load(m_rdSbacCoders[0][CI_TEMP_BEST]);
-	m_entropyCoder->encodeSaoOffset(saoLcuParam[0], 1);
-	m_entropyCoder->encodeSaoOffset(saoLcuParam[1], 2);
-	m_rdGoOnSbacCoder->store(m_rdSbacCoders[0][CI_TEMP_BEST]);
-
-	// merge left or merge up
-
-	for (int idxNeighbor = 0; idxNeighbor < 2; idxNeighbor++)
-	{
-		for (int compIdx = 0; compIdx < 2; compIdx++)
-		{
-			saoLcuParamNeighbor[compIdx] = NULL;
-			if (allowMergeLeft && addrLeft >= 0 && idxNeighbor == 0)
-			{
-				saoLcuParamNeighbor[compIdx] = &(saoParam->saoLcuParam[compIdx + 1][addrLeft]);
-			}
-			else if (allowMergeUp && addrUp >= 0 && idxNeighbor == 1)
-			{
-				saoLcuParamNeighbor[compIdx] = &(saoParam->saoLcuParam[compIdx + 1][addrUp]);
-			}
-			if (saoLcuParamNeighbor[compIdx] != NULL)
-			{
-				estDist[compIdx] = 0;
-				typeIdx = saoLcuParamNeighbor[compIdx]->typeIdx;
-				if (typeIdx >= 0)
-				{
-					int mergeBandPosition = (typeIdx == SAO_BO) ? saoLcuParamNeighbor[compIdx]->subTypeIdx : 0;
-					int   merge_iOffset;
-					for (classIdx = 0; classIdx < m_numClass[typeIdx]; classIdx++)
-					{
-						merge_iOffset = saoLcuParamNeighbor[compIdx]->offset[classIdx];
-						estDist[compIdx] += estSaoDist(m_count[compIdx + 1][typeIdx][classIdx + mergeBandPosition + 1], merge_iOffset, m_offsetOrg[compIdx + 1][typeIdx][classIdx + mergeBandPosition + 1], shift);
-					}
-				}
-				else
-				{
-					estDist[compIdx] = 0;
-				}
-
-				copySaoUnit(saoMergeParam[compIdx][idxNeighbor], saoLcuParamNeighbor[compIdx]);
-				saoMergeParam[compIdx][idxNeighbor]->mergeUpFlag = idxNeighbor;
-				saoMergeParam[compIdx][idxNeighbor]->mergeLeftFlag = !idxNeighbor;
-				distortion[idxNeighbor + 1] += ((double)estDist[compIdx] / lambda);
-			}
-		}
-	}
-#if SAO_RUN_IN_X265
-	m_hevcSAO->m_infoFromX265->dist[colIdx][1][1] = distortion[1];
-	m_hevcSAO->m_infoFromX265->dist[colIdx][2][1] = distortion[2];
+#if SAO_DBG
+	assert(distortion[1] == m_infoFromX265->dist[m_infoFromX265->ctuPosX][1][1]);
+	assert(distortion[2] == m_infoFromX265->dist[m_infoFromX265->ctuPosX][2][1]);
 #endif
 }
+
 //! \}

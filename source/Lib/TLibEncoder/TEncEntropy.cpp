@@ -661,6 +661,60 @@ void TEncEntropy::encodeSaoOffset(SaoLcuParam* saoLcuParam, uint32_t compIdx)
     }
 }
 
+// over load function, used by SAO module
+void TEncEntropy::encodeSaoOffset(SaoCtuParam* saoCtuParam, uint32_t compIdx)
+{
+    uint32_t symbol;
+    int i;
+
+    symbol = saoCtuParam->typeIdx + 1;
+    if (compIdx != 2)
+    {
+        m_entropyCoderIf->codeSaoTypeIdx(symbol);
+    }
+    if (symbol)
+    {
+        if (saoCtuParam->typeIdx < 4 && compIdx != 2)
+        {
+            saoCtuParam->bandIdx = saoCtuParam->typeIdx;
+        }
+        int offsetTh = 1 << X265_MIN(X265_DEPTH - 5, 5);
+        if (saoCtuParam->typeIdx == SAO_BO)
+        {
+            for (i = 0; i < 4; i++)
+            {
+                uint32_t absOffset = ((saoCtuParam->offset[i] < 0) ? -saoCtuParam->offset[i] : saoCtuParam->offset[i]);
+                m_entropyCoderIf->codeSaoMaxUvlc(absOffset, offsetTh - 1);
+            }
+
+            for (i = 0; i < 4; i++)
+            {
+                if (saoCtuParam->offset[i] != 0)
+                {
+                    uint32_t sign = (saoCtuParam->offset[i] < 0) ? 1 : 0;
+                    m_entropyCoderIf->codeSAOSign(sign);
+                }
+            }
+
+			symbol = (uint32_t)(saoCtuParam->bandIdx);
+            m_entropyCoderIf->codeSaoUflc(5, symbol);
+        }
+        else if (saoCtuParam->typeIdx < 4)
+        {
+            m_entropyCoderIf->codeSaoMaxUvlc(saoCtuParam->offset[0], offsetTh - 1);
+            m_entropyCoderIf->codeSaoMaxUvlc(saoCtuParam->offset[1], offsetTh - 1);
+            m_entropyCoderIf->codeSaoMaxUvlc(-saoCtuParam->offset[2], offsetTh - 1);
+            m_entropyCoderIf->codeSaoMaxUvlc(-saoCtuParam->offset[3], offsetTh - 1);
+            if (compIdx != 2)
+            {
+				symbol = (uint32_t)(saoCtuParam->bandIdx);
+                m_entropyCoderIf->codeSaoUflc(2, symbol);
+            }
+        }
+    }
+}
+
+
 /** Encode SAO unit interleaving
 * \param  rx
 * \param  ry

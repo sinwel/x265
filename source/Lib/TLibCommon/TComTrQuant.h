@@ -43,6 +43,7 @@
 #include "TComDataCU.h"
 #include "ContextTables.h"
 
+#include "qt.h"
 namespace x265 {
 // private namespace
 
@@ -52,6 +53,8 @@ namespace x265 {
 // ====================================================================================================================
 // Constants
 // ====================================================================================================================
+
+
 
 #define QP_BITS 15
 
@@ -119,8 +122,15 @@ public:
 class TComTrQuant
 {
 public:
-
-    TComTrQuant();
+#if TQ_RUN_IN_X265_INTRA
+	hevcQT*		m_hevcQT; // for intra
+#endif
+#if TQ_RUN_IN_X265_ME
+	hevcQT*		m1_hevcQT; // for inter, Y
+	hevcQT*		m2_hevcQT; // for inter, Cb
+	hevcQT*		m3_hevcQT; // for inter, Cr
+#endif
+	TComTrQuant();
     ~TComTrQuant();
 
     // initialize class

@@ -6,7 +6,6 @@ hardwareC G_hardwareC;
 
 hardwareC::hardwareC()
 {
-
 }
 
 hardwareC::~hardwareC()
@@ -17,39 +16,17 @@ void hardwareC::init()
 {
     ctu_calc.ctu_w = ctu_w;
     ctu_calc.pHardWare = this;
-}
 
+    /* inf_ime */
+    /* output */
+    inf_ime.ime_mv = ctu_calc.ime_mv;
 
-void cuData::init(uint8_t w)
-{
-    CoeffY = (int16_t *)malloc(w*w*2);
-    CoeffU = (int16_t *)malloc(w*w*2/4);
-    CoeffV = (int16_t *)malloc(w*w*2/4);
-
-    ReconY = (uint8_t *)malloc(w*w);
-    ReconU = (uint8_t *)malloc(w*w/4);
-    ReconV = (uint8_t *)malloc(w*w/4);
-    cbfY = (uint8_t *)malloc((w/4)*(w/4));
-    mv = (MV_INFO *)malloc(sizeof(MV_INFO)*(w/8)*(w/8));
-    cuPartSize = (uint8_t *)malloc((w/8)*(w/8));
-    cuSkipFlag = (uint8_t *)malloc((w/8)*(w/8));
-    cuPredMode = (uint8_t *)malloc((w/8)*(w/8));
-}
-
-void cuData::deinit()
-{
-    free(CoeffY);
-    free(CoeffU);
-    free(CoeffV);
-
-    free(ReconY);
-    free(ReconU);
-    free(ReconV);
-    free(cbfY);
-    free(mv);
-    free(cuPartSize);
-    free(cuSkipFlag);
-    free(cuPredMode);
+    /* inf_ctu_calc */
+    /* input */
+    inf_ctu_calc.ime_mv = ctu_calc.ime_mv;
+    inf_ctu_calc.input_curr_y = ctu_calc.input_curr_y;
+    inf_ctu_calc.input_curr_u = ctu_calc.input_curr_u;
+    inf_ctu_calc.input_curr_v = ctu_calc.input_curr_v;
 }
 
 void hardwareC::proc()
@@ -59,12 +36,14 @@ void hardwareC::proc()
 	recon_buf;
     while(enc_ctrl())
     {
-		//preFetch();
         //preProcess();
+        //preFetch();
         //IME();
         //CTU_CALC();
+        //RC();
         //DBLK();
-        //SAO();
+        //SAO_CALC();
+        //SAO_FILTER();
         //CABAC();
     }
     */
@@ -74,23 +53,35 @@ void hardwareC::proc()
 
 void hardwareC::ConfigFiles(FILE *fp)
 {
-#define CFG_FOR_INTRA       0
-#define CFG_FOR_INTER       1
-#define CFG_FOR_MC			2
-#define CFG_FOR_IQIT        3
-#define CFG_FOR_LOOPFILT    4
-#define CFG_FOR_DEC_CTL     5
-#define CFG_FOR_DEBUG       6
+#define CFG_FOR_PREPROCESS  0
+#define CFG_FOR_INTRA       1
+#define CFG_FOR_IME         2
+#define CFG_FOR_FME         3
+#define CFG_FOR_QT          4
+#define CFG_FOR_DBLK        5
+#define CFG_FOR_SAO_CALC    6
+#define CFG_FOR_SAO_FILTER  7
+#define CFG_FOR_CTU_CALC    8
+#define CFG_FOR_CABAC       9
+#define CFG_FOR_RC          10
+#define CFG_FOR_ENC_CTRL    11
+
 #if MODULE_INIT_OPEN
 
     int   current_cfg = -1;
-    char  intra_cfg[] = "config for intra";
-    char  inter_cfg[] = "config for inter";
-    char  mc_cfg[]    = "config for mc";
-    char  iqit_cfg[]  = "config for iqit";
-    char  filter_cfg[]= "config for loopfilter";
-    char  dec_cfg[]   = "config for dec control";
-    char  debug_cfg[]  = "config for debug";
+    char  preprocess_cfg[]  = "config for preprocess";
+    char  intra_cfg[]       = "config for intra";
+    char  ime_cfg[]         = "config for ime";
+    char  fme_cfg[]         = "config for fme";
+    char  qt_cfg[]          = "config for qt";
+    char  dblk_cfg[]        = "config for dblk";
+    char  sao_calc_cfg[]    = "config for sao_calc";
+    char  sao_filter_cfg[]  = "config for sao_filter";
+    char  ctu_ctrl_cfg[]    = "config for ctu_calc";
+    char  cabac_cfg[]       = "config for cabac";
+    char  rc_cfg[]          = "config for rc";
+    char  enc_ctrl_cfg[]    = "config for enc_ctrl";
+
     char  cmdbuff[512];
 
     if(!fp)
@@ -98,7 +89,7 @@ void hardwareC::ConfigFiles(FILE *fp)
     fseek(fp, 0, SEEK_SET);
     while(fgets(cmdbuff, 512, fp))
     {
-        int     i;
+        int i;
 
         for(i=0; i<512; i++)
         {
@@ -107,73 +98,85 @@ void hardwareC::ConfigFiles(FILE *fp)
         }
         cmdbuff[i] = 0;
 
-        if (!strncmp(intra_cfg,cmdbuff,sizeof(intra_cfg)-1))
-        {
+        if (0) ;
+        OPT(cmdbuff, preprocess_cfg) {
+            current_cfg = CFG_FOR_PREPROCESS;
+            continue;
+        }
+        OPT(cmdbuff, intra_cfg)) {
             current_cfg = CFG_FOR_INTRA;
             continue;
         }
-        else if(!strncmp(inter_cfg,cmdbuff,sizeof(inter_cfg)-1))
-        {
-            current_cfg = CFG_FOR_INTER;
+        OPT(cmdbuff, ime_cfg) {
+            current_cfg = CFG_FOR_IME;
             continue;
         }
-        else if(!strncmp(iqit_cfg,cmdbuff,sizeof(iqit_cfg)-1))
-        {
-            current_cfg = CFG_FOR_IQIT;
+        OPT(cmdbuff, fme_cfg) {
+            current_cfg = CFG_FOR_FME;
             continue;
         }
-        else if(!strncmp(filter_cfg,cmdbuff,sizeof(filter_cfg)-1))
-        {
-            current_cfg = CFG_FOR_LOOPFILT;
+        OPT(cmdbuff, qt_cfg) {
+            current_cfg = CFG_FOR_QT;
             continue;
         }
-        else if(!strncmp(dec_cfg,cmdbuff,sizeof(dec_cfg)-1))
-        {
-            current_cfg = CFG_FOR_DEC_CTL;
+        OPT(cmdbuff, dblk_cfg) {
+            current_cfg = CFG_FOR_DBLK;
             continue;
         }
-        else if(!strncmp(debug_cfg,cmdbuff,sizeof(debug_cfg)-1))
-        {
-            current_cfg = CFG_FOR_DEBUG;
+        OPT(cmdbuff, sao_calc_cfg) {
+            current_cfg = CFG_FOR_SAO_CALC;
             continue;
         }
-        else if(!strncmp(mc_cfg,cmdbuff,sizeof(mc_cfg)-1))
-        {
-            current_cfg = CFG_FOR_MC;
+        OPT(cmdbuff, sao_filter_cfg) {
+            current_cfg = CFG_FOR_SAO_FILTER;
             continue;
         }
+        OPT(cmdbuff, ctu_ctrl_cfg) {
+            current_cfg = CFG_FOR_CTU_CALC;
+            continue;
+        }
+        OPT(cmdbuff, cabac_cfg) {
+            current_cfg = CFG_FOR_CABAC;
+            continue;
+        }
+        OPT(cmdbuff, rc_cfg) {
+            current_cfg = CFG_FOR_RC;
+            continue;
+        }
+        OPT(cmdbuff, enc_ctrl_cfg) {
+            current_cfg = CFG_FOR_ENC_CTRL;
+            continue;
+        }
+        else
+            current_cfg = -1;
 
         switch (current_cfg)
         {
+            case CFG_FOR_PREPROCESS:
+                break;
             case CFG_FOR_INTRA:
-                intra_recon_g.model_cfg(cmdbuff);
                 break;
-
-            case CFG_FOR_INTER:
-                //inter.model_cfg(cmdbuff);
-                prefetch_cache_g.model_cfg(cmdbuff);
+            case CFG_FOR_IME:
                 break;
-
-            case CFG_FOR_IQIT:
-                iqit.model_cfg(cmdbuff);
+            case CFG_FOR_FME:
                 break;
-
-            case CFG_FOR_LOOPFILT:
-                loopfilterhw.model_cfg(cmdbuff);
+            case CFG_FOR_QT:
                 break;
-
-            case CFG_FOR_DEC_CTL:
-                hevc_dec.model_cfg(cmdbuff);
+            case CFG_FOR_DBLK:
                 break;
-
-            case CFG_FOR_MC:
-                pMc->model_cfg(cmdbuff);
+            case CFG_FOR_SAO_CALC:
                 break;
-
-            case CFG_FOR_DEBUG:
-                model_cfg(cmdbuff);
+            case CFG_FOR_SAO_FILTER:
                 break;
-
+            case CFG_FOR_CTU_CALC:
+                ctu_calc.model_cfg(cmdbuff);
+                break;
+            case CFG_FOR_CABAC:
+                break;
+            case CFG_FOR_RC:
+                break;
+            case CFG_FOR_ENC_CTRL:
+                break;
             default:
                 //printf("%s\n",cmdbuff);
                 break;

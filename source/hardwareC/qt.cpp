@@ -2,33 +2,23 @@
 \brief    transform and quantization class
 */
 #include "qt.h"
-#if X265_TEST_MODE
-#include "TLibCommon/TComPic.h"
-//#include "common/primitives.h"
-#endif
 #include <assert.h>
 #include <cstdlib>
 #include <math.h>
 #include <memory.h>
+#include "rk_define.h"
 
-
-#if X265_TEST_MODE
-using namespace x265;
-#endif
+extern FILE* g_fp_TQ_LOG_HWC_INTRA;
+extern FILE* g_fp_TQ_LOG_HWC_ME;
 //! \ingroup TLibCommon
 //! \{
 
 // ====================================================================================================================
 // Macros
 // ====================================================================================================================
-// test module switch
-#define HWC_TEST_INTRA 0
-#define HWC_TEST_INTER 0
-#define HWC_TEST_CABAC 0
-#define HWC_TEST_RECON 0
 
 // debug used
-#define QT_DBG 0
+
 #define T_LOG_EN_4 0
 #define T_LOG_EN_16 0
 #define T_LOG_EN_32 0
@@ -78,15 +68,26 @@ hevcQT::hevcQT()
 	m_infoForQT->coeffTQ = new int32_t[CTU_SIZE*CTU_SIZE];
 	m_infoForQT->coeffTQIQ = new int32_t[CTU_SIZE*CTU_SIZE];
 
-#if X265_TEST_MODE
-	// malloc for m_infoFromX265
+#if TQ_LOG_IN_X265_INTRA
+	m_fp_TQ_LOG_X265_INTRA= fopen(PATH_NAME("TQ_LOG_X265_INTRA.txt"), "w+");
+	if (m_fp_TQ_LOG_X265_INTRA == NULL)
+	{
+		RK_HEVC_PRINT("creat TQ_LOG_X265_INTRA file failed.\n");
+	}	
+#endif	
+
+#if TQ_LOG_IN_X265_ME
+	m_fp_TQ_LOG_X265_ME= fopen(PATH_NAME("TQ_LOG_X265_ME.txt"), "w+");
+	if (m_fp_TQ_LOG_X265_ME == NULL)
+	{
+		RK_HEVC_PRINT("creat TQ_LOG_X265_ME file failed.\n");
+	}	
+#endif
 	m_infoFromX265 = new infoFromX265;
+	m_infoFromX265->coeffT = new int32_t[CTU_SIZE*CTU_SIZE];
 	m_infoFromX265->inResi = new int16_t[CTU_SIZE*CTU_SIZE];
 	m_infoFromX265->outResi = new int16_t[CTU_SIZE*CTU_SIZE];
-	m_infoFromX265->coeffT = new int32_t[CTU_SIZE*CTU_SIZE];
 	m_infoFromX265->coeffTQ = new int32_t[CTU_SIZE*CTU_SIZE];
-	m_infoFromX265->coeffTQIQ = new int32_t[CTU_SIZE*CTU_SIZE];
-#endif
 }
 
 hevcQT::~hevcQT()
@@ -100,15 +101,25 @@ hevcQT::~hevcQT()
 	delete[] m_infoForQT->outResi;				m_infoForQT->outResi = NULL;
 	delete   m_infoForQT;						m_infoForQT = NULL;
 
-#if X265_TEST_MODE
-	// free for m_infoFromX265
+#if TQ_LOG_IN_X265_INTRA
+	if (m_fp_TQ_LOG_X265_INTRA)
+	{
+		fclose(m_fp_TQ_LOG_X265_INTRA); m_fp_TQ_LOG_X265_INTRA = NULL;
+	}
+#endif
+
+#if TQ_LOG_IN_X265_ME
+	if (m_fp_TQ_LOG_X265_ME)
+	{
+		fclose(m_fp_TQ_LOG_X265_ME); m_fp_TQ_LOG_X265_ME = NULL;
+	}
+#endif
+
 	delete[] m_infoFromX265->coeffT;			m_infoFromX265->coeffT = NULL;
 	delete[] m_infoFromX265->coeffTQ;			m_infoFromX265->coeffTQ = NULL;
-	delete[] m_infoFromX265->coeffTQIQ;			m_infoFromX265->coeffTQIQ = NULL;
 	delete[] m_infoFromX265->inResi;			m_infoFromX265->inResi = NULL;
 	delete[] m_infoFromX265->outResi;			m_infoFromX265->outResi = NULL;
 	delete   m_infoFromX265;					m_infoFromX265 = NULL;
-#endif
 }
 
 
@@ -127,6 +138,27 @@ void hevcQT::transpose(short* inArray, int size)
 	memcpy(inArray, temp, size * size * sizeof(short));
 	free(temp);
 
+}
+
+void hevcQT::fillResi(short* resi, int val, uint32_t resiStride, uint32_t tuSize)
+{
+	if (val == 0) // clear resi
+	{
+		for (uint32_t k = 0; k < tuSize; k++)
+		{
+			memset(&(resi[k*resiStride]), 0, tuSize*sizeof(short));
+		}
+	}
+	else // dc val
+	{
+		for (uint32_t k = 0; k < tuSize; k++)
+		{
+			for (uint32_t j = 0; j < tuSize; j++)
+			{
+				resi[k*resiStride + j] = (short)val;
+			}
+		}
+	}
 }
 
 // inverse transform 4x4 block
@@ -626,13 +658,13 @@ void hevcQT::idct32(short *outResi, int *coeffTQIQ)
 	}
 }
 
-void hevcQT::idct(short* outResi, int* coeffTQIQ, uint32_t tuWidth, bool isIntra, eTextType textType)
+void hevcQT::idct(short* outResi, int* coeffTQIQ, uint32_t tuWidth, bool isIntra, uint8_t textType)
 {
 	//isIntra: intra(1), inter(0), when is Intra, 4x4 luma do IDST
 
 	int trType; // only for Intra 4x4, to decide to do IDST or IDCT
 
-	trType = isIntra ? (textType == RK_TEXT_LUMA ? 1 : 0) : 0; // only for 4x4, 1--IDST, 0--IDCT
+	trType = isIntra ? (textType == 0 ? 1 : 0) : 0; // LUMA & Intra, only for 4x4, 1--IDST, 0--IDCT
 
 	switch (tuWidth)
 	{
@@ -1108,13 +1140,13 @@ void hevcQT::dct32(int *coeffT, short *inResi)
 	}
 }
 
-void hevcQT::dct(int* coeffT, short* inResi, uint32_t tuWidth, bool isIntra, eTextType textType)
+void hevcQT::dct(int* coeffT, short* inResi, uint32_t tuWidth, bool isIntra, uint8_t textType)
 {
 	//isIntra: intra(1), inter(0), when is Intra, 4x4 luma do IDST
 
 	int trType; // only for Intra 4x4, to decide to do IDST or IDCT
 
-	trType = isIntra ? (textType == RK_TEXT_LUMA ? 1 : 0) : 0; // only for 4x4, 1--IDST, 0--IDCT
+	trType = isIntra ? (textType == 0 ? 1 : 0) : 0; // LUMA & Intra, only for 4x4, 1--IDST, 0--IDCT
 
 	switch (tuWidth)
 	{
@@ -1171,43 +1203,12 @@ void hevcQT::dequant(int* out, int* in, int dequantScale, int num, int shift)
 	}
 }
 
-// actually not used
-
-#if X265_TEST_MODE
-void hevcQT::getInputFromX265(int16_t *inResi, TComDataCU* cu,
-	uint32_t absPartIdx, TextType ttype, uint32_t cuStride, uint32_t tuWidth)
-{
-	m_infoFromX265->absPartIdx = absPartIdx;
-	if (cu->getSlice()->getSliceType() == B_SLICE) m_infoFromX265->sliceType = RK_B_SLICE;
-	if (cu->getSlice()->getSliceType() == P_SLICE) m_infoFromX265->sliceType = RK_P_SLICE;
-	if (cu->getSlice()->getSliceType() == I_SLICE) m_infoFromX265->sliceType = RK_I_SLICE;
-
-	m_infoFromX265->cuStride = cuStride;
-	m_infoFromX265->size = tuWidth;
-
-	if (cu->getPredictionMode(absPartIdx)==MODE_INTER)	 m_infoFromX265->predMode=RK_INTER;
-	if (cu->getPredictionMode(absPartIdx)==MODE_INTRA)	 m_infoFromX265->predMode=RK_INTRA;
-	if (ttype == TEXT_LUMA)
-		m_infoFromX265->textType = RK_TEXT_LUMA;
-	else
-		m_infoFromX265->textType = RK_TEXT_CHROMA;
-
-	m_infoFromX265->qp = cu->getQP(0);
-	m_infoFromX265->qpBdOffset = cu->getSlice()->getSPS()->getQpBDOffsetY();
-	m_infoFromX265->chromaQPOffset = cu->getSlice()->getSPS()->getQpBDOffsetC();
-
-	// copy input residual, TU size in effect
-	for (uint32_t k = 0; k < tuWidth; k++)
-	{
-		memcpy(&(m_infoFromX265->inResi[k*CTU_SIZE]), &(inResi[k*cuStride]), tuWidth*sizeof(int16_t));
-	}
-}
-
 
 void hevcQT::getFromX265()
 {
 	memcpy(m_infoForQT->inResi, m_infoFromX265->inResi, CTU_SIZE*CTU_SIZE*sizeof(int16_t));
 	m_infoForQT->size = m_infoFromX265->size;
+	assert(m_infoForQT->size <= 32);
 	m_infoForQT->predMode = m_infoFromX265->predMode;
 	m_infoForQT->sliceType = m_infoFromX265->sliceType;
 	m_infoForQT->textType = m_infoFromX265->textType;
@@ -1215,68 +1216,10 @@ void hevcQT::getFromX265()
 	m_infoForQT->transformSkip = m_infoFromX265->transformSkip;
 	m_infoForQT->qpBdOffset = m_infoFromX265->qpBdOffset;
 	m_infoForQT->chromaQPOffset = m_infoFromX265->chromaQPOffset;
+
+	// debug use
+	m_infoForQT->ctuWidth = m_infoFromX265->ctuWidth;
 }
-//get output from Intra
-void hevcQT::getOutputFromX265(int16_t *outResi)
-{
-	uint32_t size = m_infoFromX265->size;
-	uint32_t cuStride = m_infoFromX265->cuStride;
-
-	// copy output residual, TU size in effect
-	for (uint32_t k = 0; k < size; k++)
-	{
-		memcpy(&(m_infoFromX265->outResi[k*CTU_SIZE]), &(outResi[k*cuStride]), size*sizeof(int16_t));
-	}
-}
-
-//get output from Inter
-void hevcQT::getOutputFromX265(int sw, int16_t *outResi)
-{
-	uint32_t size = m_infoFromX265->size;
-
-	uint32_t x265resiStride;
-	if (sw == 1) // Y resi 
-	{
-		x265resiStride = CTU_SIZE;
-	}
-	else //U resi, V resi
-	{
-		x265resiStride = CTU_SIZE / 2;
-	}
-	// copy output residual, TU size in effect
-	for (uint32_t k = 0; k < size; k++)
-	{
-		memcpy(&(m_infoFromX265->outResi[k*CTU_SIZE]), &(outResi[k*x265resiStride]), size*sizeof(int16_t));
-	}
-}
-
-//get coeff after T and Q
-void hevcQT::getDebugInfoFromX265_0(int lastPos, int absSum,
-	int qpScaled, int qpPer, int qpRem, int qpBits, int32_t* quantCoef, int32_t* coeffT, int32_t* coeffTQ) //get info after T and Q
-{
-
-	m_infoFromX265->absSum = absSum;
-
-	m_infoFromX265->qpscaled = qpScaled;
-	m_infoFromX265->qpPer = qpPer;
-	m_infoFromX265->qpRem = qpRem;
-	m_infoFromX265->qpBits = qpBits;
-	m_infoFromX265->lastPos = lastPos;
-
-	m_infoFromX265->quantScale = quantCoef[0];
-	//memcpy(m_infoFromX265->quantCoef, quantCoef, m_infoFromX265->tuHeight*m_infoFromX265->tuWidth*sizeof(int32_t));
-	memcpy(m_infoFromX265->coeffT, coeffT, m_infoFromX265->size*m_infoFromX265->size*sizeof(int32_t));
-	memcpy(m_infoFromX265->coeffTQ, coeffTQ, m_infoFromX265->size*m_infoFromX265->size*sizeof(int32_t));
-}
-
-//get info after IQ
-void hevcQT::getDebugInfoFromX265_1(int dequantScale, int shift, int32_t* coeffTQIQ)
-{
-	m_infoFromX265->dequantScale = dequantScale;
-	m_infoFromX265->shift = shift;
-	memcpy(m_infoFromX265->coeffTQIQ, coeffTQIQ, m_infoFromX265->size*m_infoFromX265->size*sizeof(int32_t));
-}
-
 // compare HEVC Inter results with x265
 int hevcQT::compareX265andHWC()
 {
@@ -1293,16 +1236,16 @@ int hevcQT::compareX265andHWC()
 
 	// compare debug info
 	flagInfo += (m_infoFromX265->lastPos != m_infoForQT->lastPos); assert(!flagInfo);
-	flagInfo += (m_infoFromX265->qpscaled != m_infoForQT->qpscaled); assert(!flagInfo);
-	flagInfo += (m_infoFromX265->qpPer != m_infoForQT->qpPer); assert(!flagInfo);
-	flagInfo += (m_infoFromX265->qpRem != m_infoForQT->qpRem); assert(!flagInfo);
-	flagInfo += (m_infoFromX265->qpBits != m_infoForQT->qpBits); assert(!flagInfo);
-	flagInfo += (m_infoFromX265->dequantScale != m_infoForQT->dequantScale); assert(!flagInfo);
+	// 	flagInfo += (m_infoFromX265->qpscaled != m_infoForQT->qpscaled); assert(!flagInfo);
+	// 	flagInfo += (m_infoFromX265->qpPer != m_infoForQT->qpPer); assert(!flagInfo);
+	// 	flagInfo += (m_infoFromX265->qpRem != m_infoForQT->qpRem); assert(!flagInfo);
+	// 	flagInfo += (m_infoFromX265->qpBits != m_infoForQT->qpBits); assert(!flagInfo);
+	// 	flagInfo += (m_infoFromX265->dequantScale != m_infoForQT->dequantScale); assert(!flagInfo);
 
 	//flagInfo += abs(memcmp(m_infoFromX265->quantCoef, m_infoForQT->quantCoef, tuWidth*tuHeight*sizeof(int32_t))); assert(!flagInfo);
-	flagInfo += abs(memcmp(m_infoFromX265->coeffT, m_infoForQT->coeffT, size*size*sizeof(int32_t))); assert(!flagInfo);
+	//flagInfo += abs(memcmp(m_infoFromX265->coeffT, m_infoForQT->coeffT, size*size*sizeof(int32_t))); assert(!flagInfo);
 	flagInfo += abs(memcmp(m_infoFromX265->coeffTQ, m_infoForQT->coeffTQ, size*size*sizeof(int32_t))); assert(!flagInfo);
-	flagInfo += abs(memcmp(m_infoFromX265->coeffTQIQ, m_infoForQT->coeffTQIQ, size*size*sizeof(int32_t))); assert(!flagInfo);
+	//flagInfo += abs(memcmp(m_infoFromX265->coeffTQIQ, m_infoForQT->coeffTQIQ, size*size*sizeof(int32_t))); assert(!flagInfo);
 
 	// compare outParamToIntra
 	flagOutparam += (m_infoFromX265->absSum != m_infoForQT->absSum); assert(!flagOutparam);
@@ -1311,25 +1254,75 @@ int hevcQT::compareX265andHWC()
 	flagResult = flagInfo + flagOutparam;
 	return flagResult;
 }
-#endif
 
-void hevcQT::setFromIntra(InfoQTandIntra* infoQTandIntra)
+
+void hevcQT::getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType)
 {
-	m_infoForQT->size = infoQTandIntra->size;
-	uint32_t size = infoQTandIntra->size;
-
-	// temp interface to read data from other module
-	for (uint32_t k = 0; k < size; k++)
+	for (int k = 0; k < inf_intra->size; k++)
 	{
-		memcpy(&(m_infoForQT->inResi[k*CTU_SIZE]), &(infoQTandIntra->inResi[k*size]), size*sizeof(int16_t));
+		memcpy(&m_infoForQT->inResi[k*CTU_SIZE], &inf_intra->resi[k*inf_intra->size], inf_intra->size*sizeof(int16_t));
 	}
-	m_infoForQT->predMode = infoQTandIntra->predMode;
-	m_infoForQT->sliceType = infoQTandIntra->sliceType;
-	m_infoForQT->textType = infoQTandIntra->textType;
-	m_infoForQT->transformSkip = infoQTandIntra->tranformSkip;
-	m_infoForQT->qp = infoQTandIntra->qp;
-	m_infoForQT->qpBdOffset = infoQTandIntra->qpBdOffset;
-	m_infoForQT->chromaQPOffset = infoQTandIntra->chromaQpoffset;
+
+	m_infoForQT->size = inf_intra->size;
+	assert(m_infoForQT->size <= 32);
+	m_infoForQT->predMode = 0; //intra
+	m_infoForQT->sliceType = 2; //I
+	m_infoForQT->textType = textType;
+	m_infoForQT->qp = 30;
+	m_infoForQT->transformSkip = 0;
+	m_infoForQT->qpBdOffset = 0;
+	m_infoForQT->chromaQPOffset = 0;
+}
+
+void hevcQT::getFromInter(INTERFACE_ME* inf_me, uint8_t textType)
+{
+#if 0
+	for (int k = 0; k < inf_me->size; k++)
+	{
+		memcpy(&m_infoForQT->inResi[k*CTU_SIZE], &inf_intra->resi[k*inf_intra->size], inf_intra->size*sizeof(int16_t));
+	}
+
+	m_infoForQT->size = inf_intra->size;
+	assert(m_infoForQT->size <= 32);
+	m_infoForQT->predMode = 0; //intra
+	m_infoForQT->sliceType = 2; //I
+	m_infoForQT->textType = textType;
+	m_infoForQT->qp = 30;
+	m_infoForQT->transformSkip = 0;
+	m_infoForQT->qpBdOffset = 0;
+	m_infoForQT->chromaQPOffset = 0;
+#endif
+}
+
+
+void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra)
+{
+
+	// output
+	uint8_t	 size = m_infoForQT->size;
+	inf_tq->absSum = m_infoForQT->absSum;
+	inf_tq->lastPosX = m_infoForQT->lastPos % size;
+	inf_tq->lastPosY = m_infoForQT->lastPos / size;
+	for (uint8_t k = 0; k < size; k++)
+	{
+		memcpy(&inf_tq->outResi[k*size], &m_infoForQT->outResi[k*CTU_SIZE], size*sizeof(int16_t));
+		for (uint8_t j = 0; j < size; j++)
+		{
+			inf_tq->oriResi[k*size + j] = (int16_t)m_infoForQT->coeffTQ[k*size + j];
+		}
+	}
+
+
+	// input
+	inf_tq->resi = inf_intra->resi; // NOTE: pointer assignment, not memcpy
+	inf_tq->Size = m_infoForQT->size;
+	inf_tq->predMode = m_infoForQT->predMode; //intra
+	inf_tq->sliceType = m_infoForQT->sliceType; //I
+	inf_tq->textType = m_infoForQT->textType;
+	inf_tq->QP = m_infoForQT->qp;
+	inf_tq->TransFormSkip = m_infoForQT->transformSkip;
+	inf_tq->qpBdOffset = m_infoForQT->qpBdOffset;
+	inf_tq->chromaQpOffset = m_infoForQT->chromaQPOffset;
 
 }
 
@@ -1351,6 +1344,8 @@ void hevcQT::set2Cabac(InfoQTandCabac* infoQTandCabac)
 	infoQTandCabac->lastPosY = (uint8_t)(m_infoForQT->lastPos / size);
 	infoQTandCabac->cbf = (m_infoForQT->absSum > 0);
 }
+
+// only for 4x4
 void hevcQT::set2Intra(InfoQTandIntra* infoQTandIntra)
 {
 	uint32_t size = m_infoForQT->size;
@@ -1360,11 +1355,86 @@ void hevcQT::set2Intra(InfoQTandIntra* infoQTandIntra)
 	}
 }
 
-void hevcQT::set2Recon()
+void hevcQT::set2Recon(INTERFACE_RECON* inf_recon)
 {
-
+	uint32_t size = m_infoForQT->size;
+	for (uint32_t k = 0; k < size; k++)
+	{
+		memcpy(&(inf_recon->resi[k*size]), &(m_infoForQT->outResi[k*CTU_SIZE]), size*sizeof(int16_t));
+	}
 }
 
+
+void hevcQT::printInputLog(FILE* fp)
+{
+	if (//m_infoForQT->size == 4 ||
+		m_infoForQT->ctuWidth == 64
+		//|| m_infoForQT->textType != 0
+		)
+	{
+		return;
+	}
+	fprintf(fp, "==================== TQ input ====================\n");
+	fprintf(fp, "---------------- TU begin ----------------\n");
+	fprintf(fp, "sliceType = %d,  predMode = %d,  textType = %d,  size = %d\n",
+		m_infoForQT->sliceType, m_infoForQT->predMode,
+		m_infoForQT->textType, m_infoForQT->size);
+
+	fprintf(fp, "qp = %d,  qpBdOffset = %d,  chromaQPOffset = %d,  transformSkip = %d\n\n",
+		m_infoForQT->qp, m_infoForQT->qpBdOffset,
+		m_infoForQT->chromaQPOffset, m_infoForQT->transformSkip);
+
+	// if print resi only, start here
+	fprintf(fp, "Resi:\n");
+	for (uint8_t k = 0; k < m_infoForQT->size; k++)
+	{
+		for (uint8_t j = 0; j < m_infoForQT->size; j++)
+		{
+			fprintf(fp, "0x%04x ", m_infoForQT->inResi[k*CTU_SIZE + j] & 0xffff);
+		}
+		fprintf(fp, "\n");
+	}
+	// if print resi only, end here
+	fprintf(fp, "---------------- TU end ----------------\n\n\n");
+}
+
+void hevcQT::printOutputLog(FILE* fp)
+{
+	uint8_t size = m_infoForQT->size;
+	if (//size == 4 || 
+		m_infoForQT->ctuWidth == 64 
+		//|| m_infoForQT->textType != 0
+		)
+	{
+		return;
+	}
+
+	fprintf(fp, "==================== TQ output ====================\n");
+	fprintf(fp, "---------------- TU begin ----------------\n");
+	fprintf(fp, "absSum = %d,  lastPosX = %d,  lasPoxY = %d\n\n",
+		m_infoForQT->absSum, m_infoForQT->lastPos%size, m_infoForQT->lastPos / size);
+
+	fprintf(fp, "oriResi:\n");
+	for (uint8_t k = 0; k < size; k++)
+	{
+		for (uint8_t j = 0; j < size; j++)
+		{
+			fprintf(fp, "0x%04x ", ((int16_t)m_infoForQT->coeffTQ[k*size + j]) & 0xffff);
+		}
+		fprintf(fp, "\n");
+	}
+
+	fprintf(fp, "\noutResi:\n");
+	for (uint8_t k = 0; k < size; k++)
+	{
+		for (uint8_t j = 0; j < size; j++)
+		{
+			fprintf(fp, "0x%04x ", m_infoForQT->outResi[k*CTU_SIZE + j] & 0xffff);
+		}
+		fprintf(fp, "\n");
+	}
+	fprintf(fp, "---------------- TU end ----------------\n\n\n");
+}
 /** Set qP for Quantization.
 * \param qpy QPy
 * \param bLowpass
@@ -1375,18 +1445,18 @@ void hevcQT::set2Recon()
 *
 * return void
 */
-void hevcQT::setQPforQ(int baseQp, eTextType ttype, int qpBdOffset, int chromaQPOffset)
+void hevcQT::setQPforQ(int baseQp, uint8_t ttype, int qpBdOffset, int chromaQPOffset)
 {
 	int qpScaled;
 
-	if (ttype == RK_TEXT_LUMA)
+	if (ttype == 0) // LUMA
 	{
 		qpScaled = baseQp + qpBdOffset;
 	}
 	else //Chroma
 	{
 		//qpScaled = Clip3(-qpBdOffset, 57, baseQp + chromaQPOffset);
-		qpScaled = CLIP(baseQp + chromaQPOffset , - qpBdOffset, 57);
+		qpScaled = CLIP(baseQp + chromaQPOffset, -qpBdOffset, 57);
 
 		if (qpScaled < 0)
 		{
@@ -1404,24 +1474,6 @@ void hevcQT::setQPforQ(int baseQp, eTextType ttype, int qpBdOffset, int chromaQP
 }
 
 
-// set Quant Maxtrix coeffs for quantization
-// void hevcQT::setQuantMatrix(int qpRem, uint32_t tuWidth, uint32_t tuHeight)
-// {
-// 	
-// 	for (uint32_t j = 0; j < tuHeight; j++)
-// 	{
-// 		for (uint32_t i = 0; i < tuWidth; i++)
-// 		{
-// 			m_infoForQT->quantCoef[j*tuWidth+i]= hevcQuantScales[qpRem];
-// 		}
-// 	}
-// }
-
-
-
-
-
-#if X265_TEST_MODE
 void hevcQT::clearOutResi()
 {
 	uint32_t size = m_infoFromX265->size;
@@ -1430,24 +1482,21 @@ void hevcQT::clearOutResi()
 	//memset(coeffTQ, 0, sizeof(TCoeff)* tuWidth * tuHeight); //clear coeffs after T and Q
 	fillResi(outResi, 0, CTU_SIZE, size);
 }
-#endif
+
 void hevcQT::procTandQ()
 {
-#if X265_TEST_MODE
-	getFromX265();
-#endif
 
 	int qp = m_infoForQT->qp;
 
-	eTextType textType = m_infoForQT->textType;
+	uint8_t textType = m_infoForQT->textType;
 
 	int qpBdOffset = m_infoForQT->qpBdOffset;
 	int chromaQPOffset = m_infoForQT->chromaQPOffset;
-	ePredMode predMode = m_infoForQT->predMode;
+	uint8_t predMode = m_infoForQT->predMode;
 
 	uint32_t size = m_infoForQT->size;
 	int16_t* inResi = m_infoForQT->inResi;
-	eSliceType sliceType = m_infoForQT->sliceType;
+	uint8_t sliceType = m_infoForQT->sliceType;
 
 	int32_t* coeffT = m_infoForQT->coeffT;
 	int32_t* coeffTQ = m_infoForQT->coeffTQ;
@@ -1472,14 +1521,13 @@ void hevcQT::procTandQ()
 
 	//NOTE: here inResi stride is [constant CTU_SIZE(64)], instead of [cuStride] in x265
 	/* complete  Transform */
-	bool isIntra = (predMode == RK_INTRA);
+	bool isIntra = (predMode == 0);
 
 	dct(coeffT, inResi, size, isIntra, textType); // 0 means inter, 1 means intra.
-
 	/******	Quant ******/
 	int add = 0;
 	int qbits = RK_QUANT_SHIFT + qpPer + transformShift;
-	add = (sliceType == RK_I_SLICE ? 171 : 85) << (qbits - 9);
+	add = (sliceType == 2 ? 171 : 85) << (qbits - 9); //I slice
 
 	int numCoeff = size * size;
 	*absSum += quant(coeffTQ, coeffT, *quantScale, qbits, add, numCoeff, lastPos);
@@ -1487,8 +1535,9 @@ void hevcQT::procTandQ()
 
 void hevcQT::procIQandIT()
 {
-	eTextType textType = m_infoForQT->textType;
-	ePredMode predMode = m_infoForQT->predMode;
+	uint32_t absSum = m_infoForQT->absSum; // sum of coeffs after T and Q
+	uint8_t textType = m_infoForQT->textType;
+	uint8_t predMode = m_infoForQT->predMode;
 
 	uint32_t size = m_infoForQT->size;
 	int qpPer = m_infoForQT->qpPer;
@@ -1499,10 +1548,10 @@ void hevcQT::procIQandIT()
 	int* dequantScale = &(m_infoForQT->dequantScale); // dequant scale, changed later
 
 	int16_t* outResi = m_infoForQT->outResi;
-	uint32_t absSum = m_infoForQT->absSum; // sum of coeffs after T and Q
+
 	int* lastPos = &(m_infoForQT->lastPos); // last pos of coef not zero, changed later
 
-	bool isIntraLuma = (textType == RK_TEXT_LUMA && predMode == RK_INTRA); //for dc only decision
+	bool isIntraLuma = (textType == 0 && predMode == 0); // LUMA & Intra, for dc only decision
 
 	// init some values
 	const uint32_t log2BlockSize = hevcSizeConvertToBit[size];
@@ -1510,7 +1559,6 @@ void hevcQT::procIQandIT()
 
 	if (absSum) //there exist nonzero coeffs after T and Q 
 	{
-
 		/* complete Inverse Quantization */
 		int shift = RK_QUANT_IQUANT_SHIFT - RK_QUANT_SHIFT - transformShift;
 		*dequantScale = hevcInvQuantScales[qpRem] << qpPer;
@@ -1527,7 +1575,7 @@ void hevcQT::procIQandIT()
 		else
 		{
 			/* complete Inverse Transform */
-			bool isIntra = (predMode == RK_INTRA);
+			bool isIntra = (predMode == 0);
 
 			idct(outResi, coeffTQIQ, size, isIntra, textType); // 0 means inter
 		}
@@ -1536,56 +1584,87 @@ void hevcQT::procIQandIT()
 	{
 		fillResi(outResi, 0, CTU_SIZE, size); //clear resi
 	}
-
-
-	// #if X265_TEST_MODE
-	// 	int flag = compareX265andHWC();
-	// 	assert(!flag);
-	// 	destroy();
-	// #endif
 }
 
+// for X265
 void hevcQT::proc()
 {
+	// get from x265
+	getFromX265();
+
+	// print input
+#if TQ_LOG_IN_X265_INTRA
+	printInputLog(m_fp_TQ_LOG_X265_INTRA);
+#endif
+#if TQ_LOG_IN_X265_ME
+	printInputLog(m_fp_TQ_LOG_X265_ME);
+#endif
 	// T and Q
 	procTandQ();
-
-	// set info
-	//set2Cabac(); // outResi, cbf, absSum, lastPosX, lastPosY
-	//set2Intra(); // outResi, only for 4x4 TU 
 
 	// IQ and IT
 	procIQandIT();
 
-	// set info
-	//set2Recon(); // outResi
-
-#if X265_TEST_MODE
-	// compare results, for debug
-	assert(!compareX265andHWC());
+	// print output
+#if TQ_LOG_IN_X265_INTRA	
+	printOutputLog(m_fp_TQ_LOG_X265_INTRA);
 #endif
-	//destroy();
+#if TQ_LOG_IN_X265_ME
+	printOutputLog(m_fp_TQ_LOG_X265_ME);
+#endif
+
+	// compare results
+	assert(!compareX265andHWC());
 }
 
-void hevcQT::fillResi(short* resi, int val, uint32_t resiStride, uint32_t tuSize)
+// for Intra
+void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType)
 {
-	if (val == 0) // clear resi
-	{
-		for (uint32_t k = 0; k < tuSize; k++)
-		{
-			memset(&(resi[k*resiStride]), 0, tuSize*sizeof(short));
-		}
-	}
-	else // dc val
-	{
-		for (uint32_t k = 0; k < tuSize; k++)
-		{
-			for (uint32_t j = 0; j < tuSize; j++)
-			{
-				resi[k*resiStride + j] = (short)val;
-			}
-		}
-	}
+	//get from intra
+	getFromIntra(inf_intra, textType);
+
+#if TQ_LOG_IN_HWC_INTRA
+	//print input
+	printInputLog(g_fp_TQ_LOG_HWC_INTRA);
+#endif
+	// T and Q
+	procTandQ();
+
+	// IQ and IT
+	procIQandIT();
+
+#if TQ_LOG_IN_HWC_INTRA
+	// print output
+	printOutputLog(g_fp_TQ_LOG_HWC_INTRA);
+#endif
+
+	//set info
+	setForHWC(inf_tq, inf_intra);
+}
+
+// for inter
+void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType)
+{
+	//get from intra
+	getFromInter(inf_me, textType);
+
+#if TQ_LOG_IN_HWC_ME
+	//print input
+	printInputLog(g_fp_TQ_LOG_HWC_ME);
+#endif
+	// T and Q
+	procTandQ();
+
+	// IQ and IT
+	procIQandIT();
+
+#if TQ_LOG_IN_HWC_ME
+	// print output
+	printOutputLog(g_fp_TQ_LOG_HWC_ME);
+#endif
+
+	//set info
+	//setForHWC(inf_tq, inf_intra);
 }
 
 

@@ -46,6 +46,7 @@
 #include "TEncSbac.h"
 #include "TLibCommon/TComBitCounter.h"
 
+#include "hardwareC/hevcSAO.h" 
 //! \ingroup TLibEncoder
 //! \{
 
@@ -82,6 +83,10 @@ private:
 
 public:
 
+#if SAO_RUN_IN_X265
+	hevcSAO*		  m_hevcSAO;
+#endif
+
     double  lumaLambda;
     double  chromaLambda;
     int     depth;
@@ -107,7 +112,12 @@ public:
     void createEncBuffer();
     void assignSaoUnitSyntax(SaoLcuParam* saoLcuParam,  SAOQTPart* saoPart, bool &oneUnitFlag);
     void checkMerge(SaoLcuParam* lcuParamCurr, SaoLcuParam * lcuParamCheck, int dir);
-    void saoComponentParamDist(int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, int yCbCr, double lambda, SaoLcuParam *compSaoParam, double *distortion);
+	
+	// overload functions for SAO debug, added by lks
+	void saoComponentParamDist(int colIdx, int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, int yCbCr, double lambda, SaoLcuParam *compSaoParam, double *distortion);
+	void sao2ChromaParamDist(int colIdx, int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, double lambda, SaoLcuParam *crSaoParam, SaoLcuParam *cbSaoParam, double *distortion);
+
+	void saoComponentParamDist(int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, int yCbCr, double lambda, SaoLcuParam *compSaoParam, double *distortion);
     void sao2ChromaParamDist(int allowMergeLeft, int allowMergeUp, SAOParam *saoParam, int addr, int addrUp, int addrLeft, double lambda, SaoLcuParam *crSaoParam, SaoLcuParam *cbSaoParam, double *distortion);
     inline int64_t estSaoDist(int64_t count, int64_t offset, int64_t offsetOrg, int shift);
     inline int64_t estIterOffset(int typeIdx, int classIdx, double lambda, int64_t offsetInput, int64_t count, int64_t offsetOrg, int shift, int bitIncrease, int32_t *currentDistortionTableBo, double *currentRdCostTableBo, int offsetTh);

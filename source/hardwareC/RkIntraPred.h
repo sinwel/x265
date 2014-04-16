@@ -7,108 +7,87 @@
 #include <math.h>
 
 #include "module_interface.h"
-#include "macro.h" 
+#include "macro.h"
 #include "qt.h"
+#include "rk_define.h"
 
 #include <stdio.h>
 #include <assert.h>
-#include <algorithm> 
+#include <algorithm>
 
 
+extern const int rk_lambdaMotionSSE_tab_I[MAX_QP + 1];
+extern const int rk_lambdaMotionSSE_tab_non_I[MAX_QP + 1];
 
 
 
 //! \ingroup TLibEncoder
 //! \{
 
+#define FAST_MODE_STEP 1
 
-namespace RK_HEVC {
+//namespace RK_HEVC {
 // private namespace
 
-typedef enum X265_AND_RKs   // Routines can be indexed using log2n(width)
+typedef enum CAND_4X4_NUMs   // Routines can be indexed using log2n(width)
 {
-    X265_COMPENT,
-    RK_COMPENT,
-    X265_AND_RK
-};
+    PART_0_RIGHT,
+    PART_0_BOTTOM,
+    PART_1_BOTTOM,
+    PART_2_RIGHT,
+    RECON_EDGE_4X4_NUM
+}CAND_4X4_NUMs;
 
-#define FAST_MODE_STEP          2
+extern uint32_t g_intra_pu_lumaDir_bits[5][256][35];
+extern uint32_t g_intra_depth_total_bits[5][256];
 
-#define SIZE_4x4                4
-#define SIZE_8x8                8
-#define SIZE_16x16              16
-#define SIZE_32x32              32
-#define SIZE_64x64              64
+extern uint8_t g_4x4_single_reconEdge[RECON_EDGE_4X4_NUM][4];
+// 每个 8x8 的block 存 4条 4像素的边
+// 第一维的访问下标为 zorder/4
+extern uint8_t g_4x4_total_reconEdge[64][RECON_EDGE_4X4_NUM][4];
 
-#define TEST_LUMA_DEPTH         0
-#define TEST_LUMA_SIZE          SIZE_32x32
-#define TEST_CHROMA_DEPTH       0
-#define TEST_CHROMA_SIZE        SIZE_16x16
-
-#define RK_MAX_CU_DEPTH         6                           // log2(LCUSize)
-#define RK_MAX_CU_SIZE          (1 << (RK_MAX_CU_DEPTH))       // maximum allowable size of CU
-#define RK_MIN_PU_SIZE          4
-#define RK_MAX_NUM_SPU_W        (RK_MAX_CU_SIZE / RK_MIN_PU_SIZE) // maximum number of SPU in horizontal line
-#define RK_ADI_BUF_STRIDE       (2 * RK_MAX_CU_SIZE + 1 + 15)  // alignment to 16 bytes
-
-typedef uint8_t RK_Pel;          // 16-bit pixel type
-#define RK_DEPTH                8
-
-/** clip x, such that 0 <= x <= #g_maxLumaVal */
-template<typename T>
-inline T RK_ClipY(T x) { return std::min<T>(T((1 << RK_DEPTH) - 1), std::max<T>(T(0), x)); }
-
-template<typename T>
-inline T RK_ClipC(T x) { return std::min<T>(T((1 << RK_DEPTH) - 1), std::max<T>(T(0), x)); }
-
-/** clip a, such that minVal <= a <= maxVal */
-template<typename T>
-inline T RK_Clip3(T minVal, T maxVal, T a) { return std::min<T>(std::max<T>(minVal, a), maxVal); } ///< general min/max clip
+extern  INTERFACE_INTRA g_previous_8x8_intra;
 
 
 typedef struct RkIntraSmooth
-{  
+{
     // smoothing [32x32 16x16 8x8],4x4不需要滤波
     // 模块输入是有效的边界数据,输出是滤波后的边界数据
     // buffer以最大的32x32为例，存储空间为 64+64+1 的line buf中
     // 这里和x265有个区别就是，不会存在64x64的输入，上层一定会划分成32x32
-	
-    RK_Pel rk_refAbove[65];
-    RK_Pel rk_refLeft[65];
-    RK_Pel rk_refAboveFiltered[X265_AND_RK][65];
-    RK_Pel rk_refLeftFiltered[X265_AND_RK][65];
+
+    uint8_t rk_refAbove[65];
+    uint8_t rk_refLeft[65];
+    uint8_t rk_refAboveFiltered[X265_AND_RK][65];
+    uint8_t rk_refLeftFiltered[X265_AND_RK][65];
 
 } RkIntraSmooth;
 
 
 typedef struct RkIntraPred_35
-{  
+{
     // PU [32x32 16x16 8x8 4x4]
-	//ALIGN_VAR_32(RK_Pel, rk_predSample[33 * 32 * 32]);
-	//ALIGN_VAR_32(RK_Pel, rk_predSampleOrg[33 * 32 * 32]);
+	//ALIGN_VAR_32(uint8_t, rk_predSample[33 * 32 * 32]);
+	//ALIGN_VAR_32(uint8_t, rk_predSampleOrg[33 * 32 * 32]);
 
-    RK_Pel rk_predSample[32*32];
-    RK_Pel rk_predSampleOrg[32*32];
-    RK_Pel rk_predSampleTmp[35][32*32];
-    RK_Pel rk_predSampleCb[16*16];
-    RK_Pel rk_predSampleCr[16*16];    
+    uint8_t rk_predSample[32*32];
+    uint8_t rk_predSampleOrg[32*32];
+    uint8_t rk_predSampleTmp[35][32*32];
+    uint8_t rk_predSampleCb[16*16];
+    uint8_t rk_predSampleCr[16*16];
 } RkIntraPred_35;
 
-class Rk_IntraPred 
+
+class Rk_IntraPred
 {
-#ifdef CONNECT_QT
-public:
-    hevcQT*         rk_hevcqt;
-    InfoQTandIntra  SendInfo2QtByIntra;
-#endif
 public:
     FILE *rk_logIntraPred[20];
 
-    RK_Pel             rk_LineBufTmp[129]; // 数据靠前存储 左下到左上到右上，corner点在中间
+    uint8_t             rk_LineBufTmp[129]; // 数据靠前存储 左下到左上到右上，corner点在中间
 
-    RK_Pel             rk_LineBuf[129];    // 数据靠前存储 左下到左上到右上，corner点在中间
-    RK_Pel             rk_LineBufCb[65];    // 数据靠前存储 左下到左上到右上，corner点在中间
-    RK_Pel             rk_LineBufCr[65];    // 数据靠前存储 左下到左上到右上，corner点在中间
+    uint8_t             rk_LineBuf[129];    // 数据靠前存储 左下到左上到右上，corner点在中间
+    uint8_t             rk_LineBufCb[65];    // 数据靠前存储 左下到左上到右上，corner点在中间
+    uint8_t             rk_LineBufCr[65];    // 数据靠前存储 左下到左上到右上，corner点在中间
 
 	RkIntraSmooth   rk_IntraSmoothIn;
     bool            rk_bUseStrongIntraSmoothing;
@@ -128,7 +107,7 @@ public:
     bool            rk_bFlag16;
     bool            rk_bFlag8;
     bool            rk_bFlag4;
-    
+
 	Rk_IntraPred(void);
 	~Rk_IntraPred(void);
 // ------------------------------------------------------------------------------
@@ -138,72 +117,72 @@ public:
 */
 // ------------------------------------------------------------------------------
 
-	void RkIntraSmoothing(RK_Pel* refLeft,
-								RK_Pel* refAbove, 
-								RK_Pel* refLeftFlt, 
-								RK_Pel* refAboveFlt);
+	void RkIntraSmoothing(uint8_t* refLeft,
+								uint8_t* refAbove,
+								uint8_t* refLeftFlt,
+								uint8_t* refAboveFlt);
     void RkIntraSmoothingCheck();
 
-	void RkIntraPred_PLANAR(RK_Pel *predSample, 
-				RK_Pel 	*above, 
-				RK_Pel 	*left, 
-				int 	stride, 
+	void RkIntraPred_PLANAR(uint8_t *predSample,
+				uint8_t 	*above,
+				uint8_t 	*left,
+				int 	stride,
 				int 	log2_size);
-	void RkIntraPred_DC(RK_Pel *predSample, 
-			RK_Pel 	*above, 
-			RK_Pel 	*left, 
-			int 	stride, 
-			int 	log2_size, 
+	void RkIntraPred_DC(uint8_t *predSample,
+			uint8_t 	*above,
+			uint8_t 	*left,
+			int 	stride,
+			int 	log2_size,
 			int 	c_idx);
-    void RkIntraPred_angular(RK_Pel *predSample, 
-            	RK_Pel *refAbove, 
-            	RK_Pel *refLeft,
-            	int stride,            	
+    void RkIntraPred_angular(uint8_t *predSample,
+            	uint8_t *refAbove,
+            	uint8_t *refLeft,
+            	int stride,
             	int log2_size,
             	int c_idx,
             	int dirMode);
 
-    void RkIntraPredAll(RK_Pel *predSample, 
-            	RK_Pel *refAbove, 
-            	RK_Pel *refLeft,
-            	int stride,            	
+    void RkIntraPredAll(uint8_t *predSample,
+            	uint8_t *refAbove,
+            	uint8_t *refLeft,
+            	int stride,
             	int log2_size,
             	int c_idx,
             	int dirMode);
-    
+
     void RkIntraPred_angularCheck();
 
-    void RkIntrafillRefSamples(RK_Pel* roiOrigin, 
-							bool* bNeighborFlags, 
-							int numIntraNeighbor, 
-							int unitSize, 
-							int numUnitsInCU, 
-							int totalUnits, 
+    void RkIntrafillRefSamples(uint8_t* roiOrigin,
+							bool* bNeighborFlags,
+							int numIntraNeighbor,
+							int unitSize,
+							int numUnitsInCU,
+							int totalUnits,
 							int width,
 							int height,
 							int picStride,
-							RK_Pel* pLineBuf);
+							uint8_t* pLineBuf);
 
-    void fillReferenceSamples(RK_Pel* roiOrigin, 
-							RK_Pel* adiTemp, 
-							bool* bNeighborFlags, 
-							int numIntraNeighbor, 
-							int unitSize, 
-							int numUnitsInCU, 
-							int totalUnits, 
-							uint32_t cuWidth, 
-							uint32_t cuHeight, 
-							uint32_t width, 
-							uint32_t height, 
+    void fillReferenceSamples(uint8_t* roiOrigin,
+							uint8_t* adiTemp,
+							bool* bNeighborFlags,
+							int numIntraNeighbor,
+							int unitSize,
+							int numUnitsInCU,
+							int totalUnits,
+							uint32_t cuWidth,
+							uint32_t cuHeight,
+							uint32_t width,
+							uint32_t height,
 							int picStride,
 							uint32_t trDepth);
 
-    void RkIntraFillRefSamplesCheck(RK_Pel* above, RK_Pel* left, int32_t width, int32_t heigth);
-    void RkIntraFillChromaCheck(RK_Pel* pLineBuf, RK_Pel* above, RK_Pel* left, uint32_t width, uint32_t heigth);
+    void RkIntraFillRefSamplesCheck(uint8_t* above, uint8_t* left, int32_t width, int32_t heigth);
+    void RkIntraFillChromaCheck(uint8_t* pLineBuf, uint8_t* above, uint8_t* left, uint32_t width, uint32_t heigth);
     void LogdeltaFractForAngluar();
 
 
-    //void RkIntraPriorModeChoose(RK_Pel* orgYuv, int width,	 intptr_t stride, int rdModeList[], int aboveMode, int leftMode);
+    //void RkIntraPriorModeChoose(uint8_t* orgYuv, int width,	 intptr_t stride, int rdModeList[], int aboveMode, int leftMode);
     void RkIntraPriorModeChoose(int rdModeList[], uint32_t rdModeCost[], bool bsort);
 
 
@@ -213,36 +192,58 @@ public:
 **
 */
 // ------------------------------------------------------------------------------
+    void Convert8x8To4x4(uint8_t* pdst, uint8_t* psrc, uint8_t partIdx);
+    void Convert4x4To8x8(uint8_t* pdst, uint8_t *psrcList[4]);
+    void Convert4x4To8x8(int16_t* pdst, int16_t *psrcList[4]);
+    void RK_store4x4Recon2Ref(uint8_t* pEdge, uint8_t* pRecon, uint32_t partOffset);
+    void splitTo4x4By8x8(INTERFACE_INTRA* intra8x8, 
+							INTERFACE_INTRA* intra4x4, 
+							uint8_t* p4x4_reconEdge, 
+							uint32_t partOffset);
+    void Store4x4ReconInfo(FILE* fp,  INTERFACE_INTRA inf_intra4x4, uint32_t partOffset);
 
-	void RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t partOffset);
+    void setLambda(int qp, uint8_t slicetype);
+
+    void Intra_Proc(INTERFACE_INTRA* pInterface_Intra, 
+									uint32_t partOffset,
+									uint32_t cur_depth,
+									uint32_t cur_x_in_cu,
+									uint32_t cur_y_in_cu);    
+
+
+	void RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, 
+                                    uint32_t partOffset,
+									uint32_t cur_depth,
+									uint32_t cur_x_in_cu,
+									uint32_t cur_y_in_cu        );
     // 输入L型buf，输出L型buf
-    void RK_IntraFillReferenceSamples(RK_Pel* reconEdgePixel, 
+    void RK_IntraFillReferenceSamples(uint8_t* reconEdgePixel,
 							bool* bNeighborFlags,
-							RK_Pel* pLineBuf,
-							int numIntraNeighbor, 
-							int unitSize, 
-							int totalUnits, 
+							uint8_t* pLineBuf,
+							int numIntraNeighbor,
+							int unitSize,
+							int totalUnits,
 							int width,
 							int height);
     // 输入L型buf，输出left/above的分开存储
-	void RK_IntraSmoothing(RK_Pel* pLineBuf,
+	void RK_IntraSmoothing(uint8_t* pLineBuf,
 							int width,
 						    int height,
 						    bool bUseStrongIntraSmoothing,
-                            RK_Pel* refLeft,
-							RK_Pel* refAbove, 
-							RK_Pel* refLeftFlt, 
-							RK_Pel* refAboveFlt);
+                            uint8_t* refLeft,
+							uint8_t* refAbove,
+							uint8_t* refLeftFlt,
+							uint8_t* refAboveFlt);
 
-    int RK_IntraSad(RK_Pel *pix1, 
-                intptr_t stride_pix1, 
-                RK_Pel *pix2, 
-                intptr_t stride_pix2, 
+    int RK_IntraSad(uint8_t *pix1,
+                intptr_t stride_pix1,
+                uint8_t *pix2,
+                intptr_t stride_pix2,
                 uint32_t size);
-    
-	void RK_IntraCalcuResidual(RK_Pel*org, 
-				RK_Pel *pred, 
-				int16_t *residual, 
+
+	void RK_IntraCalcuResidual(uint8_t*org,
+				uint8_t *pred,
+				int16_t *residual,
 				intptr_t stride,
 				uint32_t blockSize);
 
@@ -252,24 +253,46 @@ public:
 */
 // ------------------------------------------------------------------------------
 
-    int         rk_bits[35];
+    uint32_t    rk_bits[4][35];
     uint64_t    rk_lambdaMotionSAD;
-    int         rk_bestMode[X265_AND_RK][4];//一个输入块通常一个方向，8x8的时候可以有4个方向
-    RK_Pel         rk_pred[X265_AND_RK][32*32];
-    RK_Pel         rk_predCb[X265_AND_RK][32*32];
-    RK_Pel         rk_predCr[X265_AND_RK][32*32];
+	uint64_t	m_rklambdaMotionSAD;
+	uint64_t	m_rklambdaMotionSSE;
+
     
+    int         rk_bestMode[X265_AND_RK][4];//一个输入块通常一个方向，8x8的时候可以有4个方向
+    uint8_t      rk_pred[X265_AND_RK][32*32];
+    uint8_t      rk_predCb[X265_AND_RK][16*16];
+    uint8_t      rk_predCr[X265_AND_RK][16*16];
+
     int16_t     rk_residual[X265_AND_RK][32*32];
     int16_t     rk_residualCb[X265_AND_RK][16*16];
     int16_t     rk_residualCr[X265_AND_RK][16*16];
 
+    uint8_t      rk_recon[X265_AND_RK][32*32];
+    uint8_t      rk_reconCb[X265_AND_RK][16*16];
+    uint8_t      rk_reconCr[X265_AND_RK][16*16];
+
+    uint8_t      rk_4x4RefCandidate[RECON_EDGE_4X4_NUM][4];// 0-right, 0 - bottom, 1 - bottom, 2 - right 参考设计文档
+   
+
     uint64_t    rk_modeCostsSadAndCabac[35];
     uint64_t    rk_modeCostsSadAndCabacCorrect[35];
 
-};
-   
+    uint32_t    rk_totalBits4x4;
+    uint32_t    rk_totalDist4x4;    
+    uint32_t    rk_totalCost4x4;
+    
+    uint32_t    rk_totalBits8x8;
+    uint32_t    rk_totalDist8x8;    
+    uint32_t    rk_totalCost8x8;  
 
-}
+  
+    uint32_t    rk_totalBitsBest;
+    uint32_t    rk_totalCostBest;  
+};
+
+
+//}
 //! \}
 
 #endif

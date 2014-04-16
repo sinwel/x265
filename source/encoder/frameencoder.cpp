@@ -353,6 +353,9 @@ void FrameEncoder::setLambda(int qp, int row)
     m_rows[row].m_rdCost.setCrDistortionWeight(crWeight);
 }
 
+
+#include "../hardwareC/hardwareC.h"
+
 void FrameEncoder::compressFrame()
 {
     PPAScopeEvent(FrameEncoder_compressFrame);
@@ -388,7 +391,10 @@ void FrameEncoder::compressFrame()
     // NOTE: set SAO lambda every Frame
     m_frameFilter.m_sao.lumaLambda = lambda;
     m_frameFilter.m_sao.chromaLambda = chromaLambda;
-
+#if SAO_RUN_IN_X265
+	m_frameFilter.m_sao.m_hevcSAO->lumaLambda = lambda;
+	m_frameFilter.m_sao.m_hevcSAO->chromaLambda = chromaLambda;
+#endif
     TComPicYuv *fenc = slice->getPic()->getPicYuvOrg();
     for (int i = 0; i < m_numRows; i++)
     {
@@ -406,19 +412,37 @@ void FrameEncoder::compressFrame()
         m_rows[i].m_rdCost.setCrDistortionWeight(crWeight);
     }
 
+	/* add by zsq */
+    G_hardwareC.hw_cfg.slice_type = slice->getSliceType();
+    G_hardwareC.hw_cfg.CbDistWeight = (uint32_t)floor(cbWeight * 256.0);
+    G_hardwareC.hw_cfg.CrDistWeight = (uint32_t)floor(crWeight * 256.0);
+
     m_frameFilter.m_sao.lumaLambda = lambda;
     m_frameFilter.m_sao.chromaLambda = chromaLambda;
+#if SAO_RUN_IN_X265
+	m_frameFilter.m_sao.m_hevcSAO->lumaLambda = lambda;
+	m_frameFilter.m_sao.m_hevcSAO->chromaLambda = chromaLambda;
+#endif
     
     switch (slice->getSliceType())
     {
     case I_SLICE:
         m_frameFilter.m_sao.depth = 0;
+#if SAO_RUN_IN_X265
+		m_frameFilter.m_sao.m_hevcSAO->depth = 0;
+#endif
         break;
     case P_SLICE:
         m_frameFilter.m_sao.depth = 1;
+#if SAO_RUN_IN_X265
+		m_frameFilter.m_sao.m_hevcSAO->depth = 1;
+#endif
         break;
     case B_SLICE:
         m_frameFilter.m_sao.depth = 2 + !slice->isReferenced();
+#if SAO_RUN_IN_X265
+		m_frameFilter.m_sao.m_hevcSAO->depth = 2 + !slice->isReferenced();
+#endif
         break;
     }
     /* Clip qps back to 0-51 range before encoding */

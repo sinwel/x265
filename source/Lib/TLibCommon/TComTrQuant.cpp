@@ -70,6 +70,15 @@ typedef struct
 
 TComTrQuant::TComTrQuant()
 {
+#if TQ_RUN_IN_X265_INTRA
+	m_hevcQT = new hevcQT;
+#endif
+#if TQ_RUN_IN_X265_ME
+	m1_hevcQT = new hevcQT; // for inter, Y
+	m2_hevcQT = new hevcQT; // for inter, Cb
+	m3_hevcQT = new hevcQT; // for inter, Cr
+#endif
+
     m_qpParam.clear();
 
     // allocate temporary buffers
@@ -83,7 +92,15 @@ TComTrQuant::TComTrQuant()
 
 TComTrQuant::~TComTrQuant()
 {
-    // delete temporary buffers
+#if TQ_RUN_IN_X265_INTRA
+	delete m_hevcQT;
+#endif 
+#if TQ_RUN_IN_X265_ME
+	delete m1_hevcQT; // for inter, Y
+	delete m2_hevcQT; // for inter, Cb
+	delete m3_hevcQT; // for inter, Cr
+#endif
+	// delete temporary buffers
     if (m_tmpCoeff)
     {
         X265_FREE(m_tmpCoeff);

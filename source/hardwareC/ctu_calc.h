@@ -81,8 +81,21 @@ public:
     uint8_t  input_curr_ref_u[128*64];
     uint8_t  input_curr_ref_v[128*64];
     uint8_t  QP;
+    uint8_t  QP_cb_offset;
+    uint8_t  QP_cr_offset;
+	uint8_t  slice_type; //0: B, 1: P, 2: I
 
+	/*ime input*/
+	uint16_t      ImeSearchRangeWidth; //IME搜索宽度
+	uint16_t      ImeSearchRangeHeight; //IME搜索高度
+	bool           isValidCu[85];
+	uint8_t       *pImeSearchRange; //IME搜索窗
+	uint8_t       *pCurrCtu; //当前CTU的y分量
+	/*ime input*/
+
+	/*ime output*/
     struct IME_MV  ***ime_mv;
+
     /* output */
     uint8_t *output_recon_y;            //64*64
     uint8_t *output_recon_u;            //32*32
@@ -158,7 +171,22 @@ public:
     MV_INFO  bs_mv[64];
 
     class CU_LEVEL_CALC cu_level_calc[4];
+#ifdef X265_LOG_FILE_ROCKCHIP
+    FILE*    fp_rk_intra_params;
+#endif
 
+    /* ctu_status_calc */
+    uint32_t sw_pic_total_bits;
+    uint32_t sw_slice_bits;
+    uint32_t sw_slice_ctu_num;
+    uint32_t sw_slice_mode;         // 0 ctu_num mode / 1 slice_len mode
+    uint8_t  last_ctu_qp;
+
+    uint32_t cur_pic_total_bits;
+    uint8_t  cur_ctu_qp;
+    uint32_t cur_ctu_bits;
+    uint32_t cur_slice_total_bits;
+    uint32_t ctu_pred_bits;
 
     //TODO
     //MVP Relation data
@@ -182,6 +210,10 @@ public:
     class cuData*** cu_ori_data;
     uint8_t ori_cu_split_flag[21];
 
+    FILE *fp_ctu_calc_cmdf;
+    FILE *fp_ctu_calc_recon_y;
+    FILE *fp_ctu_calc_recon_uv;
+
     void proc();
     CTU_CALC();
     ~CTU_CALC();
@@ -192,7 +224,20 @@ public:
     void end();
     void compare();
     void cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint8_t depth);
+	void model_cfg(char *cmd);
+	void Create();
+    void Destory();
+    void LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos);
+	void LogFile(INTERFACE_TQ* inf_tq);
+    void convert8x8HWCtoX265Luma(int16_t* coeff);  
+    void compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level);
+    void compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4split);
+	void Ime();
+	void ImePrefetch(int EdgeMinusPelNum, int *pImeSR, int width, int height);
+	void ImeProc(int *pImeSR, int *pCurrCtu, int merangex, int merangey);
+	void IntMotionEstimate(int *pImeSearchRange, int *pCurrCtu, int nCuSize, int merangex, int merangey, int offsIdx);
 
+    void ctu_status_calc();
 };
 
 #endif

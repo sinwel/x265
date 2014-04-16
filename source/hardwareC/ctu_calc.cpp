@@ -27,6 +27,14 @@ CTU_CALC::CTU_CALC()
     cu_level_calc[1].init(32);
     cu_level_calc[2].init(16);
     cu_level_calc[3].init(8);
+#ifdef X265_LOG_FILE_ROCKCHIP
+	fp_rk_intra_params = fopen(PATH_NAME("rk_intra_params.txt"), "w+" );
+	if ( fp_rk_intra_params == NULL )
+	{
+	    RK_HEVC_PRINT("creat file failed.\n");
+	}
+
+#endif
 
     cu_ori_data = new cuData**[4];
 
@@ -51,25 +59,6 @@ CTU_CALC::CTU_CALC()
         cu_ori_data[3][i] = new cuData;
         cu_ori_data[3][i]->init(8);
     }
-
-    ime_mv = new IME_MV **[4];
-    ime_mv[0] = new IME_MV *[1];
-	ime_mv[0][0] = new IME_MV;
-
-    ime_mv[1] = new IME_MV *[4];
-    for(i=0; i<4; i++) {
-        ime_mv[1][i] = new IME_MV;
-    }
-
-    ime_mv[2] = new IME_MV *[16];
-    for(i=0; i<16; i++) {
-        ime_mv[2][i] = new IME_MV;
-    }
-
-    ime_mv[3] = new IME_MV *[64];
-    for(i=0; i<64; i++) {
-        ime_mv[3][i] = new IME_MV;
-    }
 }
 
 CTU_CALC::~CTU_CALC()
@@ -80,7 +69,9 @@ CTU_CALC::~CTU_CALC()
     cu_level_calc[1].deinit();
     cu_level_calc[2].deinit();
     cu_level_calc[3].deinit();
-
+#ifdef X265_LOG_FILE_ROCKCHIP
+	fclose(fp_rk_intra_params);
+#endif
     free(input_curr_y);
     free(input_curr_u);
     free(input_curr_v);
@@ -119,25 +110,6 @@ CTU_CALC::~CTU_CALC()
     }
     delete [] cu_ori_data[3];
     delete [] cu_ori_data;
-
-    delete ime_mv[0][0];
-    delete [] ime_mv[0];
-
-    for(i=0; i<4; i++) {
-        delete ime_mv[1][i];
-    }
-    delete [] ime_mv[1];
-
-    for(i=0; i<16; i++) {
-        delete ime_mv[2][i];
-    }
-    delete [] ime_mv[2];
-
-    for(i=0; i<16; i++) {
-        delete ime_mv[3][i];
-    }
-    delete [] ime_mv[3];
-    delete [] ime_mv;
 }
 
 void CTU_CALC::init()
@@ -152,6 +124,8 @@ void CTU_CALC::init()
     cu_level_calc[1].pHardWare = pHardWare;
     cu_level_calc[2].pHardWare = pHardWare;
     cu_level_calc[3].pHardWare = pHardWare;
+
+    ime_mv = pHardWare->ime_mv;
 }
 
 
@@ -167,36 +141,25 @@ void CTU_CALC::begin()
     struct MV_INFO *buf_mv;
 
     /* intra */
-    pos = ctu_x;
+    pos = ctu_x*ctu_w;
     buf_y = line_intra_buf_y + (pos);
     buf_u = line_intra_buf_u + (pos >> 1);
     buf_v = line_intra_buf_v + (pos >> 1);
     buf_t = line_cu_type + (pos >> 8);
     buf_mv= line_mv_buf + (pos >> 8);
 
-    if(pos) {
-        memcpy(L_intra_buf_y + 64, buf_y - 1, 1);
-        memcpy(L_intra_buf_u + 32, buf_u - 1, 1);
-        memcpy(L_intra_buf_v + 32, buf_v - 1, 1);
-        memcpy(L_cu_type + 8, buf_t - 1, 1);
-    }
-
     memcpy(L_intra_buf_y + 65, buf_y, ctu_w);
     memcpy(L_intra_buf_u + 33, buf_u, ctu_w >> 1);
     memcpy(L_intra_buf_v + 33, buf_v, ctu_w >> 1);
     memcpy(L_cu_type + 9, buf_t, ctu_w >> 8);
 
-
-
     len = ctu_w;
-    if(pos + 2*ctu_w > pHardWare->pic_w) {
-        len = pHardWare->pic_w - (pos + ctu_w);
+    if(!(pos + ctu_w >= pHardWare->pic_w)) {
+        memcpy(L_intra_buf_y + 65 + (ctu_w),      buf_y + (ctu_w),      32);
+        memcpy(L_intra_buf_u + 33 + (ctu_w >> 1), buf_u + (ctu_w >> 1), 32 >> 1);
+        memcpy(L_intra_buf_v + 33 + (ctu_w >> 1), buf_v + (ctu_w >> 1), 32 >> 1);
+        memcpy(L_cu_type + 9 + (ctu_w >> 8), buf_t + (ctu_w >> 8), 32 >> 8);
     }
-
-    memcpy(L_intra_buf_y + 65 + (ctu_w),      buf_y + (ctu_w),      len);
-    memcpy(L_intra_buf_u + 33 + (ctu_w >> 1), buf_u + (ctu_w >> 1), len >> 1);
-    memcpy(L_intra_buf_v + 33 + (ctu_w >> 1), buf_v + (ctu_w >> 1), len >> 1);
-    memcpy(L_cu_type + 9 + (ctu_w >> 8), buf_t + (ctu_w >> 8), len >> 8);
 
     /* inter */
     if(pos) {
@@ -207,10 +170,9 @@ void CTU_CALC::begin()
 
     memcpy(L_mv_buf + 9 + (ctu_w >> 8), buf_mv + (ctu_w >> 8), (len >> 8)*sizeof(MV));
 
-    valid_left = 1;
-    valid_left_top = 1;
-    valid_top = 1;
-    valid_top_right = 1;
+    /* ctu_valid_flag must be replaced by ENC_CTRL module in ctu_cmd */
+
+    valid_left = valid_left_top = valid_top = valid_top_right = 1;
 
     if(ctu_y == 0) {
         valid_left_top = 0;
@@ -237,6 +199,11 @@ void CTU_CALC::begin()
     cu_level_calc[2].cu_pos = 0;
     cu_level_calc[3].cu_pos = 0;
 
+    cu_level_calc[0].temp_pos = 0;
+    cu_level_calc[1].temp_pos = 0;
+    cu_level_calc[2].temp_pos = 0;
+    cu_level_calc[3].temp_pos = 0;
+
     /* CTU开始前，将cu_data_valid清0 */
     memset(cu_data_valid, 0, 8*8);
 }
@@ -250,7 +217,7 @@ void CTU_CALC::end()
 
     /* intra */
 
-    pos = ctu_x;
+    pos = ctu_x * ctu_w;
     buf_y = line_intra_buf_y + (pos);
     buf_u = line_intra_buf_u + (pos >> 1);
     buf_v = line_intra_buf_v + (pos >> 1);
@@ -271,11 +238,11 @@ void CTU_CALC::end()
     }
 
     /* hor to ver */
-    for(i=0; i<ctu_w; i++){
+    for(i=0; i<ctu_w + 1; i++){
         L_intra_buf_y[i] = L_intra_buf_y[64 + i];
     }
 
-    for(i=0; i<ctu_w>>1; i++){
+    for(i=0; i<(ctu_w>>1) + 1; i++){
         L_intra_buf_u[i] = L_intra_buf_u[32 + i];
         L_intra_buf_v[i] = L_intra_buf_v[32 + i];
     }
@@ -347,6 +314,143 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
     }
 }
 
+void CTU_CALC::ImePrefetch(int EdgeMinusPelNum, int *pImeSR, int width, int height)
+{
+	assert(EdgeMinusPelNum % 4 == 0);
+	int RightMove = 0;
+	int PelBit = 8;
+	//pImeSR = (int *)Create(width-nSampDist, height-nSampDist, BT_INT); //保存中间(第二级IME)的搜索窗时用的数据类型为int
+	unsigned char *pTmpImeSR = pImeSearchRange + EdgeMinusPelNum + (EdgeMinusPelNum)*ImeSearchRangeWidth;
+	for (int i = 0; i <= height - nSampDist; i++)
+	{
+		for (int j = 0; j <= width - nSampDist; j++)
+		{
+			int sum = 0;
+			for (int x = 0; x < nSampDist; x++)
+			{
+				for (int y = 0; y < nSampDist; y++)
+				{
+					sum += (pTmpImeSR[(j + y) + (i + x)*ImeSearchRangeWidth] >> (8 - PelBit));
+				}
+			}
+			pImeSR[j + i*(width - nSampDist + 1)] = sum >> RightMove;
+		}
+	}
+}
+
+void CTU_CALC::ImeProc(int *pImeSR, int *pCurrCtu, int merangex, int merangey)
+{
+	int RightMove = 0;
+	int PelBit = 8;
+	int nCuInCtu;
+	switch (ctu_w)
+	{
+	case 64: nCuInCtu = 85; break;
+	case 32: nCuInCtu = 21; break;
+	case 16: nCuInCtu = 5;   break;
+	default: nCuInCtu = 85;
+	}
+	for (int i = 0; i < nCuInCtu; i++)
+	{
+		if (!isValidCu[i])
+			continue;
+		if (i < 64)
+			IntMotionEstimate(pImeSR, pCurrCtu, 8, merangex, merangey, i);
+		else if (i < 80)
+			IntMotionEstimate(pImeSR, pCurrCtu, 16, merangex, merangey, i);
+		else if (i < 84)
+			IntMotionEstimate(pImeSR, pCurrCtu, 32, merangex, merangey, i);
+		else
+			IntMotionEstimate(pImeSR, pCurrCtu, 64, merangex, merangey, i);
+	}
+}
+
+void CTU_CALC::IntMotionEstimate(int *pImeSR, int *pCurrCtu, int nCuSize, int merangex, int merangey, int offsIdx)
+{
+	Mv bmv; bmv.x = 0; bmv.y = 0;
+	Mv offset;
+	switch (ctu_w)
+	{
+	case 64: offset.x = OffsFromCtu64[offsIdx][0]; offset.y = OffsFromCtu64[offsIdx][1]; break;
+	case 32: offset.x = OffsFromCtu32[offsIdx][0]; offset.y = OffsFromCtu32[offsIdx][1]; break;
+	case 16: offset.x = OffsFromCtu16[offsIdx][0]; offset.y = OffsFromCtu16[offsIdx][1]; break;
+	default: offset.x = OffsFromCtu64[offsIdx][0]; offset.y = OffsFromCtu64[offsIdx][1];
+	}
+	Mv Center; Center.x = offset.x + merangex / 2 - ctu_w / 2; Center.y = offset.y + merangey / 2 - ctu_w / 2;
+	Mv mvmin; mvmin.x = ctu_w / 2 - merangex / 2; mvmin.y = ctu_w / 2 - merangey / 2;
+	Mv mvmax; mvmax.x = merangex / 2 - ctu_w / 2; mvmax.y = merangey / 2 - ctu_w / 2;
+	int withSR = merangex - nSampDist + 1;
+	int *pCurrCuSearchRangeCenter = pImeSR + Center.x + Center.y*withSR;
+	int bcost = Sad(pCurrCuSearchRangeCenter, withSR, pCurrCtu, offset, nCuSize, ctu_w); //当前位置的代价
+	Mv tmv;
+	for (tmv.y = mvmin.y; tmv.y <= mvmax.y; tmv.y++)
+	{
+		for (tmv.x = mvmin.x; tmv.x <= mvmax.x; tmv.x++)
+		{
+			int cost = Sad(pCurrCuSearchRangeCenter + tmv.x + tmv.y*withSR, withSR, pCurrCtu, offset, nCuSize, ctu_w);
+			if (cost < bcost)
+			{
+				bcost = cost;
+				bmv.x = tmv.x;
+				bmv.y = tmv.y;
+			}
+		}
+	}
+	if (offsIdx < 64)
+	{
+		ime_mv[3][offsIdx]->mv_x = bmv.x;
+		ime_mv[3][offsIdx]->mv_y = bmv.y;
+		ime_mv[3][offsIdx]->SAD_cost = bcost;
+	}
+	else if (offsIdx < 80)
+	{
+		ime_mv[2][offsIdx-64]->mv_x = bmv.x;
+		ime_mv[2][offsIdx-64]->mv_y = bmv.y;
+		ime_mv[2][offsIdx-64]->SAD_cost = bcost;
+	}
+	else if (offsIdx < 84)
+	{
+		ime_mv[1][offsIdx-80]->mv_x = bmv.x;
+		ime_mv[1][offsIdx-80]->mv_y = bmv.y;
+		ime_mv[1][offsIdx-80]->SAD_cost = bcost;
+	}
+	else
+	{
+		ime_mv[0][offsIdx-84]->mv_x = bmv.x;
+		ime_mv[0][offsIdx-84]->mv_y = bmv.y;
+		ime_mv[0][offsIdx-84]->SAD_cost = bcost;
+	}
+}
+
+void CTU_CALC::Ime()
+{
+	assert((ctu_w == 16) || (ctu_w == 32) || (ctu_w == 64));
+	int EdgeMinusPelNum = 4;
+	int width = ImeSearchRangeWidth - EdgeMinusPelNum * 2;
+	int height = ImeSearchRangeHeight - EdgeMinusPelNum * 2;
+	int *pImeSR = new int[(width - nSampDist + 1)*(height - nSampDist + 1)];
+	int *pCtu = new int[(ctu_w / nSampDist)*(ctu_w / nSampDist)];
+	ImePrefetch(EdgeMinusPelNum, pImeSR, width, height);
+	for (int i = 0; i < ctu_w / nSampDist; i++)
+	{
+		for (int j = 0; j < ctu_w / nSampDist; j++)
+		{
+			int sum = 0;
+			for (int x = 0; x < nSampDist; x++)
+			{
+				for (int y = 0; y < nSampDist; y++)
+				{
+					sum += (pCurrCtu[(j*nSampDist + y) + (i*nSampDist + x)*ctu_w]);
+				}
+			}
+			pCtu[j + (ctu_w / nSampDist)*i] = sum;
+		}
+	}
+	ImeProc(pImeSR, pCtu, width, height);
+	delete[] pImeSR;
+	delete[] pCtu;
+}
+
 void CTU_CALC::compare()
 {
     uint32_t i, j;
@@ -392,6 +496,340 @@ void CTU_CALC::compare()
         }
     }
 }
+
+void static LogRef2File(FILE* fp_rk_intra_params, INTERFACE_INTRA_PROC inf_intra_proc, uint8_t* pRef, int8_t idx)
+{
+	uint8_t flag_map_pel = 8;
+	//uint8_t* bNeighbour = inf_intra_proc.bNeighborFlags - (inf_intra_proc.size/4);
+
+	uint8_t* flags = inf_intra_proc.bNeighborFlags - (inf_intra_proc.size/4);// 指向左上角 转换为 指向左下角
+
+	bool Flags[4*RK_MAX_NUM_SPU_W + 1];
+	uint8_t k = 0;
+	for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/flag_map_pel ; i++ )
+	{
+		Flags[k++] = *flags   == 1 ? true : false;
+		Flags[k++] = *flags++ == 1 ? true : false;
+	}
+
+	Flags[k++] = *flags++ == 1 ? true : false;
+
+	for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/flag_map_pel ; i++ )
+	{
+		Flags[k++] = *flags   == 1 ? true : false;
+		Flags[k++] = *flags++ == 1 ? true : false;
+	}
+
+#if 0
+	if ( idx != 0 )
+	{
+	    inf_intra_proc.size >>= 1;
+		flag_map_pel = 4;
+	}
+
+	for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/flag_map_pel; i++ )
+	{
+		if ( *bNeighbour++ == 1 )
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"0x%02x ",*pRef++ );
+			}
+		}
+		else
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"xxxx ");
+				pRef++;
+			}
+		}
+	}
+
+	if ( *bNeighbour++ == 1 )
+	{
+	    RK_HEVC_FPRINT(fp_rk_intra_params,"\n0x%02x \n",*pRef++ );
+	}
+	else
+	{
+	    RK_HEVC_FPRINT(fp_rk_intra_params,"\nxxxx \n" );
+		pRef++;
+	}
+
+	for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/flag_map_pel; i++ )
+	{
+		if ( *bNeighbour++ == 1 )
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"0x%02x ",*pRef++ );
+			}
+		}
+		else
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"xxxx ");
+				pRef++;
+			}
+		}
+	}
+#else
+	flag_map_pel = 4;
+	if ( idx != 0 )
+	{
+	    inf_intra_proc.size >>= 1;
+		flag_map_pel = 2;
+	}
+	bool* pflag = Flags;
+	for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/flag_map_pel; i++ )
+	{
+		if ( *pflag++ == 1 )
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"0x%02x ",*pRef++ );
+			}
+		}
+		else
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"xxxx ");
+				pRef++;
+			}
+		}
+	}
+
+	if ( *pflag++ == 1 )
+	{
+	    RK_HEVC_FPRINT(fp_rk_intra_params,"\n0x%02x \n",*pRef++ );
+	}
+	else
+	{
+	    RK_HEVC_FPRINT(fp_rk_intra_params,"\nxxxx \n" );
+		pRef++;
+	}
+
+	for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/flag_map_pel; i++ )
+	{
+		if ( *pflag++ == 1 )
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"0x%02x ",*pRef++ );
+			}
+		}
+		else
+		{
+			for (uint8_t j = 0 ; j < flag_map_pel ; j++ )
+			{
+			    RK_HEVC_FPRINT(fp_rk_intra_params,"xxxx ");
+				pRef++;
+			}
+		}
+	}
+
+#endif
+	RK_HEVC_FPRINT(fp_rk_intra_params,"\n\n");
+
+}
+void static LogFenc2File(FILE* fp_rk_intra_params, INTERFACE_INTRA_PROC inf_intra_proc, uint8_t* fenc,  int8_t idx)
+{
+	if ( idx != 0 )
+	{
+	    inf_intra_proc.size >>= 1;
+	}
+
+	// rk_Interface_Intra.fencY/U/V
+	for (uint8_t i = 0 ; i < inf_intra_proc.size; i++ )
+	{
+		for (uint8_t j = 0 ; j < inf_intra_proc.size ; j++ )
+		{
+			RK_HEVC_FPRINT(fp_rk_intra_params,"0x%02x ",fenc[i * inf_intra_proc.size + j]);
+		}
+		RK_HEVC_FPRINT(fp_rk_intra_params,"\n");
+	}
+	RK_HEVC_FPRINT(fp_rk_intra_params,"\n\n");
+
+	if ( idx == 0)
+	{
+		RK_HEVC_FPRINT(fp_rk_intra_params,"Luma StrongFlag = %d\n\n", inf_intra_proc.useStrongIntraSmoothing);
+	}
+	else
+	{
+		RK_HEVC_FPRINT(fp_rk_intra_params,"chroma haven't StrongFlag\n\n");
+	}
+
+}
+void CTU_CALC::LogFile(INTERFACE_TQ* inf_tq)
+{
+#if 0
+#if 0
+	if (inf_tq->Size == 4 || inf_tq->textType != 0)
+	{
+		return;
+	}
+	fprintf(fp_TQ_Log_HWC, "==================== TQ input ====================\n");
+	fprintf(fp_TQ_Log_HWC, "---------------- TU begin ----------------\n");
+	fprintf(fp_TQ_Log_HWC, "sliceType = %d,  predMode = %d,  textType = %d,  size = %d\n",
+		inf_tq->sliceType, inf_tq->predMode,
+		inf_tq->textType, inf_tq->Size);
+	fprintf(fp_TQ_Log_HWC, "qp = %d,  qpBdOffset = %d,  chromaQPOffset = %d,  transformSkip = %d\n",
+		inf_tq->QP, inf_tq->qpBdOffset,
+		inf_tq->chromaQpOffset, inf_tq->TransFormSkip);
+	fprintf(fp_TQ_Log_HWC, "Resi:\n");
+	for (uint32_t k = 0; k < inf_tq->Size; k++)
+	{
+		for (int j = 0; j < inf_tq->Size; j++)
+		{
+			fprintf(fp_TQ_Log_HWC, "0x%04x ", inf_tq->resi[k*inf_tq->Size + j]&0xffff);
+		}
+		fprintf(fp_TQ_Log_HWC, "\n");
+	}
+	fprintf(fp_TQ_Log_HWC, "---------------- TU end ----------------\n\n\n");
+#else
+	uint32_t i, j;
+	RK_HEVC_FPRINT(fp_TQ_Log_HWC, "Resi:\n");
+	/* 这里stride等于width，即使是width=4的情况，就分开4次比较 */
+	for (i = 0; i < inf_tq->Size; i++)
+	{
+		for (j = 0; j < inf_tq->Size; j++)
+		{
+			RK_HEVC_FPRINT(fp_TQ_Log_HWC, "0x%04x  ", (uint16_t)inf_tq->resi[j]);
+		}
+		inf_tq->resi += inf_tq->Size;
+		RK_HEVC_FPRINT(fp_TQ_Log_HWC, "\n");
+	}
+	RK_HEVC_FPRINT(fp_TQ_Log_HWC, "\n\n");
+#endif
+#endif
+}
+void CTU_CALC::convert8x8HWCtoX265Luma(int16_t* coeff)
+{
+	int16_t temp[8*8];
+	int16_t* src = coeff;
+	int offset[4] = {0, 4, 32, 36};
+	int i, j;
+	for(i=0; i<4; i++)
+	{
+		src = coeff + offset[i];
+		for(j=0; j<4; j++)
+		{
+			memcpy(&temp[16*i+j*4], &src[j*8], 4*sizeof(int16_t));
+		}
+	}
+	memcpy(coeff, &temp[0], 8*8*sizeof(int16_t));		
+}
+
+void CTU_CALC::compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level)
+{
+	assert(level <= 3);
+	
+	int pos = hwc_data[level].cu_pos - 1;
+	int sizeY = ctu_w >>  level;
+	int sizeUV = ctu_w >> (level+1);
+	
+	//compare oriResi(after T and Q)
+	assert(!memcmp(hwc_data[level].inf_tq_total[0].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffY,
+		sizeY*sizeY*sizeof(int16_t)));
+	assert(!memcmp(hwc_data[level].inf_tq_total[1].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffU,
+		sizeUV*sizeUV*sizeof(int16_t)));
+	assert(!memcmp(hwc_data[level].inf_tq_total[2].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffV,
+		sizeUV*sizeUV*sizeof(int16_t)));
+
+	//compare Recon
+	assert(!memcmp(hwc_data[level].inf_recon_total[0].Recon, pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconY,
+		sizeY*sizeY*sizeof(uint8_t)));
+	assert(!memcmp(hwc_data[level].inf_recon_total[1].Recon, pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconU,
+		sizeUV*sizeUV*sizeof(uint8_t)));
+	assert(!memcmp(hwc_data[level].inf_recon_total[2].Recon, pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconV,
+		sizeUV*sizeUV*sizeof(uint8_t)));
+}
+
+
+void CTU_CALC::compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4split)
+{
+	int pos = hwc_data[3].cu_pos - 1;
+	int sizeY = ctu_w >>  3;
+	int sizeUV = ctu_w >> (3+1);
+
+	if(choose4x4split)
+	{
+		convert8x8HWCtoX265Luma(hwc_data[3].inf_tq_total[0].oriResi);//only Luma
+	}
+	
+	//compare oriResi(after T and Q)
+	assert(!memcmp(hwc_data[3].inf_tq_total[0].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffY,
+		sizeY*sizeY*sizeof(int16_t)));
+	assert(!memcmp(hwc_data[3].inf_tq_total[1].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffU,
+		sizeUV*sizeUV*sizeof(int16_t)));
+	assert(!memcmp(hwc_data[3].inf_tq_total[2].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffV,
+		sizeUV*sizeUV*sizeof(int16_t)));
+
+	//compare Recon
+	assert(!memcmp(hwc_data[3].inf_recon_total[0].Recon, pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconY,
+		sizeY*sizeY*sizeof(uint8_t)));
+	assert(!memcmp(hwc_data[3].inf_recon_total[1].Recon, pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconU,
+		sizeUV*sizeUV*sizeof(uint8_t)));
+	assert(!memcmp(hwc_data[3].inf_recon_total[2].Recon, pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconV,
+		sizeUV*sizeUV*sizeof(uint8_t)));
+}
+void CTU_CALC::LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos)
+{
+	// log rk_Interface_Intra.bNeighborFlags
+	if ( inf_intra_proc.size < 64)
+	{
+		// + offset 指向左下角
+		bool bFlagCorner = (*inf_intra_proc.bNeighborFlags == 1) ? 1 : 0;
+		uint8_t* bNeighbour = inf_intra_proc.bNeighborFlags - (inf_intra_proc.size/4);
+        RK_HEVC_FPRINT(fp_rk_intra_params,"[x_pos = %d] [y_pos = %d]\n", x_pos, y_pos);
+		RK_HEVC_FPRINT(fp_rk_intra_params,"[num = %d]\n", (bFlagCorner == 1 ) ?
+			inf_intra_proc.numIntraNeighbor * 2 - 1 : inf_intra_proc.numIntraNeighbor * 2);
+		RK_HEVC_FPRINT(fp_rk_intra_params,"[size = %d]\n",inf_intra_proc.size);
+		RK_HEVC_FPRINT(fp_rk_intra_params,"[initTrDepth = %d]\n",0);
+		RK_HEVC_FPRINT(fp_rk_intra_params,"[part:%d]\n",0);
+		// X265是4个pel一组，RK是8个PEL
+		for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/8; i++ )
+		{
+		    RK_HEVC_FPRINT(fp_rk_intra_params,"%d ",*bNeighbour );
+		    RK_HEVC_FPRINT(fp_rk_intra_params,"%d ",*bNeighbour++ );
+		}
+
+		RK_HEVC_FPRINT(fp_rk_intra_params,"	 %d   ",*bNeighbour++ );
+
+		for (uint8_t i = 0 ; i < 2*inf_intra_proc.size/8 ; i++ )
+		{
+		    RK_HEVC_FPRINT(fp_rk_intra_params,"%d ",*bNeighbour );
+		    RK_HEVC_FPRINT(fp_rk_intra_params,"%d ",*bNeighbour++ );
+		}
+		RK_HEVC_FPRINT(fp_rk_intra_params,"\n\n");
+
+		LogRef2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.reconEdgePixelY - (2*inf_intra_proc.size), 0);
+		LogFenc2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.fencY, 0);
+
+		LogRef2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.reconEdgePixelU - inf_intra_proc.size, 1);
+		LogFenc2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.fencU, 1);
+
+		LogRef2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.reconEdgePixelV - inf_intra_proc.size, 2);
+		LogFenc2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.fencV, 2);
+
+ 	}
+}
+
+void CTU_CALC::Create()
+{
+	assert(ctu_w == 64 || ctu_w == 32 || ctu_w == 16);
+	pCurrCtu = new uint8_t[ctu_w*ctu_w];
+	pImeSearchRange = new uint8_t[ImeSearchRangeHeight*ImeSearchRangeWidth];
+}
+
+void CTU_CALC::Destory()
+{
+	delete[] pCurrCtu;
+	delete[] pImeSearchRange;
+}
+
 void CTU_CALC::proc()
 {
     unsigned int cost_0, cost_1, cost_2, cost_3;
@@ -404,9 +842,14 @@ void CTU_CALC::proc()
     unsigned int cu_x_3 = 0, cu_y_3 = 0;
 
     //IME
+	if (slice_type != 2)
+		Ime();
 
     /*begin*/
     begin();
+
+    if (pHardWare->ctu_y == 16 && pHardWare->ctu_x == 1)
+		pHardWare->ctu_y = pHardWare->ctu_y;
 
     cu_level_calc[0].depth = 0;
     cu_level_calc[0].TotalCost = 0;
@@ -426,6 +869,13 @@ void CTU_CALC::proc()
         if (!(cost_1 & 0x80000000)) {
             totalBits_1 += cu_level_calc[1].cost_best->Bits;
             totalDist_1 += cu_level_calc[1].cost_best->Distortion;
+#ifdef LOG_INTRA_PARAMS_2_FILE
+            LogIntraParams2File(cu_level_calc[1].inf_intra_proc, cu_x_1, cu_y_1);
+#endif
+#if TQ_RUN_IN_HWC_INTRA
+			//compare coeff(after T and Q), and Recon (Y, U, V)
+			compareCoeffandRecon(cu_level_calc, 1);
+#endif
         }
 
         totalBits_2 = 0;
@@ -445,6 +895,14 @@ void CTU_CALC::proc()
             if (!(cost_2 & 0x80000000)) {
                 totalBits_2 += cu_level_calc[2].cost_best->Bits;
                 totalDist_2 += cu_level_calc[2].cost_best->Distortion;
+
+			#ifdef LOG_INTRA_PARAMS_2_FILE
+                LogIntraParams2File(cu_level_calc[2].inf_intra_proc, cu_x_2, cu_y_2);
+			#endif
+#if TQ_RUN_IN_HWC_INTRA
+			//compare coeff(after T and Q), and Recon (Y, U, V)
+			compareCoeffandRecon(cu_level_calc, 2);
+#endif
             }
 
             totalBits_3 = 0;
@@ -457,24 +915,33 @@ void CTU_CALC::proc()
                 cu_y_3 = cu_y_2 + (k >>1)*(ctu_w>>3);
 
                 cost_3 = cu_level_calc[3].proc(3, cu_x_3, cu_y_3);
-                cu_level_calc[3].end();
+
+				cu_level_calc[3].end();
                 cu_level_calc[3].ori_pos++;
 
                 if (!(cost_3 & 0x80000000)) {
                     totalBits_3 += cu_level_calc[3].cost_best->Bits;
                     totalDist_3 += cu_level_calc[3].cost_best->Distortion;
+
+				#ifdef LOG_INTRA_PARAMS_2_FILE
+                    LogIntraParams2File(cu_level_calc[3].inf_intra_proc, cu_x_3, cu_y_3);
+				#endif
+#if 1 //wait for 4x4 intra to be done, added by lks
+				//compare coeff(after T and Q), and Recon (Y, U, V)
+				compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
+#endif
                 }
             }
             //EncoderCuSplitFlag();
             //calcRDOCOST
-            cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_16[cu_level_calc[2].cu_pos - 1].m_totalCost;
+            cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_16[cu_level_calc[2].temp_pos-1].m_totalCost;
             cu_level_compare(cost_2, cost_3_total, 2);
             cu_level_calc[2].end();
             cu_level_calc[2].ori_pos++;
         }
         //EncoderCuSplitFlag();
         //calcRDOCOST
-        cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_32[cu_level_calc[1].cu_pos - 1].m_totalCost;
+        cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_32[cu_level_calc[1].temp_pos-1].m_totalCost;
         cu_level_compare(cost_1, cost_2_total, 1);
         cu_level_calc[1].end();
         cu_level_calc[1].ori_pos++;
@@ -492,3 +959,51 @@ void CTU_CALC::proc()
     compare();
 }
 
+void CTU_CALC::model_cfg(char *cmd)
+{
+    char    ctu_calc_cmdf[]        =  "ctu_calc_cmd_file = ";
+    char    ctu_calc_recon_y[]     =  "ctu_calc_recon_y_file = ";
+    char    ctu_calc_recon_uv[]    =  "ctu_calc_recon_uv_file = ";
+    if (0);
+    OPT(cmd, ctu_calc_cmdf)     { fp_ctu_calc_cmdf = fopen(cmd + sizeof(ctu_calc_cmdf)-1,"wb+");}
+    OPT(cmd, ctu_calc_recon_y)  { fp_ctu_calc_recon_y = fopen(cmd + sizeof(ctu_calc_cmdf)-1,"wb+");}
+    OPT(cmd, ctu_calc_recon_uv) { fp_ctu_calc_recon_uv = fopen(cmd + sizeof(ctu_calc_cmdf)-1,"wb+");}
+    else ;
+
+}
+
+void CTU_CALC::ctu_status_calc()
+{
+}
+
+void cuData::init(uint8_t w)
+{
+    CoeffY = (int16_t *)malloc(w*w*2);
+    CoeffU = (int16_t *)malloc(w*w*2/4);
+    CoeffV = (int16_t *)malloc(w*w*2/4);
+
+    ReconY = (uint8_t *)malloc(w*w);
+    ReconU = (uint8_t *)malloc(w*w/4);
+    ReconV = (uint8_t *)malloc(w*w/4);
+    cbfY = (uint8_t *)malloc((w/4)*(w/4));
+    mv = (MV_INFO *)malloc(sizeof(MV_INFO)*(w/8)*(w/8));
+    cuPartSize = (uint8_t *)malloc((w/8)*(w/8));
+    cuSkipFlag = (uint8_t *)malloc((w/8)*(w/8));
+    cuPredMode = (uint8_t *)malloc((w/8)*(w/8));
+}
+
+void cuData::deinit()
+{
+    free(CoeffY);
+    free(CoeffU);
+    free(CoeffV);
+
+    free(ReconY);
+    free(ReconU);
+    free(ReconV);
+    free(cbfY);
+    free(mv);
+    free(cuPartSize);
+    free(cuSkipFlag);
+    free(cuPredMode);
+}

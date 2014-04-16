@@ -137,7 +137,7 @@ class TComSampleAdaptiveOffset
 {
 protected:
 
-    TComPic* m_pic;
+    //TComPic* m_pic; // convert to public
 
     static const uint32_t m_maxDepth;
     static const int m_numCulPartsLevel[5];
@@ -181,6 +181,8 @@ protected:
     bool    m_saoLcuBasedOptimization;
 
 public:
+
+	TComPic* m_pic;
 
     TComSampleAdaptiveOffset();
     virtual ~TComSampleAdaptiveOffset();

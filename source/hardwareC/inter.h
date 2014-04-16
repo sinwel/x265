@@ -129,6 +129,7 @@ extern unsigned char pixCurrBuf[32*32];
 extern const short LumaFilter[4][LUMA_NTAPS];
 extern const short ChromaFilter[8][CHROMA_NTAPS];
 
+void IME(InterInfo::ImeInput *pImeInput, InterInfo::ImeOutput *pImeOutput);
 void ImePrefetch(InterInfo::ImeInput *pImeInput, int EdgeMinusPelNum, int *pImeSR, int width, int height);
 void motionEstimate(InterInfo *pInterInfo);
 void ImeProc(InterInfo::ImeInput *pImeInput, int *pImeSR, int *pCurrCtu, int merangex, int merangey, int nCtuSize, InterInfo::ImeOutput *pImeOutput);

@@ -55,6 +55,10 @@ void FrameFilter::destroy()
         // NOTE: I don't check sao flag since loopfilter and sao have same control status
         m_sao.destroy();
         m_sao.destroyEncBuffer();
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->destroy();
+		m_sao.m_hevcSAO->destroyEncBuffer();
+#endif
     }
     X265_FREE(m_ssimBuf);
 }
@@ -80,6 +84,13 @@ void FrameFilter::init(Encoder *top, int numRows, TEncSbac* rdGoOnSbacCoder)
         m_sao.setMaxNumOffsetsPerPic(top->getMaxNumOffsetsPerPic());
         m_sao.create(top->param.sourceWidth, top->param.sourceHeight, g_maxCUWidth, g_maxCUHeight);
         m_sao.createEncBuffer();
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->setSaoLcuBoundary(top->param.saoLcuBoundary);
+		m_sao.m_hevcSAO->setSaoLcuBasedOptimization(top->param.saoLcuBasedOptimization);
+		m_sao.m_hevcSAO->setMaxNumOffsetsPerPic(top->getMaxNumOffsetsPerPic());
+		m_sao.m_hevcSAO->create(top->param.sourceWidth, top->param.sourceHeight, g_maxCUWidth, g_maxCUHeight);
+		m_sao.m_hevcSAO->createEncBuffer();
+#endif
     }
 
     if (m_cfg->param.bEnableSsim)
@@ -101,11 +112,17 @@ void FrameFilter::start(TComPic *pic)
     {
         m_sao.resetStats();
         m_sao.createPicSaoInfo(pic);
-
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->resetStats();
+		m_sao.m_hevcSAO->createPicSaoInfo(pic);
+#endif
         SAOParam* saoParam = pic->getPicSym()->getSaoParam();
         m_sao.resetSAOParam(saoParam);
         m_sao.rdoSaoUnitRowInit(saoParam);
-
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->resetSAOParam(saoParam);
+		m_sao.m_hevcSAO->rdoSaoUnitRowInit(saoParam);
+#endif
         // NOTE: Disable SAO automatic turn-off when frame parallelism is
         // enabled for output exact independent of frame thread count
         if (m_cfg->param.frameNumThreads > 1)
@@ -121,6 +138,9 @@ void FrameFilter::end()
     if (m_cfg->param.bEnableSAO)
     {
         m_sao.destroyPicSaoInfo();
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->destroyPicSaoInfo();
+#endif
     }
 }
 
@@ -140,6 +160,9 @@ void FrameFilter::processRow(int row)
         // NOTE: not need, seems HM's bug, I want to keep output exact matched.
         m_rdGoOnBinCodersCABAC.m_fracBits = ((TEncBinCABAC*)((TEncSbac*)m_rdGoOnSbacCoderRow0->m_binIf))->m_fracBits;
         m_sao.startSaoEnc(m_pic, &m_entropyCoder, &m_rdGoOnSbacCoder);
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->startSaoEnc(m_pic, &m_entropyCoder, &m_rdGoOnSbacCoder);
+#endif
     }
 
     const uint32_t numCols = m_pic->getPicSym()->getFrameWidthInCU();
@@ -149,6 +172,9 @@ void FrameFilter::processRow(int row)
     if (m_cfg->param.bEnableSAO && m_cfg->param.saoLcuBasedOptimization && m_cfg->param.saoLcuBoundary)
     {
         m_sao.calcSaoStatsRowCus_BeforeDblk(m_pic, row);
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->calcSaoStatsRowCus_BeforeDblk(m_pic, row);
+#endif
     }
 
     if (m_cfg->param.bEnableLoopFilter)
@@ -172,7 +198,27 @@ void FrameFilter::processRow(int row)
             m_loopFilter.loopFilterCU(cu_prev, EDGE_HOR);
         }
     }
-
+#if 0
+	if(row==1)
+	{
+		fprintf(m_sao.m_hevcSAO->m_fpSaoLogX265, "------- the(0,0)CTU rec Y pixels in deblock--------\n");
+		for (int k = 0; k < 32; k++)
+		{
+			fprintf(m_sao.m_hevcSAO->m_fpSaoLogX265, "%02x ",
+				m_sao.m_pic->getPicYuvRec()->getLumaAddr(0)[31 * m_pic->getStride() + k] & 0xff);
+		}
+		fprintf(m_sao.m_hevcSAO->m_fpSaoLogX265, "\n");
+		fprintf(m_sao.m_hevcSAO->m_fpSaoLogX265, "---------------------------------------\n");
+	}
+#endif
+#if SAO_RUN_IN_X265 
+	//store the prior frame line, for SAO_RDO merge up flowingly.
+	//NOTE: TEMPly store one line once, because De-blocking is donned every Row before SAO
+	uint8_t* inRecAfterDblkY = m_sao.m_pic->getPicYuvRec()->getLumaAddr(row*m_pic->getFrameWidthInCU()) - m_pic->getStride();
+	uint8_t* inRecAfterDblkU = m_sao.m_pic->getPicYuvRec()->getCbAddr(row*m_pic->getFrameWidthInCU()) - m_pic->getCStride();
+	uint8_t* inRecAfterDblkV = m_sao.m_pic->getPicYuvRec()->getCrAddr(row*m_pic->getFrameWidthInCU()) - m_pic->getCStride();
+	m_sao.m_hevcSAO->setRdoParam(inRecAfterDblkY, inRecAfterDblkU, inRecAfterDblkV);
+#endif	
     // SAO
     SAOParam* saoParam = m_pic->getPicSym()->getSaoParam();
     if (m_cfg->param.bEnableSAO && m_sao.getSaoLcuBasedOptimization())
@@ -202,6 +248,9 @@ void FrameFilter::processRow(int row)
         if (m_cfg->param.bEnableSAO && m_sao.getSaoLcuBasedOptimization())
         {
             m_sao.rdoSaoUnitRowEnd(saoParam, m_pic->getNumCUsInFrame());
+#if SAO_RUN_IN_X265
+			m_sao.m_hevcSAO->rdoSaoUnitRowEnd(saoParam, m_pic->getNumCUsInFrame());
+#endif
 
             for (int i = m_numRows - m_saoRowDelay; i < m_numRows; i++)
             {
@@ -531,11 +580,20 @@ void FrameFilter::processSao(int row)
     if (saoParam->bSaoFlag[0])
     {
         m_sao.processSaoUnitRow(saoParam->saoLcuParam[0], row, 0);
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->processSaoUnitRow(saoParam->saoLcuParam[0], row, 0);
+#endif
     }
     if (saoParam->bSaoFlag[1])
     {
         m_sao.processSaoUnitRow(saoParam->saoLcuParam[1], row, 1);
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->processSaoUnitRow(saoParam->saoLcuParam[1], row, 1);
+#endif
         m_sao.processSaoUnitRow(saoParam->saoLcuParam[2], row, 2);
+#if SAO_RUN_IN_X265
+		m_sao.m_hevcSAO->processSaoUnitRow(saoParam->saoLcuParam[2], row, 2);
+#endif
     }
 
     // TODO: this code is NOT VERIFIED because TransformSkip and PCM modes have some bugs, they are never enabled

@@ -760,7 +760,7 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("weightp") p->bEnableWeightedPred = bvalue;
     OPT("cbqpoffs") p->cbQpOffset = atoi(value);
     OPT("crqpoffs") p->crQpOffset = atoi(value);
-    OPT("rd") p->rdLevel = atoi(value);
+    OPT("rd") p->rdLevel = atoi(value); 
     OPT("signhide") p->bEnableSignHiding = bvalue;
     OPT("lft") p->bEnableLoopFilter = bvalue;
     OPT("sao") p->bEnableSAO = bvalue;

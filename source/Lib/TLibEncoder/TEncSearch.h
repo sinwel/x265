@@ -53,12 +53,9 @@
 #include "bitcost.h"
 #include "motion.h"
 
-
 #include "RkIntraPred.h"
 
-using namespace RK_HEVC;
-
-
+//using namespace RK_HEVC;
 //! \ingroup TLibEncoder
 //! \{
 
@@ -79,17 +76,16 @@ class TEncCu;
 class TEncSearch : public TComPrediction
 {
 
-#ifdef RK_INTRA_PRED
+#ifdef X265_INTRA_DEBUG
 public:
     Rk_IntraPred*    m_rkIntraPred; 
     INTERFACE_INTRA  rk_Interface_Intra;  
     INTERFACE_INTRA  rk_Interface_IntraCb;     
     INTERFACE_INTRA  rk_Interface_IntraCr;     
 #endif
-
 #ifdef RK_INTRA_MODE_CHOOSE
 public:
-    Rk_IntraPred*    m_rkIntraPredFast; 
+    Rk_IntraPred*   m_rkIntraPredFast;
 #endif
 
 public:

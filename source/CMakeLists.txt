@@ -78,6 +78,14 @@ elseif(CLANG)
     add_definitions(-Wall -Wextra -Wshadow -ffast-math)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
     add_definitions(-Wall -Wextra -Wshadow -ffast-math)
+    
+    # add by zxy for PROFLIER in linux platform
+    option( PROFILER_ENABLE "creat the gmou.out for profiler" OFF)
+    if(PROFILER_ENABLE)
+		add_definitions(-pg)
+		SET(CMAKE_EXE_LINKER_FLAGS "-pg")
+	endif(PROFILER_ENABLE)
+	
     check_cxx_compiler_flag(-Wno-narrowing GCC_HAS_NO_NARROWING) 
     check_cxx_compiler_flag(-mstackrealign GCC_HAS_STACK_REALIGN) 
     if (GCC_HAS_STACK_REALIGN)
@@ -207,7 +215,7 @@ install(TARGETS x265-static
         ARCHIVE DESTINATION lib)
 install(FILES x265.h "${PROJECT_BINARY_DIR}/x265_config.h" DESTINATION include)
 
-option(ENABLE_SHARED "Build shared library" ON)
+option(ENABLE_SHARED "Build shared library" OFF)
 if(ENABLE_SHARED)
     add_library(x265-shared SHARED dllmain.cpp "${PROJECT_BINARY_DIR}/x265.def" ${YASM_OBJS}
                                    $<TARGET_OBJECTS:encoder> $<TARGET_OBJECTS:common>)

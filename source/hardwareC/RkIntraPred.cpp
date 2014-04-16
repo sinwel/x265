@@ -5,82 +5,126 @@
 #include <cstring>
 #include <assert.h>
 #include <cmath>
+#include "../Lib/TLibCommon/CommonDef.h"
 
-using namespace RK_HEVC;
-using namespace std;
+//using namespace RK_HEVC;
+extern FILE* g_fp_result_rk;
+extern FILE* g_fp_result_x265;
 
-#if defined(_MSC_VER)
-	#define FILE_PATH "F:/HEVC/log_files/"
-	#define PATH_NAME(name) (FILE_PATH ## name)
-#elif  defined(__GNUC__) 
-	#define FILE_PATH "/home2/zxy/log_files/"
-	#define PATH_NAME(name) ("/home2/zxy/log_files/"name)
-#endif
+static char rk_g_convertToBit[RK_MAX_CU_SIZE + 1];
 
-char rk_g_convertToBit[RK_MAX_CU_SIZE + 1];
+// luma direct mode entropy need bits.
+uint32_t g_intra_pu_lumaDir_bits[5][256][35];
+// total bits [Luma + chroma] for depth = 0,1,2,3,4 
+uint32_t g_intra_depth_total_bits[5][256];
 
+uint8_t g_4x4_single_reconEdge[RECON_EDGE_4X4_NUM][4];
+// 每个 8x8 的block 存 4条 4像素的边
+// 第一维的访问下标为 zorder/4
+uint8_t g_4x4_total_reconEdge[64][RECON_EDGE_4X4_NUM][4];
+
+INTERFACE_INTRA g_previous_8x8_intra;
 void initRk_g_convertToBit()
 {
-        int 	i;
-		char 	c;
+    int 	i;
+	char 	c;
 
-        // g_convertToBit[ x ]: log2(x/4), if x=4 -> 0, x=8 -> 1, x=16 -> 2, ...
-        memset(rk_g_convertToBit, -1, sizeof(rk_g_convertToBit));
-        c = 0;
-        for (i = 4; i < RK_MAX_CU_SIZE; i *= 2)
-        {
-            rk_g_convertToBit[i] = c;
-            c++;
-        }
-
+    // g_convertToBit[ x ]: log2(x/4), if x=4 -> 0, x=8 -> 1, x=16 -> 2, ...
+    memset(rk_g_convertToBit, -1, sizeof(rk_g_convertToBit));
+    c = 0;
+    for (i = 4; i < RK_MAX_CU_SIZE; i *= 2)
+    {
         rk_g_convertToBit[i] = c;
+        c++;
     }
+
+    rk_g_convertToBit[i] = c;
+}
+
+uint32_t g_rk_raster2zscan_depth_4[256] =
+{
+    0       ,     1       ,   4           ,5          , 16       , 17          ,  20       ,     21     ,    64     ,    65     ,   68      ,    69       , 80      ,  81       ,  84      ,  85  		  ,
+	2       ,     3       ,   6       ,   7       ,    18    ,    19       ,  22       ,     23     ,    66     ,    67     ,   70      ,    71       , 82      ,  83       ,  86      ,  87  		  ,
+	8       ,     9       ,  12      ,  13       ,   24     ,    25       ,   28      ,      29    ,     72   ,     73     ,     76    ,      77     ,   88    ,     89    ,      92  ,      93  	 ,
+	10     ,     11      ,  14      ,   15     ,     26   ,     27      ,   30      ,      31    ,     74    ,     75    ,     78    ,     79      ,  90     ,    91     ,   94     ,   95  	   ,
+	32     ,     33      ,  36      ,   37     ,     48   ,     49      ,   52      ,      53    ,     96    ,     97    ,    100   ,    101      , 112    ,   113    ,  116    ,  117		  ,
+	34     ,     35      ,  38      ,   39     ,     50   ,     51      ,   54      ,      55    ,     98    ,     99    ,    102   ,    103      , 114    ,   115    ,  118    ,  119  	  ,
+	40     ,     41      ,  44      ,   45     ,     56   ,     57      ,   60      ,      61    ,    104   ,     105   ,     108  ,      109   ,    120 ,      121  ,     124 ,      125  	 ,
+	42     ,     43      ,  46      ,   47     ,     58   ,     59      ,   62      ,      63    ,    106   ,     107   ,     110  ,      111   ,    122 ,      123  ,     126 ,      127  	 ,
+	128    ,    129    ,   132    ,    133  ,     144 ,      145    ,   148    ,    149    ,    192   ,     193   ,     196  ,      197   ,    208 ,      209  ,     212 ,      213    ,
+	130    ,    131    ,   134    ,    135  ,     146 ,      147    ,   150    ,    151    ,    194   ,     195   ,     198  ,      199   ,    210 ,      211  ,     214 ,      215    ,
+	136    ,    137    ,   140    ,    141  ,     152 ,      153    ,   156    ,    157    ,    200   ,     201   ,     204  ,      205   ,    216 ,      217  ,     220 ,      221    ,
+	138    ,    139    ,   142    ,    143  ,     154 ,      155    ,   158    ,    159    ,    202   ,     203   ,     206  ,      207   ,    218 ,      219  ,     222 ,      223    ,
+	160    ,    161    ,   164    ,    165  ,     176 ,      177    ,   180    ,    181    ,    224   ,     225   ,     228  ,      229   ,    240 ,      241  ,     244 ,      245    ,
+	162    ,    163    ,   166    ,    167  ,     178 ,      179    ,   182    ,    183    ,    226   ,     227   ,     230  ,      231   ,    242 ,      243  ,     246 ,      247    ,
+	168    ,    169    ,   172    ,    173  ,     184 ,      185    ,   188    ,    189    ,    232   ,     233   ,     236  ,      237   ,    248 ,      249  ,     252 ,      253    ,
+	170    ,    171    ,   174    ,    175  ,     186 ,      187    ,   190    ,    191    ,    234   ,     235   ,     238  ,      239   ,    250 ,      251  ,     254 ,      255 
+};
+
+const int rk_lambdaMotionSSE_tab_I[MAX_QP + 1] =
+{
+	65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536,
+	65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 74122, 93388,
+	117662, 148245, 186777, 235325, 296490, 373555, 509870, 691812, 933888, 1255066,
+	1680115, 2241331, 2980783, 3953212, 5229772, 6902867, 9092389, 11953766, 15060801, 18975421,
+	23907532, 30121603, 37950842, 47815065, 60243207, 75901685, 95630131, 120486415, 151803370, 191260262,
+	240972830, 303606741
+};
+
+const int rk_lambdaMotionSAD_tab_I[MAX_QP + 1] =
+{
+	65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536,
+	65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 69697, 78232,
+	87813, 98566, 110637, 124186, 139394, 156465, 182797, 212928, 247392, 286796,
+	331825, 383259, 441982, 508996, 585438, 672596, 771931, 885100, 993491, 1115156,
+	1251720, 1405008, 1577068, 1770200, 1986982, 2230312, 2503440, 2810017, 3154137, 3540400,
+	3973964, 4460624
+};
+
+const int rk_lambdaMotionSSE_tab_non_I[MAX_QP + 1] =
+{
+	65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536,
+	65536, 65536, 65536, 65536, 80173, 101012, 159085, 160347, 202025, 254536,
+	400869, 404051, 509072, 641391, 1010128, 1086021, 1453820, 1939446, 2579301, 3420754,
+	4525374, 5973119, 9834668, 10343712, 13575272, 17787922, 29091692, 29322588, 36944146, 46546708,
+	73306471, 73888293, 93093416, 117290354, 184720733, 186186832, 234580709, 295553173, 465467080, 469161418,
+	591106346, 744747329
+};
+
+const int rk_lambdaMotionSAD_tab_non_I[MAX_QP + 1] =
+{
+	65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536, 65536,
+	65536, 65536, 65536, 65536, 72486, 81363, 102106, 102511, 115064, 129156,
+	162084, 162726, 182654, 205022, 257293, 266783, 308670, 356515, 411141, 473479,
+	544586, 625663, 802823, 823338, 943222, 1079698, 1380779, 1386248, 1556011, 1746563,
+	2191851, 2200532, 2470014, 2772497, 3479347, 3493127, 3920903, 4401064, 5523119, 5544994,
+	6224045, 6986255
+};
+
+void Rk_IntraPred::setLambda(int qp, uint8_t slicetype)
+{
+	if (2 == slicetype) // I Slice
+	{
+		m_rklambdaMotionSAD = rk_lambdaMotionSAD_tab_I[qp];
+		m_rklambdaMotionSSE = rk_lambdaMotionSSE_tab_I[qp];
+	}
+	else
+	{
+		m_rklambdaMotionSAD = rk_lambdaMotionSAD_tab_non_I[qp];
+		m_rklambdaMotionSSE = rk_lambdaMotionSSE_tab_non_I[qp];
+	}
+}
 
 Rk_IntraPred::Rk_IntraPred()
 {
 #ifdef X265_LOG_FILE_ROCKCHIP
-	rk_logIntraPred[0] = fopen(PATH_NAME("intrapred.txt"), "w+" );
+	rk_logIntraPred[0] = fopen(PATH_NAME("x265_intra_params.txt"), "w+" );
 	if ( rk_logIntraPred[0] == NULL )
 	{
 	    RK_HEVC_PRINT("creat file failed.\n");
 	}
-	rk_logIntraPred[1] = fopen(PATH_NAME("intrapred_1.txt"), "w+" );
+	rk_logIntraPred[1] = fopen(PATH_NAME("fastMode_log.txt"), "w+" );
 	if ( rk_logIntraPred[1] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[2] = fopen(PATH_NAME("deltaFract.txt"), "w+" );
-	if ( rk_logIntraPred[2] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[3] = fopen(PATH_NAME("dirMode.txt"), "w+" );
-	if ( rk_logIntraPred[3] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[4] = fopen(PATH_NAME("bNeigbours_rk.txt"), "w+" );
-	if ( rk_logIntraPred[4] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[5] = fopen(PATH_NAME("bNeigbours.txt"), "w+" );
-	if ( rk_logIntraPred[5] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[6] = fopen(PATH_NAME("pred_input.txt"), "w+" );
-	if ( rk_logIntraPred[6] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[7] = fopen(PATH_NAME("pred_input_1.txt"), "w+" );
-	if ( rk_logIntraPred[7] == NULL )
-	{
-	    RK_HEVC_PRINT("creat file failed.\n");
-	}
-	rk_logIntraPred[8] = fopen(PATH_NAME("intra_flow.txt"), "w+" );
-	if ( rk_logIntraPred[8] == NULL )
 	{
 	    RK_HEVC_PRINT("creat file failed.\n");
 	}
@@ -92,9 +136,6 @@ Rk_IntraPred::Rk_IntraPred()
 	rk_bFlag4	= 1;
 	::memset(rk_verdeltaFract,0,sizeof(rk_verdeltaFract));
 	::memset(rk_hordeltaFract,0,sizeof(rk_hordeltaFract));
-#ifdef CONNECT_QT
-	rk_hevcqt = new hevcQT;
-#endif
 
 	initRk_g_convertToBit();
 	
@@ -103,13 +144,10 @@ Rk_IntraPred::Rk_IntraPred()
 Rk_IntraPred::~Rk_IntraPred()
 {
 #ifdef X265_LOG_FILE_ROCKCHIP
-	for (int i = 0 ; i < 8 ; i++ )
+	for (int i = 0 ; i < 2 ; i++ )
 	{
 		fclose(rk_logIntraPred[i]);
 	}
-#endif
-#ifdef CONNECT_QT
-	delete rk_hevcqt;
 #endif
 
 }
@@ -126,9 +164,9 @@ Rk_IntraPred::~Rk_IntraPred()
 ** params@ out  
 **		predSample 					- 要填充的预测像素指针
 */
-void Rk_IntraPred::RkIntraPredAll(RK_Pel *predSample, 
-            	RK_Pel *refAbove, 
-            	RK_Pel *refLeft,
+void Rk_IntraPred::RkIntraPredAll(uint8_t *predSample, 
+            	uint8_t *refAbove, 
+            	uint8_t *refLeft,
             	int stride,            	
             	int log2_size,
             	int c_idx,
@@ -175,9 +213,9 @@ void Rk_IntraPred::RkIntraPredAll(RK_Pel *predSample,
 ** params@ out 
 **		predSample 					- 要填充的预测像素指针
 */
-void Rk_IntraPred::RkIntraPred_PLANAR(RK_Pel *predSample, 
-				RK_Pel 	*above, 
-				RK_Pel 	*left, 
+void Rk_IntraPred::RkIntraPred_PLANAR(uint8_t *predSample, 
+				uint8_t 	*above, 
+				uint8_t 	*left, 
 				int 	stride, 
 				int 	log2_size)
 {
@@ -190,7 +228,7 @@ void Rk_IntraPred::RkIntraPred_PLANAR(RK_Pel *predSample,
 	{
         for (x = 0; x < nTbS; x++) 
 		{
-            predSample[y*stride + x] = (RK_Pel)(( (nTbS - 1 - x) * left[y]  	+ (x + 1) * above[nTbS] +
+            predSample[y*stride + x] = (uint8_t)(( (nTbS - 1 - x) * left[y]  	+ (x + 1) * above[nTbS] +
                          				 (nTbS - 1 - y) * above[x] 	+ (y + 1) * left[nTbS] + nTbS) >>
                         					(log2_size + 1));
         }
@@ -213,9 +251,9 @@ void Rk_IntraPred::RkIntraPred_PLANAR(RK_Pel *predSample,
 ** params@ out  
 **		predSample 					- 要填充的预测像素指针
 */
-void Rk_IntraPred::RkIntraPred_DC(RK_Pel *predSample, 
-			RK_Pel 	*above, 
-			RK_Pel 	*left, 
+void Rk_IntraPred::RkIntraPred_DC(uint8_t *predSample, 
+			uint8_t 	*above, 
+			uint8_t 	*left, 
 			int 	stride, 
 			int 	log2_size, 
 			int 	c_idx)
@@ -237,22 +275,22 @@ void Rk_IntraPred::RkIntraPred_DC(RK_Pel *predSample,
 	{
     	for (j = 0; j < nTbS; j++)
 		{
-    		predSample[j*stride + i] = (RK_Pel) dc;	
+    		predSample[j*stride + i] = (uint8_t) dc;	
 		}
 	}
 
 	// luma分量且nTbS < 32
     if (c_idx == 0 && nTbS < 32) 
 	{
-        predSample[0] = (RK_Pel)((left[0] + 2 * dc  + above[0] + 2) >> 2);
+        predSample[0] = (uint8_t)((left[0] + 2 * dc  + above[0] + 2) >> 2);
 		
         for (x = 1; x < nTbS; x++)
     	{
-            predSample[x] = (RK_Pel)((above[x] + 3 * dc + 2) >> 2);
+            predSample[x] = (uint8_t)((above[x] + 3 * dc + 2) >> 2);
     	}
         for (y = 1; y < nTbS; y++)
     	{
-            predSample[y*stride] = (RK_Pel)((left[y] + 3 * dc + 2) >> 2);
+            predSample[y*stride] = (uint8_t)((left[y] + 3 * dc + 2) >> 2);
         }
     }
 
@@ -271,9 +309,9 @@ void Rk_IntraPred::RkIntraPred_DC(RK_Pel *predSample,
 **		predSample 					- 要填充的预测像素指针
 */
 
-void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample, 
-            	RK_Pel *refAbove, 
-            	RK_Pel *refLeft,
+void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample, 
+            	uint8_t *refAbove, 
+            	uint8_t *refLeft,
             	int stride,            	
             	int log2_size,
             	int c_idx,
@@ -387,8 +425,8 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
 #else
 	if(modeVer)
 	{
-        RK_Pel* refMain;
-        RK_Pel* refSide;
+        uint8_t* refMain;
+        uint8_t* refSide;
 		int x,y;
 		int ext_valid_idx = width * intraPredAngle >> 5;
 
@@ -427,7 +465,7 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
                     for (x = 0; x < width; x++)
                     {
                         refMainIndex = x + deltaInt + 1;
-                        predSample[y * stride + x] = (RK_Pel)((
+                        predSample[y * stride + x] = (uint8_t)((
 							(32 - deltaFract) * refMain[refMainIndex] + 
 								   deltaFract * refMain[refMainIndex + 1] 
 								   + 16) >> 5);
@@ -459,7 +497,7 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
             {
                 for (y = 0; y < width; y++)
                 {
-					predSample[y * stride] = (RK_Pel)RK_ClipY(refMain[1]  + ((refSide[y + 1] - refSide[0]) >> 1));
+					predSample[y * stride] = (uint8_t)RK_ClipY(refMain[1]  + ((refSide[y + 1] - refSide[0]) >> 1));
                 }
             }
    
@@ -469,8 +507,8 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
 	
 	if(modeHor)
 	{
-        RK_Pel* refMain;
-        RK_Pel* refSide;
+        uint8_t* refMain;
+        uint8_t* refSide;
 		int x,y;
 		int ext_valid_idx = width * intraPredAngle >> 5;
 
@@ -510,7 +548,7 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
                     for (y = 0; y < width; y++)
                     {
                         refMainIndex = y + deltaInt + 1;
-                        predSample[y * stride + x] = (RK_Pel)(
+                        predSample[y * stride + x] = (uint8_t)(
 							((32 - deltaFract) * refMain[refMainIndex] + 
 							        deltaFract * refMain[refMainIndex + 1] 
 							        + 16) >> 5);
@@ -542,7 +580,7 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
             {
                 for (x = 0; x < width; x++)
                 {
-					predSample[0 * stride + x] = (RK_Pel)RK_ClipY(refMain[1]  + ((refSide[x + 1] - refSide[0]) >> 1));
+					predSample[0 * stride + x] = (uint8_t)RK_ClipY(refMain[1]  + ((refSide[x + 1] - refSide[0]) >> 1));
                 }
             }
    
@@ -554,8 +592,7 @@ void Rk_IntraPred::RkIntraPred_angular(RK_Pel *predSample,
 
 
 
-
-
+#if 0
 void Rk_IntraPred::LogdeltaFractForAngluar()
 {
 	int i,j;
@@ -599,6 +636,8 @@ void Rk_IntraPred::LogdeltaFractForAngluar()
 		RK_HEVC_PRINT("logging over\n");
 	}
 }
+#endif
+
 void Rk_IntraPred::RkIntraPred_angularCheck()
 {
 	int i,j;
@@ -606,32 +645,22 @@ void Rk_IntraPred::RkIntraPred_angularCheck()
 	//RK_HEVC_PRINT("dirMode = %d \r", rk_dirMode);
 	if ( rk_dirMode >= 0)	
 	{
-
-		//RK_HEVC_FPRINT(rk_logIntraPred[0]," size is %d x %d \n",rk_puwidth_35,rk_puwidth_35);
-		//RK_HEVC_FPRINT(rk_logIntraPred[1]," size is %d x %d \n",rk_puwidth_35,rk_puwidth_35);
-
 		for ( i = 0 ; i < rk_puwidth_35 ; i++ )
 		{
 			for ( j = 0 ; j < rk_puwidth_35 ; j++ )
 			{
-				//RK_HEVC_FPRINT(rk_logIntraPred[0],"0x%02x \t",rk_IntraPred_35.rk_predSample[i]);
-				//RK_HEVC_FPRINT(rk_logIntraPred[1],"0x%02x \t",rk_IntraPred_35.rk_predSampleOrg[i]);
 				if(rk_IntraPred_35.rk_predSample[i*rk_puwidth_35 + j] != rk_IntraPred_35.rk_predSampleOrg[i*rk_puwidth_35 + j])
 		        {
 		        	RK_HEVC_PRINT("check falied %s \n",__FUNCTION__);
 				}
 			}
-			//RK_HEVC_FPRINT(rk_logIntraPred[0]," \n");
-			//RK_HEVC_FPRINT(rk_logIntraPred[1]," \n");
 		}
-		//RK_HEVC_FPRINT(rk_logIntraPred[0]," \n");
-		//RK_HEVC_FPRINT(rk_logIntraPred[1]," \n");
 	}
 }
 
 
 
-void Rk_IntraPred::RkIntraFillRefSamplesCheck(RK_Pel* above, RK_Pel* left, int32_t width, int32_t heigth)
+void Rk_IntraPred::RkIntraFillRefSamplesCheck(uint8_t* above, uint8_t* left, int32_t width, int32_t heigth)
 {
 	// 数据靠前存储
 	int32_t i ;
@@ -663,7 +692,7 @@ void Rk_IntraPred::RkIntraFillRefSamplesCheck(RK_Pel* above, RK_Pel* left, int32
 
 }
 
-void Rk_IntraPred::RkIntraFillChromaCheck(RK_Pel* pLineBuf, RK_Pel* above, RK_Pel* left, uint32_t width, uint32_t heigth)
+void Rk_IntraPred::RkIntraFillChromaCheck(uint8_t* pLineBuf, uint8_t* above, uint8_t* left, uint32_t width, uint32_t heigth)
 {
 	uint32_t i ;
    	for (  i = 0 ; i < 2*heigth + 1 ; i++ )
@@ -696,8 +725,8 @@ void Rk_IntraPred::RkIntraSmoothingCheck()
 }  
 
 
-void Rk_IntraPred::fillReferenceSamples(RK_Pel* roiOrigin, 
-							RK_Pel* adiTemp, 
+void Rk_IntraPred::fillReferenceSamples(uint8_t* roiOrigin, 
+							uint8_t* adiTemp, 
 							bool* bNeighborFlags, 
 							int numIntraNeighbor, 
 							int unitSize, 
@@ -710,9 +739,9 @@ void Rk_IntraPred::fillReferenceSamples(RK_Pel* roiOrigin,
 							int picStride,
 							uint32_t trDepth)
 {
-    RK_Pel* piRoiTemp;
+    uint8_t* piRoiTemp;
     int  i, j;
-    RK_Pel  iDCValue = 1 << (RK_DEPTH - 1);
+    uint8_t  iDCValue = 1 << (RK_DEPTH - 1);
 
     if (numIntraNeighbor == 0)
     {
@@ -754,11 +783,11 @@ void Rk_IntraPred::fillReferenceSamples(RK_Pel* roiOrigin,
     {
         int  iNumUnits2 = numUnitsInCU << 1;
         int  iTotalSamples = totalUnits * unitSize;
-        RK_Pel  piAdiLine[5 * RK_MAX_CU_SIZE];
-        RK_Pel  *piAdiLineTemp;
+        uint8_t  piAdiLine[5 * RK_MAX_CU_SIZE];
+        uint8_t  *piAdiLineTemp;
         bool *pbNeighborFlags;
         int  iNext, iCurr;
-        RK_Pel  piRef = 0;
+        uint8_t  piRef = 0;
 
         // Initialize
         for (i = 0; i < iTotalSamples; i++)
@@ -872,7 +901,7 @@ void Rk_IntraPred::fillReferenceSamples(RK_Pel* roiOrigin,
     }
 }
 
-void Rk_IntraPred::RkIntrafillRefSamples(RK_Pel* roiOrigin, 
+void Rk_IntraPred::RkIntrafillRefSamples(uint8_t* roiOrigin, 
 							bool* bNeighborFlags, 
 							int numIntraNeighbor, 
 							int unitSize, 
@@ -881,11 +910,11 @@ void Rk_IntraPred::RkIntrafillRefSamples(RK_Pel* roiOrigin,
 							int width,
 							int height,
 							int picStride,
-							RK_Pel* pLineBuf)
+							uint8_t* pLineBuf)
 {
-    RK_Pel* piRoiTemp;
+    uint8_t* piRoiTemp;
     int  i, j;
-    RK_Pel  iDCValue = 1 << (RK_DEPTH - 1);
+    uint8_t  iDCValue = 1 << (RK_DEPTH - 1);
 	
 		
     if (numIntraNeighbor == 0)
@@ -939,11 +968,11 @@ void Rk_IntraPred::RkIntrafillRefSamples(RK_Pel* roiOrigin,
         int  iTotalSamples = totalUnits * unitSize;
 // 参考x265的做法，把corner那个点扩充到 unitSize 个大小
 // 这样填充的时候循环次数可以减少8倍，否则需要逐一判断，增加程序复杂度
-        RK_Pel  lineBufTmp[5 * RK_MAX_CU_SIZE];
-        RK_Pel  *pLineTemp = lineBufTmp;
+        uint8_t  lineBufTmp[5 * RK_MAX_CU_SIZE];
+        uint8_t  *pLineTemp = lineBufTmp;
         bool *pbNeighborFlags;
         int  iNext, iCurr;
-        RK_Pel  piRef = 0;
+        uint8_t  piRef = 0;
 
         // Initialize
         for (i = 0; i < iTotalSamples; i++)
@@ -1059,10 +1088,10 @@ void Rk_IntraPred::RkIntrafillRefSamples(RK_Pel* roiOrigin,
     }
 }
 
-void Rk_IntraPred::RkIntraSmoothing(RK_Pel* refLeft,
-									RK_Pel* refAbove, 
-									RK_Pel* refLeftFlt, 
-									RK_Pel* refAboveFlt)
+void Rk_IntraPred::RkIntraSmoothing(uint8_t* refLeft,
+									uint8_t* refAbove, 
+									uint8_t* refLeftFlt, 
+									uint8_t* refAboveFlt)
 {
 
     // generate filtered intra prediction samples
@@ -1073,8 +1102,8 @@ void Rk_IntraPred::RkIntraSmoothing(RK_Pel* refLeft,
 
 	// L型 buffer构建 左下到左上，然后上到上右
 	
-    RK_Pel refBuf[129];  // non-filtered
-    RK_Pel filteredBuf[129]; // filtered
+    uint8_t refBuf[129];  // non-filtered
+    uint8_t filteredBuf[129]; // filtered
 #if 0    
 	for ( int32_t idx = 0 ; idx < 2*rk_puHeight + 1 ; idx++ )
 	{
@@ -1114,12 +1143,12 @@ void Rk_IntraPred::RkIntraSmoothing(RK_Pel* refLeft,
 			// 双线性插值
             for (int i = 1; i < cuHeight2; i++)
             {
-                filteredBuf[i] = (RK_Pel)(((cuHeight2 - i) * bottomLeft + i * topLeft + rk_puHeight) >> shift);
+                filteredBuf[i] = (uint8_t)(((cuHeight2 - i) * bottomLeft + i * topLeft + rk_puHeight) >> shift);
             }
 
             for (int i = 1; i < cuWidth2; i++)
             {
-                filteredBuf[cuHeight2 + i] = (RK_Pel)(((cuWidth2 - i) * topLeft + i * topRight + rk_puWidth) >> shift);
+                filteredBuf[cuHeight2 + i] = (uint8_t)(((cuWidth2 - i) * topLeft + i * topRight + rk_puWidth) >> shift);
             }
         }
         else
@@ -1256,12 +1285,11 @@ int BubbleSort(uint32_t Index[], uint64_t Value[], uint32_t len)
         }
     }
 	return 1;
-} 
-
+}
 
 
 #ifdef RK_INTRA_MODE_CHOOSE
-int CacluVariance_45(RK_Pel* block, int width)
+int CacluVariance_45(uint8_t* block, int width)
 {
 	uint16_t i,j,dir;
 	uint16_t sumdir[16];
@@ -1312,7 +1340,7 @@ int CacluVariance_45(RK_Pel* block, int width)
 
 	return 	absDiffSumTotal;
 }
-int CacluVariance_180(RK_Pel* block, int width)
+int CacluVariance_180(uint8_t* block, int width)
 {
 	uint16_t sumdir[16];
 	uint16_t direct_num;
@@ -1340,7 +1368,7 @@ int CacluVariance_180(RK_Pel* block, int width)
 
 	return absDiffSumDirect;
 }
-void symmetryForYaxis(RK_Pel* block, int width)
+void symmetryForYaxis(uint8_t* block, int width)
 {
 	uint16_t x,y,tmp;
 	for ( y = 0 ; y < width/2 ; y++ )
@@ -1354,7 +1382,7 @@ void symmetryForYaxis(RK_Pel* block, int width)
 	}
 
 }
-void transpose(RK_Pel* src, int blockSize)
+void transpose(uint8_t* src, int blockSize)
 {
 	uint16_t tmp;
     for (uint16_t k = 0; k < blockSize; k++)
@@ -1367,7 +1395,7 @@ void transpose(RK_Pel* src, int blockSize)
         }
     }
 }
-int CacluVariance_135(RK_Pel* block, int width)
+int CacluVariance_135(uint8_t* block, int width)
 {
 	// 135°与 45°关于 Y 轴对称
 
@@ -1377,7 +1405,7 @@ int CacluVariance_135(RK_Pel* block, int width)
 
 }
 
-int CacluVariance_90(RK_Pel* block, int width)
+int CacluVariance_90(uint8_t* block, int width)
 {
 	// 180°与 90°转置关系
 	transpose(block, width);
@@ -1472,6 +1500,8 @@ void Rk_IntraPred::RkIntraPriorModeChoose(int rdModeCandidate[], uint32_t rdMode
 }
 #endif
 
+ 
+
 
 // ------------------------------------------------------------------------------
 /*
@@ -1480,7 +1510,7 @@ void Rk_IntraPred::RkIntraPriorModeChoose(int rdModeCandidate[], uint32_t rdMode
 */
 // ------------------------------------------------------------------------------
 
-void RK_CheckLineBuf(RK_Pel* LineBuf1, RK_Pel* LineBuf2, uint32_t size)
+void RK_CheckLineBuf(uint8_t* LineBuf1, uint8_t* LineBuf2, uint32_t size)
 {
 	uint32_t i;
 	for ( i = 0 ; i < size ; i++ )
@@ -1492,8 +1522,8 @@ void RK_CheckLineBuf(RK_Pel* LineBuf1, RK_Pel* LineBuf2, uint32_t size)
 		
 	}
 }
-void RK_CheckSmoothing(RK_Pel* refLeft1, RK_Pel* refAbove1, RK_Pel* refLeftFlt1, RK_Pel* refAboveFlt1,
-								RK_Pel* refLeft2, RK_Pel* refAbove2, RK_Pel* refLeftFlt2, RK_Pel* refAboveFlt2,
+void RK_CheckSmoothing(uint8_t* refLeft1, uint8_t* refAbove1, uint8_t* refLeftFlt1, uint8_t* refAboveFlt1,
+								uint8_t* refLeft2, uint8_t* refAbove2, uint8_t* refLeftFlt2, uint8_t* refAboveFlt2,
 								uint32_t width, uint32_t height)
 {
 	uint32_t i;
@@ -1520,7 +1550,7 @@ void RK_CheckSmoothing(RK_Pel* refLeft1, RK_Pel* refAbove1, RK_Pel* refLeftFlt1,
     	}		
 	}
 }
-void RK_CheckPredSamples(RK_Pel* pred1, RK_Pel* pred2, uint32_t width, uint32_t height)
+void RK_CheckPredSamples(uint8_t* pred1, uint8_t* pred2, uint32_t width, uint32_t height)
 {
 	uint32_t i,j;
 
@@ -1568,29 +1598,403 @@ void RK_CheckResidual(int16_t* resi1, int16_t* resi2, uint32_t stride, uint32_t 
 	}
 }
 
-void RK_CheckRefChroma(RK_Pel* refLeft1, RK_Pel* refAbove1,RK_Pel* refLeft2,RK_Pel* refAbove2, uint32_t size)
+
+void Rk_IntraPred::Convert8x8To4x4(uint8_t* pdst, uint8_t* psrc, uint8_t partIdx)
 {
-	uint32_t i;
-	/* 这里stride等于width，即使是width=4的情况，就分开4次比较 */
-	for ( i = 0 ; i < size ; i++ )
+	uint8_t  offset[4] = {0, 4, 32, 36};
+	psrc += offset[partIdx];
+	for (uint8_t i = 0; i < 4; i++)
 	{
-	    if(refLeft1[i] != refLeft2[i])
-    	{
-    		RK_HEVC_PRINT("%s: check failed\n",__FUNCTION__);
-    	}
-		if(refAbove1[i] != refAbove2[i])
-    	{
-    		RK_HEVC_PRINT("%s: check failed\n",__FUNCTION__);
-    	}	
+		::memcpy(pdst, psrc, 4*sizeof(uint8_t));
+		pdst += 4;
+		psrc += 8;
+	}	
+}
+
+void Rk_IntraPred::Convert4x4To8x8(uint8_t* pdst, uint8_t *psrcList[4])
+{
+	uint8_t  offset[4] = {0, 4, 32, 36};
+	
+	for (uint8_t j = 0 ; j < 4 ; j++ )
+	{
+	    uint8_t* pdstTmp 	= pdst + offset[j];
+		uint8_t* psrc 		= psrcList[j];
+		for (uint8_t i = 0; i < 4; i++)
+		{
+			::memcpy(pdstTmp, psrc, 4*sizeof(uint8_t));
+			pdstTmp += 8;
+			psrc 	+= 4;
+		}	
+	}	
+}
+
+void Rk_IntraPred::Convert4x4To8x8(int16_t* pdst, int16_t *psrcList[4])
+{
+	uint8_t  offset[4] = {0, 4, 32, 36};
+	
+	for (uint8_t j = 0 ; j < 4 ; j++ )
+	{
+	    int16_t* pdstTmp 	= pdst + offset[j];
+		int16_t* psrc 		= psrcList[j];
+		for (uint8_t i = 0; i < 4; i++)
+		{
+			::memcpy(pdstTmp, psrc, 4*sizeof(int16_t));
+			pdstTmp += 8;
+			psrc 	+= 4;
+		}	
+	}	
+}
+
+/*
+** 填充 4个 4x4 的参考边集合
+*/
+void Rk_IntraPred::RK_store4x4Recon2Ref(uint8_t* pEdge, uint8_t* pRecon, uint32_t partOffset)
+{
+	uint8_t right_line[4];
+	uint8_t bottom_line[4];
+
+	// L buf 顺序
+	right_line[0] = pRecon[15];
+	right_line[1] = pRecon[11];
+	right_line[2] = pRecon[7];
+	right_line[3] = pRecon[3];
+	
+	bottom_line[0] = pRecon[12];
+	bottom_line[1] = pRecon[13];
+	bottom_line[2] = pRecon[14];
+	bottom_line[3] = pRecon[15];
+
+
+	if ( partOffset == 0)
+	{
+		::memcpy(pEdge, right_line, 4);		//    PART_0_RIGHT,
+		::memcpy(pEdge + 4,bottom_line, 4); //    PART_0_BOTTOM,
+	}
+	else if ( partOffset == 1 )
+	{
+		::memcpy(pEdge + 8,bottom_line, 4); //    PART_1_BOTTOM,
+	}
+	else if ( partOffset == 2 )
+	{
+		::memcpy(pEdge + 12,right_line, 4); //     PART_2_RIGHT,
 	}
 }
 
-void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t partOffset)
+
+void Rk_IntraPred::splitTo4x4By8x8(INTERFACE_INTRA* intra8x8, 
+							INTERFACE_INTRA* intra4x4, 
+							uint8_t* p4x4_reconEdge, 
+							uint32_t partOffset)
 {
-	RK_Pel* 	fenc 	= pInterface_Intra->fenc;
+
+	uint8_t i, j;
+	uint8_t* src;
+	uint8_t* dst;
+	// fenc
+	src = intra8x8->fenc;
+	dst = intra4x4->fenc;
+	if ( partOffset == 0 )
+	{
+		src += 0;
+	}
+	else if ( partOffset == 1 )
+	{
+		src += 4;
+	}
+	else if ( partOffset == 2 )
+	{
+		src += 32;
+	}
+	else if ( partOffset == 3 )
+	{
+		src += 36;
+	}
+
+	for ( i = 0 ; i < 4 ; i++ )
+	{
+	    for ( j = 0 ; j < 4 ; j++ )
+	    {
+	        dst[j] = src[j];
+	    }
+		dst += 4;
+		src += 8;
+	}
+
+	// reconEdgePixel
+	// split the 8x8 reconEdgePixel to 9 group;
+	uint8_t L_recon[8][4], Mid;
+	uint8_t* pRecon8x8 = intra8x8->reconEdgePixel;
+	for ( i = 0 ; i < 4 ; i++ )
+	{
+		for ( j = 0 ; j < 4 ; j++ )
+		{
+		    L_recon[i][j] = *pRecon8x8++;
+		}
+	}
+    Mid = *pRecon8x8++;
+	for ( i = 4 ; i < 8 ; i++ )
+	{
+		for ( j = 0 ; j < 4 ; j++ )
+		{
+		    L_recon[i][j] = *pRecon8x8++;
+		}
+	}
+
+	// bNeighborFlags
+	// [	flag1, flag1,flag2, flag2, ]
+	//  	flag3,
+	// [	flag4, flag4, flag5, flag5 ]
+	if ( partOffset == 0 )
+	{
+		//List_4x4_0 = [L2, L3, Mid, L4, L5	] 	
+		::memcpy(intra4x4->reconEdgePixel, intra8x8->reconEdgePixel + 8, 17);
+
+	 	// [flag2,	flag2,	flag3,	flag4,	flag4]
+		::memcpy(intra4x4->bNeighborFlags, intra8x8->bNeighborFlags + 2, 5);
+
+	}
+	else if ( partOffset == 1 )
+	{
+		//List_4x4_1 = [X, PART_0_RIGHT, L4_last, L5, L6] 	
+		::memcpy(intra4x4->reconEdgePixel + 4, p4x4_reconEdge, 4);
+		intra4x4->reconEdgePixel[8] = L_recon[4][3];
+		::memcpy(intra4x4->reconEdgePixel + 9,  &L_recon[5][0], 4);
+		::memcpy(intra4x4->reconEdgePixel + 13, &L_recon[6][0], 4);
+
+	 	// [0,   	1,   	flag4,	flag4, 	flag5]
+		intra4x4->bNeighborFlags[0] = 0;
+		intra4x4->bNeighborFlags[1] = 1;
+		intra4x4->bNeighborFlags[2] = intra8x8->bNeighborFlags[6];
+		intra4x4->bNeighborFlags[3] = intra8x8->bNeighborFlags[6];
+		intra4x4->bNeighborFlags[4] = intra8x8->bNeighborFlags[7];
+		
+	}
+	else if ( partOffset == 2 )
+	{
+		//List_4x4_2 = [L1, L2, L3_frist, PART_0_BOTTOM, PART_1_BOTTOM] 	
+		::memcpy(intra4x4->reconEdgePixel 	 , &L_recon[1][0], 4);
+		::memcpy(intra4x4->reconEdgePixel + 4 , &L_recon[2][0], 4);
+		intra4x4->reconEdgePixel[8] = L_recon[3][0];
+		::memcpy(intra4x4->reconEdgePixel + 9 , p4x4_reconEdge + 4, 4);
+		::memcpy(intra4x4->reconEdgePixel + 13, p4x4_reconEdge + 8, 4);
+
+		// [flag1,	flag2	flag2,	1,		1   ]
+		intra4x4->bNeighborFlags[0] = intra8x8->bNeighborFlags[1];
+		intra4x4->bNeighborFlags[1] = intra8x8->bNeighborFlags[2];
+		intra4x4->bNeighborFlags[2] = intra8x8->bNeighborFlags[3];
+		intra4x4->bNeighborFlags[3] = 1;
+		intra4x4->bNeighborFlags[4] = 1;
+	}
+	//List_4x4_3 = [X, PART_2_RIGHT, PART_0_BOTTOM_last, PART_1_BOTTOM, X ] 	
+	else if ( partOffset == 3 )
+	{
+		::memcpy(intra4x4->reconEdgePixel + 4 , p4x4_reconEdge + 12, 4);
+		intra4x4->reconEdgePixel[8] = *(p4x4_reconEdge + 7);
+		::memcpy(intra4x4->reconEdgePixel + 9 , p4x4_reconEdge + 8, 4);
+	 	// [0,   	1,   	1,   	1,  	0	]
+		intra4x4->bNeighborFlags[0] = 0;
+		intra4x4->bNeighborFlags[1] = 1;
+		intra4x4->bNeighborFlags[2] = 1;
+		intra4x4->bNeighborFlags[3] = 1;
+		intra4x4->bNeighborFlags[4] = 0;
+
+	}
+
+ 	intra4x4->size = intra8x8->size >> 1;
+	intra4x4->cidx = intra8x8->cidx;
+	// 统计 numintraNeighbor
+	intra4x4->numintraNeighbor = 0;
+	for ( i = 0 ; i < 5 ; i++ )
+	{
+		if( intra4x4->bNeighborFlags[i] == true )
+	    	intra4x4->numintraNeighbor++;
+	}
+}
+
+
+
+void StoreLineBuf(FILE* fp, uint8_t* LineBuf, uint32_t size)
+{
+
+	RK_HEVC_FPRINT(fp, "LineBuf:\n");	
+	for (uint32_t i = 0 ; i < size ; i++ )
+	{
+		RK_HEVC_FPRINT(fp, "0x%02x ",*LineBuf++);
+	}
+	RK_HEVC_FPRINT(fp, "\n\n");	
+}
+void StoreSmoothing(FILE* fp,
+						uint8_t* refLeft, 
+						uint8_t* refAbove, 
+						uint8_t* refLeftFlt, 
+						uint8_t* refAboveFlt,
+						uint32_t width, 
+						uint32_t height)
+{
+
+	RK_HEVC_FPRINT(fp, "Above:\n");	
+	uint32_t i;
+	for ( i = 0 ; i < 2*width + 1 ; i++ )
+	{
+		RK_HEVC_FPRINT(fp,"0x%02x ",refAbove[i]);
+	}
+
+	RK_HEVC_FPRINT(fp, "\nAboveflt:\n");	
+	for ( i = 0 ; i < 2*width + 1 ; i++ )
+	{
+		RK_HEVC_FPRINT(fp,"0x%02x ",refAboveFlt[i]);
+	}	 
+
+	RK_HEVC_FPRINT(fp, "\nLeft:\n");	
+	for ( i = 0 ; i < 2*height + 1 ; i++ )
+	{
+		RK_HEVC_FPRINT(fp,"0x%02x ",refLeft[i]);
+	}
+
+	RK_HEVC_FPRINT(fp, "\nLeftflt:\n");	
+	for ( i = 0 ; i < 2*height + 1 ; i++ )
+	{
+		RK_HEVC_FPRINT(fp,"0x%02x ",refLeftFlt[i]);
+	}
+	
+	RK_HEVC_FPRINT(fp, "\n\n");	
+}
+
+void StorePredSamples(FILE* fp,uint8_t* pred, uint32_t width, uint32_t height)
+{
+	uint32_t i,j;
+	RK_HEVC_FPRINT(fp, "pred:\n");	
+	for ( i = 0 ; i < height ; i++ )
+	{
+		for ( j = 0 ; j < width; j++ )
+		{
+    		RK_HEVC_FPRINT(fp,"0x%02x ",pred[i * width + j]);
+		}
+		RK_HEVC_FPRINT(fp, "\n");	
+	}
+	RK_HEVC_FPRINT(fp, "\n\n");	
+}
+
+
+void StoreSad(FILE* fp,int* cost)
+{
+	uint32_t i;
+	RK_HEVC_FPRINT(fp, "COST:\n");	
+
+	for ( i = 0 ; i < 35 ; i++ )
+	{
+		RK_HEVC_FPRINT(fp, "%d  ",cost[i]);
+	}
+	RK_HEVC_FPRINT(fp, "\n\n");	
+}
+
+void StoreCost(FILE* fp,uint64_t* cost)
+{
+	uint32_t i;
+	RK_HEVC_FPRINT(fp, "COST:\n");	
+
+	for ( i = 0 ; i < 35 ; i++ )
+	{
+		RK_HEVC_FPRINT(fp, "%lld  ",cost[i]);
+	}
+	RK_HEVC_FPRINT(fp, "\n\n");	
+}
+void StoreResidual(FILE* fp, int16_t* resi, uint32_t stride, uint32_t width, uint32_t height)
+{
+	uint32_t i,j;
+	RK_HEVC_FPRINT(fp, "Resi:\n");	
+	/* 这里stride等于width，即使是width=4的情况，就分开4次比较 */
+	for ( i = 0 ; i < height ; i++ )
+	{
+		for ( j = 0 ; j < width; j++ )
+		{
+    		RK_HEVC_FPRINT(fp, "0x%04x  ", (uint16_t)resi[j]);
+		}
+		resi += stride;
+		RK_HEVC_FPRINT(fp, "\n");	
+	}
+	RK_HEVC_FPRINT(fp, "\n\n");	
+}
+
+void Rk_IntraPred::Store4x4ReconInfo(FILE* fp,  INTERFACE_INTRA inf_intra4x4, uint32_t partOffset)
+{
+	RK_HEVC_FPRINT(fp,"[partOffset = %d]\n",partOffset);
+	RK_HEVC_FPRINT(fp,"fenc: \n");
+	uint8_t* pfenc0 = inf_intra4x4.fenc;
+	for (uint8_t i = 0 ; i < 4; i++ )
+	{
+	    for (uint8_t j = 0 ; j < 4 ; j++ )
+	    {
+	    	RK_HEVC_FPRINT(fp,"0x%02x ",pfenc0[j]);
+		}
+		pfenc0 += 4;
+		RK_HEVC_FPRINT(fp,"\n");		
+	}
+	RK_HEVC_FPRINT(fp,"\n \n");
+	
+	RK_HEVC_FPRINT(fp,"bNeighborFlags: \n");
+	for (uint8_t i = 0 ; i < 5; i++ )
+	{
+    	RK_HEVC_FPRINT(fp,"%0d ",inf_intra4x4.bNeighborFlags[i] == true ? 1 : 0);
+	}
+	RK_HEVC_FPRINT(fp,"\n \n");
+
+	
+	RK_HEVC_FPRINT(fp,"recon: \n");
+	uint8_t* pReconTmp0 = inf_intra4x4.reconEdgePixel;
+	for (uint8_t i = 0 ; i < 2; i++ )
+	{
+	    for (uint8_t j = 0 ; j < 4 ; j++ )
+	    {
+			if ( inf_intra4x4.bNeighborFlags[i] == true )
+			{
+			    RK_HEVC_FPRINT(fp,"0x%02x ",pReconTmp0[j] );
+			}
+			else
+			{
+			    RK_HEVC_FPRINT(fp,"xxxx " );
+			}
+		}
+		pReconTmp0 += 4;	 
+	}
+	if ( inf_intra4x4.bNeighborFlags[2] == true )
+	{
+	    RK_HEVC_FPRINT(fp,"\n 0x%02x \n",*pReconTmp0++ );
+	}
+	else
+	{
+	    RK_HEVC_FPRINT(fp,"\n xxxx \n" );
+		pReconTmp0++;		
+	}
+	
+	for (uint8_t i = 3 ; i < 5; i++ )
+	{
+	    for (uint8_t j = 0 ; j < 4 ; j++ )
+	    {
+			if ( inf_intra4x4.bNeighborFlags[i] == true )
+			{
+			    RK_HEVC_FPRINT(fp,"0x%02x ",pReconTmp0[j] );
+			}
+			else
+			{
+			    RK_HEVC_FPRINT(fp,"xxxx " );
+			}
+		}
+		pReconTmp0 += 4;	
+	}
+	RK_HEVC_FPRINT(fp,"\n \n");
+
+}
+void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra, 
+									uint32_t partOffset,
+									uint32_t cur_depth,
+									uint32_t cur_x_in_cu,
+									uint32_t cur_y_in_cu)
+{
+	uint8_t* fenc 	= pInterface_Intra->fenc;
 	int32_t width 	= pInterface_Intra->size;
 	int32_t height	= pInterface_Intra->size;
-	RK_Pel LineBuf[129];
+	uint8_t LineBuf[129];
 	// unitSize 只有4x4的时候是 4，其他case都是8
 	// x265中固定为 4 
     int unitSize      = pInterface_Intra->cidx == 0 ? 4 : 2;
@@ -1603,7 +2007,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 	{
 		/* step 1 */
 		// fill
-		//RK_Pel LineBuf[129];
+		//uint8_t LineBuf[129];
 		RK_IntraFillReferenceSamples( 
 								pInterface_Intra->reconEdgePixel,
 								pInterface_Intra->bNeighborFlags, 
@@ -1613,17 +2017,18 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 								totalUnits, 
 								width,
 								height);
-
-		RK_CheckLineBuf(LineBuf, rk_LineBuf, 2*width + 2*height + 1);
-
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"Y:\n");
+		StoreLineBuf(g_fp_result_rk, LineBuf, 2*width + 2*height + 1);
+#endif
 		// step 2 //
 		
 		// smoothing
-		RK_Pel refLeft[65 + 32 - 1];
-		RK_Pel refAbove[65 + 32 - 1];
-		RK_Pel refLeftFlt[65 + 32 - 1];
-		RK_Pel refAboveFlt[65 + 32 - 1];
-		bool bUseStrongIntraSmoothing = rk_bUseStrongIntraSmoothing;
+		uint8_t refLeft[65 + 32 - 1];
+		uint8_t refAbove[65 + 32 - 1];
+		uint8_t refLeftFlt[65 + 32 - 1];
+		uint8_t refAboveFlt[65 + 32 - 1];
+		bool bUseStrongIntraSmoothing = pInterface_Intra->useStrongIntraSmoothing;
 		RK_IntraSmoothing(LineBuf, 
 						width, 
 						height, 
@@ -1632,17 +2037,22 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 						refAbove + width - 1,
 						refLeftFlt + width - 1,
 						refAboveFlt + width - 1);
+#ifdef INTRA_RESULT_STORE_FILE
 		// width - 1 是为了在做pred扩展用的
-		RK_CheckSmoothing(refLeft + width - 1, refAbove + width - 1, refLeftFlt + width - 1, refAboveFlt + width - 1, 
-			rk_IntraSmoothIn.rk_refLeft, rk_IntraSmoothIn.rk_refAbove, 
-			rk_IntraSmoothIn.rk_refLeftFiltered[X265_COMPENT], rk_IntraSmoothIn.rk_refAboveFiltered[X265_COMPENT],
-			width, height);
+		StoreSmoothing(g_fp_result_rk,
+						refLeft + width - 1, 
+						refAbove + width - 1, 
+						refLeftFlt + width - 1, 
+						refAboveFlt + width - 1, 
+						width, 
+						height);
+#endif	
 
 		// step 3 //
 		
 		// predition
-		//RK_Pel* predSample = (RK_Pel*)X265_MALLOC(RK_Pel, width*height);
-		RK_Pel predSample[32*32];
+		//uint8_t* predSample = (uint8_t*)X265_MALLOC(uint8_t, width*height);
+		uint8_t predSample[32*32];
 
 
 		uint8_t RK_intraFilterThreshold[5] =
@@ -1665,8 +2075,8 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 			
-			RK_Pel* refAboveDecide = refAbove + width - 1;
-			RK_Pel* refLeftDecide = refLeft + width - 1;
+			uint8_t* refAboveDecide = refAbove + width - 1;
+			uint8_t* refLeftDecide = refLeft + width - 1;
 
 			if (dirMode == DC_IDX)
 			{
@@ -1686,24 +2096,12 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 							log2BlkSize,
 							pInterface_Intra->cidx, // 0 is luma NOW only support luma
 							dirMode);
-#if 0
-			for ( int i = 0 ; i <  2*width + 1 ; i++ )
-			{
-	    		RK_HEVC_FPRINT(rk_logIntraPred[6],"%d ",*refLeftDecide++);
-			}
-			RK_HEVC_FPRINT(rk_logIntraPred[6],"\n");
-			for ( int i = 0 ; i <  2*width + 1 ; i++ )
-			{
-	    		RK_HEVC_FPRINT(rk_logIntraPred[6],"%d ",*refAboveDecide++);
-			}
-			RK_HEVC_FPRINT(rk_logIntraPred[6],"\n");
-#endif
-					
-			RK_CheckPredSamples(
-				rk_IntraPred_35.rk_predSampleTmp[dirMode], 
-				predSample, width, height);
-			
 
+#ifdef INTRA_RESULT_STORE_FILE_
+					
+			StorePredSamples(g_fp_result_rk, predSample, width, height);
+			
+#endif
 
 			// step 4 //
 			// caclu SAD
@@ -1712,13 +2110,22 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 					predSample, 
 					puStride, 
 					width);
+			// 
+		#ifdef RK_CABAC
+			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			uint32_t bits = g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode];
+		#else
+			uint32_t bits = 0;
+		#endif
 
-			costTotal[dirMode] =  costSad[dirMode] + ((rk_bits[dirMode] * rk_lambdaMotionSAD + 32768) >> 16); 
-
+			setLambda(30, 2);
+			costTotal[dirMode] =  costSad[dirMode] + ((bits * m_rklambdaMotionSAD + 32768) >> 16); 
 		}
 
-		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect);
-
+#ifdef INTRA_RESULT_STORE_FILE
+		StoreSad(g_fp_result_rk, costSad);
+		StoreCost(g_fp_result_rk, costTotal);
+#endif
 
 		// step 5 //
 		// get minnum costSad + lambad*bits,decide the dirMode
@@ -1730,15 +2137,377 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 		BubbleSort(index,costTotal, 35);
 
 		int bestMode = index[0];
-		// TEST_LUMA_DEPTH = 0,rk_bestMode只有1个方向
-		// TEST_LUMA_DEPTH = 0,rk_bestMode只有4个方向
-		assert(bestMode == rk_bestMode[X265_COMPENT][partOffset]);
+
+		pInterface_Intra->DirMode = (uint8_t)bestMode;
 
 		// step 6 //
 		int 	diff		= std::min<int>(abs((int)bestMode - HOR_IDX), abs((int)bestMode - VER_IDX));
 		uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
-		RK_Pel* refAboveDecide = refAbove + width - 1;
-		RK_Pel* refLeftDecide 	= refLeft + width - 1; 
+		uint8_t* refAboveDecide = refAbove + width - 1;
+		uint8_t* refLeftDecide 	= refLeft + width - 1; 
+		if (bestMode == DC_IDX)
+		{
+			filterIdx = 0; //no smoothing for DC or LM chroma
+		}
+		assert(filterIdx <= 1);
+		if ( filterIdx )
+		{
+			refAboveDecide = refAboveFlt + width - 1;
+			refLeftDecide = refLeftFlt + width - 1;
+		}
+		// calcu the bestMode pred
+		RkIntraPredAll(rk_pred[RK_COMPENT], 
+					refAboveDecide, 
+					refLeftDecide,
+					puStride, 
+					log2BlkSize,
+					0, // 0 is luma NOW only support luma
+					bestMode);
+
+		// step 7 //
+		// caclu resi
+		//int16_t *residual = (int16_t*)X265_MALLOC(int16_t, width*height);
+		//int16_t residual[32*32];
+		RK_IntraCalcuResidual(fenc, 
+							rk_pred[RK_COMPENT], 
+							rk_residual[RK_COMPENT],
+							puStride,
+							width);
+
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"Y:\n");
+		StorePredSamples(g_fp_result_rk, rk_pred[RK_COMPENT], width, height);
+		StoreResidual(g_fp_result_rk, rk_residual[RK_COMPENT], puStride, width, height);
+#endif
+		::memcpy(pInterface_Intra->pred, rk_pred[RK_COMPENT], width*height*sizeof(uint8_t) ); 
+		::memcpy(pInterface_Intra->resi, rk_residual[RK_COMPENT], width*height*sizeof(int16_t) ); 
+
+	}
+	else if ( pInterface_Intra->cidx == 1 )
+	{
+	// ----------------- chroma U------------------------//
+		// step 1 //
+		// fill
+		RK_IntraFillReferenceSamples( 
+								pInterface_Intra->reconEdgePixel,
+								pInterface_Intra->bNeighborFlags, 
+								LineBuf, 
+								pInterface_Intra->numintraNeighbor, 
+								unitSize, 
+								totalUnits, 
+								width,
+								height);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"U:\n");
+		StoreLineBuf(g_fp_result_rk, LineBuf, 2*width + 2*height + 1);
+#endif		
+		// chroma 不需要 smoothing操作
+		// 需要将 lineBuf 变为 refLeft 和 refAbove
+		uint8_t 	refLeft[33 + 16 - 1];
+		uint8_t 	refAbove[33 + 16 - 1];
+		uint8_t* 	refLeftDecide = refLeft + width - 1;
+		uint8_t* 	refAboveDecide = refAbove + width - 1;
+		for ( int i = 0 ; i < 2*pInterface_Intra->size + 1; i++ )
+		{
+		    *refLeftDecide++ = LineBuf[2*pInterface_Intra->size - i];
+		}
+
+		for ( int i = 0 ; i < 2*pInterface_Intra->size + 1; i++ )
+		{
+		    *refAboveDecide++ = LineBuf[2*pInterface_Intra->size + i];
+		}
+
+		// step 2 //
+		// pred with lumaDirMode
+		//uint8_t predSampleCb[16*16];
+		int puStride = width;
+		int log2BlkSize = rk_g_convertToBit[width] + 2;		
+		RkIntraPredAll(rk_predCb[RK_COMPENT], 
+				refAbove + width - 1, 
+				refLeft + width - 1,
+				puStride, 
+				log2BlkSize,
+				pInterface_Intra->cidx,  
+				pInterface_Intra->lumaDirMode);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"dir: %d\n" ,pInterface_Intra->lumaDirMode);
+		RK_HEVC_FPRINT(g_fp_result_rk,"U:\n");
+		StorePredSamples(g_fp_result_rk, rk_predCb[RK_COMPENT], width, height);
+#endif		
+		// step 3 //
+		// caclu resi
+		//int16_t *residual = (int16_t*)X265_MALLOC(int16_t, width*height);
+		//int16_t residual[16*16];
+		RK_IntraCalcuResidual(fenc, 
+							rk_predCb[RK_COMPENT], 
+							rk_residualCb[RK_COMPENT],
+							puStride,
+							width);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"U:\n");
+		StoreResidual(g_fp_result_rk, rk_residualCb[RK_COMPENT], puStride, width, height);
+#endif
+		::memcpy(pInterface_Intra->pred, rk_predCb[RK_COMPENT], width*height*sizeof(uint8_t) ); 
+		::memcpy(pInterface_Intra->resi, rk_residualCb[RK_COMPENT], width*height*sizeof(int16_t) ); 
+
+
+	    
+	}
+	else if ( pInterface_Intra->cidx == 2 )
+	{
+	// ----------------- chroma V------------------------//
+		// step 1 //
+		// fill
+		RK_IntraFillReferenceSamples( 
+								pInterface_Intra->reconEdgePixel,
+								pInterface_Intra->bNeighborFlags, 
+								LineBuf,// 可以和 rk_LineBuf 比较
+								pInterface_Intra->numintraNeighbor, 
+								unitSize, 
+								totalUnits, 
+								width,
+								height);
+
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"V:\n");
+		StoreLineBuf(g_fp_result_rk, LineBuf, 2*width + 2*height + 1);
+#endif
+		// chroma 不需要 smoothing操作
+		// 需要将 lineBuf 变为 refLeft 和 refAbove
+		uint8_t 	refLeft[33 + 16 - 1];
+		uint8_t 	refAbove[33 + 16 - 1];
+		uint8_t* 	refLeftDecide = refLeft + width - 1;
+		uint8_t* 	refAboveDecide = refAbove + width - 1;
+		for ( int i = 0 ; i < 2*pInterface_Intra->size + 1; i++ )
+		{
+		    *refLeftDecide++ = LineBuf[2*pInterface_Intra->size - i];
+		}
+
+		for ( int i = 0 ; i < 2*pInterface_Intra->size + 1; i++ )
+		{
+		    *refAboveDecide++ = LineBuf[2*pInterface_Intra->size + i];
+		}
+
+		// step 2 //
+		// pred with lumaDirMode
+		//uint8_t predSampleCr[16*16];
+		int puStride = width;
+		int log2BlkSize = rk_g_convertToBit[width] + 2;		
+		RkIntraPredAll(rk_predCr[RK_COMPENT], 
+				refAbove + width - 1, 
+				refLeft + width - 1,
+				puStride, 
+				log2BlkSize,
+				pInterface_Intra->cidx,  
+				pInterface_Intra->lumaDirMode);
+
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"dir: %d\n" ,pInterface_Intra->lumaDirMode);
+		RK_HEVC_FPRINT(g_fp_result_rk,"V:\n");
+		StorePredSamples(g_fp_result_rk, rk_predCr[RK_COMPENT], width, height);
+#endif		
+		
+		// step 3 //
+		// caclu resi
+		//int16_t *residual = (int16_t*)X265_MALLOC(int16_t, width*height);
+		//int16_t residual[16*16];
+		RK_IntraCalcuResidual(fenc, 
+							rk_predCr[RK_COMPENT], 
+							rk_residualCr[RK_COMPENT],
+							puStride,
+							width);
+
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_rk,"V:\n");
+		StoreResidual(g_fp_result_rk, rk_residualCr[RK_COMPENT], puStride, width, height);
+#endif
+		::memcpy(pInterface_Intra->pred, rk_predCr[RK_COMPENT], width*height*sizeof(uint8_t) ); 
+		::memcpy(pInterface_Intra->resi, rk_residualCr[RK_COMPENT], width*height*sizeof(int16_t) ); 
+	}
+	else
+	{
+		RK_HEVC_PRINT("%s Error case Happen.\n",__FUNCTION__);
+	}
+	
+}
+
+
+
+
+
+
+void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, 
+									uint32_t partOffset,
+									uint32_t cur_depth,
+									uint32_t cur_x_in_cu,
+									uint32_t cur_y_in_cu)
+{
+	uint8_t* 	fenc 	= pInterface_Intra->fenc;
+	int32_t width 	= pInterface_Intra->size;
+	int32_t height	= pInterface_Intra->size;
+	uint8_t LineBuf[129];
+	// unitSize 只有4x4的时候是 4，其他case都是8
+	// x265中固定为 4 
+    int unitSize      = pInterface_Intra->cidx == 0 ? 4 : 2;
+    int numUnitsInCU  = width / unitSize;
+    int totalUnits    = (numUnitsInCU << 2) + 1;
+
+	
+// ----------------- luma ------------------------//
+	if ( pInterface_Intra->cidx == 0)
+	{
+		/* step 1 */
+		// fill
+		//uint8_t LineBuf[129];
+		RK_IntraFillReferenceSamples( 
+								pInterface_Intra->reconEdgePixel,
+								pInterface_Intra->bNeighborFlags, 
+								LineBuf,// 可以和 rk_LineBuf 比较
+								pInterface_Intra->numintraNeighbor, 
+								unitSize, 
+								totalUnits, 
+								width,
+								height);
+
+		RK_CheckLineBuf(LineBuf, rk_LineBuf, 2*width + 2*height + 1);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"Y:\n");
+		StoreLineBuf(g_fp_result_x265, LineBuf, 2*width + 2*height + 1);
+#endif
+		// step 2 //
+		
+		// smoothing
+		uint8_t refLeft[65 + 32 - 1];
+		uint8_t refAbove[65 + 32 - 1];
+		uint8_t refLeftFlt[65 + 32 - 1];
+		uint8_t refAboveFlt[65 + 32 - 1];
+		bool bUseStrongIntraSmoothing = rk_bUseStrongIntraSmoothing;
+		RK_IntraSmoothing(LineBuf, 
+						width, 
+						height, 
+						bUseStrongIntraSmoothing,
+						refLeft + width - 1,
+						refAbove + width - 1,
+						refLeftFlt + width - 1,
+						refAboveFlt + width - 1);
+		// width - 1 是为了在做pred扩展用的
+		RK_CheckSmoothing(refLeft + width - 1, refAbove + width - 1, refLeftFlt + width - 1, refAboveFlt + width - 1, 
+			rk_IntraSmoothIn.rk_refLeft, rk_IntraSmoothIn.rk_refAbove, 
+			rk_IntraSmoothIn.rk_refLeftFiltered[X265_COMPENT], rk_IntraSmoothIn.rk_refAboveFiltered[X265_COMPENT],
+			width, height);
+#ifdef INTRA_RESULT_STORE_FILE
+		// width - 1 是为了在做pred扩展用的
+		StoreSmoothing(g_fp_result_x265,
+						refLeft + width - 1, 
+						refAbove + width - 1, 
+						refLeftFlt + width - 1, 
+						refAboveFlt + width - 1, 
+						width, 
+						height);
+#endif
+
+		// step 3 //
+		
+		// predition
+		//uint8_t* predSample = (uint8_t*)X265_MALLOC(uint8_t, width*height);
+		uint8_t predSample[32*32];
+
+
+		uint8_t RK_intraFilterThreshold[5] =
+		{
+		    10, //4x4
+		    7,  //8x8
+		    1,  //16x16
+		    0,  //32x32
+		    10, //64x64
+		};
+		int log2BlkSize = rk_g_convertToBit[width] + 2;
+		// X265外层 puStride 大小都等于 width,只有4x4时的NxN, puStride = 8 //
+		// 在RK_ENCODER中，数据都是紧凑存储，没有stride = 8的情况
+		int puStride = width;
+		int dirMode;
+		int costSad[35];
+		uint64_t costTotal[35];
+		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
+		{
+	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
+			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
+			
+			uint8_t* refAboveDecide = refAbove + width - 1;
+			uint8_t* refLeftDecide = refLeft + width - 1;
+
+			if (dirMode == DC_IDX)
+			{
+				filterIdx = 0; //no smoothing for DC or LM chroma
+			}
+			assert(filterIdx <= 1);
+			if ( filterIdx )
+			{
+				refAboveDecide = refAboveFlt + width - 1;
+				refLeftDecide = refLeftFlt + width - 1;
+			}
+			
+			RkIntraPredAll(predSample, 
+							refAboveDecide, 
+							refLeftDecide,
+							puStride, 
+							log2BlkSize,
+							pInterface_Intra->cidx, // 0 is luma NOW only support luma
+							dirMode);
+					
+			RK_CheckPredSamples(
+				rk_IntraPred_35.rk_predSampleTmp[dirMode], 
+				predSample, width, height);
+#ifdef INTRA_RESULT_STORE_FILE_
+			StorePredSamples(g_fp_result_x265, predSample, width, height);
+#endif
+
+			// step 4 //
+			// caclu SAD
+			costSad[dirMode] = RK_IntraSad(fenc, 
+					puStride, 
+					predSample, 
+					puStride, 
+					width);
+
+			costTotal[dirMode] =  costSad[dirMode] + ((rk_bits[partOffset][dirMode] * rk_lambdaMotionSAD + 32768) >> 16); 
+		#ifdef RK_CABAC
+			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			if ( g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode] != rk_bits[partOffset][dirMode] )
+			{
+			    RK_HEVC_PRINT("%d ",g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode]);
+				RK_HEVC_PRINT("%d \n",rk_bits[partOffset][dirMode]);
+			}
+			assert(g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode] == rk_bits[partOffset][dirMode]);
+		#endif
+		}
+
+		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect);
+#ifdef INTRA_RESULT_STORE_FILE
+		StoreSad(g_fp_result_x265, costSad);
+		StoreCost(g_fp_result_x265, costTotal);
+#endif
+
+		// step 5 //
+		// get minnum costSad + lambad*bits,decide the dirMode
+		uint32_t index[35];
+		for (int i = 0 ; i < 35 ; i++ )
+		{
+		    index[i] = i;
+		}
+		BubbleSort(index,costTotal, 35);
+
+		int bestMode = index[0];
+	
+		// 快速模式如果miss最优，这个assert 会 failed
+
+		assert(bestMode == rk_bestMode[X265_COMPENT][partOffset]);
+	
+		// step 6 //
+		int 	diff		= std::min<int>(abs((int)bestMode - HOR_IDX), abs((int)bestMode - VER_IDX));
+		uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
+		uint8_t* refAboveDecide = refAbove + width - 1;
+		uint8_t* refLeftDecide 	= refLeft + width - 1; 
 		if (bestMode == DC_IDX)
 		{
 			filterIdx = 0; //no smoothing for DC or LM chroma
@@ -1770,6 +2539,92 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 
 		RK_CheckResidual(rk_residual[X265_COMPENT], rk_residual[RK_COMPENT], 
 			puStride, width, height);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"Y:\n");
+		StorePredSamples(g_fp_result_x265, rk_pred[RK_COMPENT], width, height);
+		StoreResidual(g_fp_result_x265, rk_residual[RK_COMPENT], puStride, width, height);
+#endif
+	#ifdef INTRA_4x4_DEBUG
+		if ( width == 4)
+		{
+			RK_store4x4Recon2Ref(&rk_4x4RefCandidate[0][0], rk_recon[X265_COMPENT], partOffset);
+
+			// 利用 4x4 划分前那个8x8的信息进行 模拟拆分
+			/*
+			** 根据 8x8 的信息填充 4个 4x4 的信息
+			*/
+			// 参考 设计文档 4.8.	更新参考边[4x4的PU]
+			INTERFACE_INTRA inf_intra4x4;
+			inf_intra4x4.bNeighborFlags = (bool*)X265_MALLOC(bool, 5);
+			inf_intra4x4.fenc 			= (uint8_t*)X265_MALLOC(uint8_t, 4*4);
+			inf_intra4x4.reconEdgePixel = (uint8_t*)X265_MALLOC(uint8_t, 8 + 8 + 1);
+
+			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4]/4;	
+
+			splitTo4x4By8x8(&g_previous_8x8_intra, &inf_intra4x4, &g_4x4_total_reconEdge[zscan_idx][0][0], partOffset);
+		#ifdef INTRA_RESULT_STORE_FILE_
+			Store4x4ReconInfo(g_fp_result_x265, inf_intra4x4, partOffset );
+		#endif
+		#if 0
+			// compare fenc/bNeighborFlags/reconEdgePixel
+			uint8_t* pReconTmp0 = inf_intra4x4.reconEdgePixel;
+			uint8_t* pReconTmp1 = pInterface_Intra->reconEdgePixel;
+			for (uint8_t i = 0 ; i < 5; i++ )
+			{
+			    if( inf_intra4x4.bNeighborFlags[i] != pInterface_Intra->bNeighborFlags[i])
+		    	   	RK_HEVC_PRINT("check falied %s \n",__FUNCTION__);
+				
+				
+				// corner
+				if ( i == 2 )
+				{
+					if((true == inf_intra4x4.bNeighborFlags[i])	&& ( pReconTmp0[0] != pReconTmp1[0]))
+			        	RK_HEVC_PRINT("check falied %s \n",__FUNCTION__);	
+				
+					pReconTmp0 ++;
+					pReconTmp1 ++;
+				}
+				else
+				{
+					if(true == inf_intra4x4.bNeighborFlags[i])
+					{
+					    for (uint8_t j = 0 ; j < 4 ; j++ )
+					    {
+					        if( pReconTmp0[j] != pReconTmp1[j])
+					        	RK_HEVC_PRINT("check falied %s \n",__FUNCTION__);
+						}
+					}
+					pReconTmp0 += 4;
+					pReconTmp1 += 4;						
+				}
+				
+
+			}
+			for (uint8_t i = 0 ; i < 16; i++ )
+			{
+			    if( inf_intra4x4.fenc[i] != pInterface_Intra->fenc[i])
+		        	RK_HEVC_PRINT("check falied %s \n",__FUNCTION__);
+			}
+		#endif
+
+			X265_FREE(inf_intra4x4.bNeighborFlags);
+			X265_FREE(inf_intra4x4.fenc);
+			X265_FREE(inf_intra4x4.reconEdgePixel);
+
+			
+		}
+
+		if ( width == 8 )
+		{
+			::memcpy(g_previous_8x8_intra.bNeighborFlags, pInterface_Intra->bNeighborFlags, 9);
+			::memcpy(g_previous_8x8_intra.fenc, pInterface_Intra->fenc, 8*8);
+			::memcpy(g_previous_8x8_intra.reconEdgePixel, pInterface_Intra->reconEdgePixel, 33);
+			g_previous_8x8_intra.numintraNeighbor = pInterface_Intra->numintraNeighbor;
+			g_previous_8x8_intra.cidx = 0;
+			g_previous_8x8_intra.size = 8;
+			
+		}
+	#endif
 	}
 	else if ( pInterface_Intra->cidx == 1 )
 	{
@@ -1787,12 +2642,17 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 								height);
 
 		RK_CheckLineBuf(LineBuf, rk_LineBufCb, 2*width + 2*height + 1);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"U:\n");
+		StoreLineBuf(g_fp_result_x265, LineBuf, 2*width + 2*height + 1);
+#endif	
+		
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
-		RK_Pel 	refLeft[33 + 16 - 1];
-		RK_Pel 	refAbove[33 + 16 - 1];
-		RK_Pel* 	refLeftDecide = refLeft + width - 1;
-		RK_Pel* 	refAboveDecide = refAbove + width - 1;
+		uint8_t 	refLeft[33 + 16 - 1];
+		uint8_t 	refAbove[33 + 16 - 1];
+		uint8_t* 	refLeftDecide = refLeft + width - 1;
+		uint8_t* 	refAboveDecide = refAbove + width - 1;
 		for ( int i = 0 ; i < 2*pInterface_Intra->size + 1; i++ )
 		{
 		    *refLeftDecide++ = LineBuf[2*pInterface_Intra->size - i];
@@ -1805,7 +2665,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 
 		// step 2 //
 		// pred with lumaDirMode
-		//RK_Pel predSampleCb[16*16];
+		//uint8_t predSampleCb[16*16];
 		int puStride = width;
 		int log2BlkSize = rk_g_convertToBit[width] + 2;		
 		RkIntraPredAll(rk_predCb[RK_COMPENT], 
@@ -1817,7 +2677,12 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 				pInterface_Intra->lumaDirMode);
 
 		RK_CheckPredSamples(rk_IntraPred_35.rk_predSampleCb, rk_predCb[RK_COMPENT], width, height);
-		
+
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"dir: %d\n" ,pInterface_Intra->lumaDirMode);
+		RK_HEVC_FPRINT(g_fp_result_x265,"U:\n");
+		StorePredSamples(g_fp_result_x265, rk_predCb[RK_COMPENT], width, height);
+#endif		
 		// step 3 //
 		// caclu resi
 		//int16_t *residual = (int16_t*)X265_MALLOC(int16_t, width*height);
@@ -1829,6 +2694,12 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 							width);
 
 		RK_CheckResidual(rk_residualCb[X265_COMPENT], rk_residualCb[RK_COMPENT], puStride, width, height);
+
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"U:\n");
+		StoreResidual(g_fp_result_x265, rk_residualCb[RK_COMPENT], puStride, width, height);
+#endif
+
 	    
 	}
 	else if ( pInterface_Intra->cidx == 2 )
@@ -1848,12 +2719,16 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 
 		RK_CheckLineBuf(LineBuf, rk_LineBufCr, 2*width + 2*height + 1);
 
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"V:\n");
+		StoreLineBuf(g_fp_result_x265, LineBuf, 2*width + 2*height + 1);
+#endif	
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
-		RK_Pel 	refLeft[33 + 16 - 1];
-		RK_Pel 	refAbove[33 + 16 - 1];
-		RK_Pel* 	refLeftDecide = refLeft + width - 1;
-		RK_Pel* 	refAboveDecide = refAbove + width - 1;
+		uint8_t 	refLeft[33 + 16 - 1];
+		uint8_t 	refAbove[33 + 16 - 1];
+		uint8_t* 	refLeftDecide = refLeft + width - 1;
+		uint8_t* 	refAboveDecide = refAbove + width - 1;
 		for ( int i = 0 ; i < 2*pInterface_Intra->size + 1; i++ )
 		{
 		    *refLeftDecide++ = LineBuf[2*pInterface_Intra->size - i];
@@ -1866,7 +2741,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 
 		// step 2 //
 		// pred with lumaDirMode
-		//RK_Pel predSampleCr[16*16];
+		//uint8_t predSampleCr[16*16];
 		int puStride = width;
 		int log2BlkSize = rk_g_convertToBit[width] + 2;		
 		RkIntraPredAll(rk_predCr[RK_COMPENT], 
@@ -1878,7 +2753,11 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 				pInterface_Intra->lumaDirMode);
 
 		RK_CheckPredSamples(rk_IntraPred_35.rk_predSampleCr, rk_predCr[RK_COMPENT], width, height);
-		
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"dir: %d\n" ,pInterface_Intra->lumaDirMode);
+		RK_HEVC_FPRINT(g_fp_result_x265,"V:\n");
+		StorePredSamples(g_fp_result_x265, rk_predCr[RK_COMPENT], width, height);
+#endif		
 		// step 3 //
 		// caclu resi
 		//int16_t *residual = (int16_t*)X265_MALLOC(int16_t, width*height);
@@ -1890,6 +2769,10 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 							width);
 
 		RK_CheckResidual(rk_residualCr[X265_COMPENT], rk_residualCr[RK_COMPENT], puStride, width, height);
+#ifdef INTRA_RESULT_STORE_FILE
+		RK_HEVC_FPRINT(g_fp_result_x265,"V:\n");
+		StoreResidual(g_fp_result_x265, rk_residualCr[RK_COMPENT], puStride, width, height);
+#endif
 	}
 	else
 	{
@@ -1910,18 +2793,18 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra, uint32_t part
 ** params@ out
 **		pLineBuf		- 填充好的LineBuf
 */
-void Rk_IntraPred::RK_IntraFillReferenceSamples(RK_Pel* reconEdgePixel, 
+void Rk_IntraPred::RK_IntraFillReferenceSamples(uint8_t* reconEdgePixel, 
 											bool* bNeighborFlags, 
-											RK_Pel* pLineBuf,
+											uint8_t* pLineBuf,
 											int numIntraNeighbor, 
 											int unitSize, 
 											int totalUnits, 
 											int width,
 											int height)
 {
-    RK_Pel* piRoiTemp;
+    uint8_t* piRoiTemp;
     int  i;
-    RK_Pel  iDCValue = 1 << (RK_DEPTH - 1);
+    uint8_t  iDCValue = 1 << (RK_DEPTH - 1);
 		
     if (numIntraNeighbor == 0)
     {
@@ -1937,7 +2820,7 @@ void Rk_IntraPred::RK_IntraFillReferenceSamples(RK_Pel* reconEdgePixel,
     }
     else if (numIntraNeighbor == totalUnits)
     {
-        memcpy(pLineBuf, reconEdgePixel, (2*width + 2*height + 1) * sizeof(RK_Pel));
+        memcpy(pLineBuf, reconEdgePixel, (2*width + 2*height + 1) * sizeof(uint8_t));
     }
     else // reference samples are partially available
     {
@@ -1951,11 +2834,11 @@ void Rk_IntraPred::RK_IntraFillReferenceSamples(RK_Pel* reconEdgePixel,
         int  iTotalSamples = totalUnits * unitSize;
 // 参考x265的做法，把corner那个点扩充到 unitSize 个大小
 // 这样填充的时候循环次数可以减少8倍，否则需要逐一判断，增加程序复杂度
-        RK_Pel  lineBufTmp[5 * RK_MAX_CU_SIZE];
-        RK_Pel  *pLineTemp = lineBufTmp;
+        uint8_t  lineBufTmp[5 * RK_MAX_CU_SIZE];
+        uint8_t  *pLineTemp = lineBufTmp;
         bool *pbNeighborFlags = bNeighborFlags + iNumUnits2;// 指向corner
         int  iNext, iCurr;
-        RK_Pel  piRef = 0;
+        uint8_t  piRef = 0;
 
         // Initialize
         for (i = 0; i < iTotalSamples; i++)
@@ -2060,14 +2943,14 @@ void Rk_IntraPred::RK_IntraFillReferenceSamples(RK_Pel* reconEdgePixel,
 **		refLeftFlt		 
 **		refAboveFlt		 
 */
-void Rk_IntraPred::RK_IntraSmoothing(RK_Pel* pLineBuf,
+void Rk_IntraPred::RK_IntraSmoothing(uint8_t* pLineBuf,
 							int width,
 						    int height,
 						    bool bUseStrongIntraSmoothing,
-                            RK_Pel* refLeft,
-							RK_Pel* refAbove, 
-							RK_Pel* refLeftFlt, 
-							RK_Pel* refAboveFlt)
+                            uint8_t* refLeft,
+							uint8_t* refAbove, 
+							uint8_t* refLeftFlt, 
+							uint8_t* refAboveFlt)
 {
 
     // generate filtered intra prediction samples
@@ -2078,8 +2961,8 @@ void Rk_IntraPred::RK_IntraSmoothing(RK_Pel* pLineBuf,
 
 	// L型 buffer构建 左下到左上，然后上到上右
 	
-    RK_Pel refBuf[129];  // non-filtered
-    RK_Pel filteredBuf[129]; // filtered
+    uint8_t refBuf[129];  // non-filtered
+    uint8_t filteredBuf[129]; // filtered
 
 	// use RkIntraFillRefSamples Out
 	for ( int32_t idx = 0 ; idx < cuHeight2 + cuWidth2 + 1 ; idx++ )
@@ -2108,12 +2991,12 @@ void Rk_IntraPred::RK_IntraSmoothing(RK_Pel* pLineBuf,
 			// 双线性插值
             for (int i = 1; i < cuHeight2; i++)
             {
-                filteredBuf[i] = (RK_Pel)(((cuHeight2 - i) * bottomLeft + i * topLeft + height) >> shift);
+                filteredBuf[i] = ((cuHeight2 - i) * bottomLeft + i * topLeft + height) >> shift;
             }
 
             for (int i = 1; i < cuWidth2; i++)
             {
-                filteredBuf[cuHeight2 + i] = (RK_Pel)(((cuWidth2 - i) * topLeft + i * topRight + width) >> shift);
+                filteredBuf[cuHeight2 + i] = ((cuWidth2 - i) * topLeft + i * topRight + width) >> shift;
             }
         }
         else
@@ -2182,7 +3065,7 @@ void Rk_IntraPred::RK_IntraSmoothing(RK_Pel* pLineBuf,
 **		return SAD 					 
 */
 
-int Rk_IntraPred::RK_IntraSad(RK_Pel *pix1, intptr_t stride_pix1, RK_Pel *pix2, intptr_t stride_pix2, uint32_t size)
+int Rk_IntraPred::RK_IntraSad(uint8_t *pix1, intptr_t stride_pix1, uint8_t *pix2, intptr_t stride_pix2, uint32_t size)
 {
     int sum = 0;
 
@@ -2214,8 +3097,8 @@ int Rk_IntraPred::RK_IntraSad(RK_Pel *pix1, intptr_t stride_pix1, RK_Pel *pix2, 
 ** params@ out  
 **		residual 					- 残差块指针	 
 */
-void Rk_IntraPred::RK_IntraCalcuResidual(RK_Pel*	org, 
-				RK_Pel *pred, 
+void Rk_IntraPred::RK_IntraCalcuResidual(uint8_t*	org, 
+				uint8_t *pred, 
 				int16_t *residual, 
 				intptr_t stride,
 				uint32_t blockSize)
@@ -2232,5 +3115,6 @@ void Rk_IntraPred::RK_IntraCalcuResidual(RK_Pel*	org,
         pred += stride;
     }
 }
+
 
 

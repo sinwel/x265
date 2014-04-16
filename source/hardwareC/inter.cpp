@@ -67,6 +67,35 @@ short OffsFromCtu16[5][2] =
 	{ 0, 0 } //16x16
 };
 
+void IME(InterInfo::ImeInput *pImeInput, InterInfo::ImeOutput *pImeOutput)
+{
+	assert((nCtuSize == 16) || (nCtuSize == 32) || (nCtuSize == 64));
+	int EdgeMinusPelNum = 4;
+	int width = pImeInput->ImeSearchRangeWidth;
+	int height = pImeInput->ImeSearchRangeHeight;
+	width -= EdgeMinusPelNum * 2;
+	height -= EdgeMinusPelNum * 2;
+	int *pImeSR = new int[(width - nSampDist + 1)*(height - nSampDist + 1)];
+	int *pCurrCtu = new int[(nCtuSize / nSampDist)*(nCtuSize / nSampDist)];
+	ImePrefetch(pImeInput, EdgeMinusPelNum, pImeSR, width, height);
+	for (int i = 0; i < nCtuSize / nSampDist; i++)
+	{
+		for (int j = 0; j < nCtuSize / nSampDist; j++)
+		{
+			int sum = 0;
+			for (int x = 0; x < nSampDist; x++)
+			{
+				for (int y = 0; y < nSampDist; y++)
+				{
+					sum += (pImeInput->pCurrCtu[(j*nSampDist + y) + (i*nSampDist + x)*nCtuSize]);
+				}
+			}
+			pCurrCtu[j + (nCtuSize / nSampDist)*i] = sum;
+		}
+	}
+	ImeProc(pImeInput, pImeSR, pCurrCtu, width, height, nCtuSize, pImeOutput);
+}
+
 void motionEstimate(InterInfo *pInterInfo)
 {
 	assert((nCtuSize == 16) || (nCtuSize == 32) || (nCtuSize == 64));

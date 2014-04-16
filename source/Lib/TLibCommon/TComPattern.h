@@ -40,7 +40,7 @@
 
 #include "CommonDef.h"
 #include <stdio.h>
-
+#include "macro.h"
 //! \ingroup TLibCommon
 //! \{
 

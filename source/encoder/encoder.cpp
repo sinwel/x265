@@ -1282,7 +1282,12 @@ void Encoder::configure(x265_param *_param)
     switch (_param->rdLevel)
     {
     case 6:
-        bEnableRDOQ = bEnableRDOQTS = 1;
+#if 1	// RDOQ closed
+		bEnableRDOQ = 0;
+#else
+		bEnableRDOQ = 1;
+#endif
+		bEnableRDOQTS = 1;
         break;
     case 5:
         bEnableRDOQ = bEnableRDOQTS = 1;

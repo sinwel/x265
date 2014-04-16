@@ -42,7 +42,10 @@ set(HARDWAREC_HDR
     ../hardwareC/inter.h
 	../hardwareC/qt.h
 	../hardwareC/level_mode_calc.h
-	../hardwareC/ctu_calc.h)
+	../hardwareC/ctu_calc.h
+	../hardwareC/hevcSAO.h
+	../hardwareC/macro.h
+	../hardwareC/rk_define.h)
 set(HARDWAREC_SRC
     ../hardwareC/hardwareC.cpp
 	../hardwareC/RkIntraPred.cpp
@@ -50,7 +53,8 @@ set(HARDWAREC_SRC
 	../hardwareC/qt.cpp
 	../hardwareC/qtTables.cpp
 	../hardwareC/level_mode_calc.cpp
-	../hardwareC/ctu_calc.cpp)
+	../hardwareC/ctu_calc.cpp
+	../hardwareC/hevcSAO.cpp)
 source_group(HardWareC FILES ${HARDWAREC_HDR} ${HARDWAREC_SRC})
 
 if(GCC)
@@ -65,7 +69,7 @@ if(MSVC)
     # /wd4389 signed/unsigned mismatch
     # /wd4018 '<' signed/unsigned mismatch
     # /wd4800 performance warning: bool coersion
-    set_source_files_properties(${LIBENCODER_SRC} PROPERTIES COMPILE_FLAGS 
+    set_source_files_properties(${LIBENCODER_SRC} ${HARDWAREC_SRC} PROPERTIES COMPILE_FLAGS 
         "/wd4244 /wd4512 /wd4127 /wd4389 /wd4018 /wd4800")
 endif(MSVC)
 

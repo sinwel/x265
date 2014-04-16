@@ -52,6 +52,18 @@ class TEncSbac;
 class TEncCavlc;
 class SEI;
 
+
+// SAO interface
+typedef struct _SaoCtuParam
+{
+    int             typeIdx; //luma, chroma
+    int             offset[4];
+    int             bandIdx;
+    bool            mergeLeftFlag;
+    bool            mergeUpFlag;
+}SaoCtuParam;
+
+
 // ====================================================================================================================
 // Class definition
 // ====================================================================================================================
@@ -198,6 +210,7 @@ public:
 
     void estimateBit(estBitsSbacStruct* estBitsSbac, int width, int height, TextType ttype);
     void encodeSaoOffset(SaoLcuParam* saoLcuParam, uint32_t compIdx);
+    void encodeSaoOffset(SaoCtuParam* saoCtuParam, uint32_t compIdx); // over load by SAO module
     void encodeSaoUnitInterleaving(int compIdx, bool saoFlag, int rx, int ry, SaoLcuParam* saoLcuParam, int cuAddrInSlice, int cuAddrUpInSlice, int allowMergeLeft, int allowMergeUp);
     static int countNonZeroCoeffs(TCoeff* pcCoef, uint32_t uiSize);
 }; // END CLASS DEFINITION TEncEntropy

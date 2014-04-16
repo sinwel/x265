@@ -30,6 +30,7 @@
 #include "common.h"
 #include "x265.h"
 #include <stdio.h>
+#include "rk_define.h"
 
 #if HAVE_VLD
 /* Visual Leak Detector */
@@ -50,6 +51,10 @@
 #include <string>
 #include <ostream>
 #include <fstream>
+
+#include "hardwareC/hardwareC.h"
+#include "macro.h"
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -349,7 +354,7 @@ void CLIOptions::showHelp(x265_param *param)
     H0("\nSEI options:\n");
     H0("   --hash                        Decoded Picture Hash SEI 0: disabled, 1: MD5, 2: CRC, 3: Checksum. Default %d\n", param->decodedPictureHashSEI);
     H0("   --[no-]cutree                 Enable cutree for Adaptive Quantization. Default %d\n", param->rc.cuTree);
-	 
+
 #undef OPT
 #undef H0
     exit(0);
@@ -578,7 +583,20 @@ bool CLIOptions::parse(int argc, char **argv, x265_param* param)
     return false;
 }
 
+#ifdef RK_INTRA_PRED
+#include "RkIntraPred.h"
+// Add by zxy for DEBUG
+FILE* g_fp_result_rk;
+FILE* g_fp_result_x265;
 
+#endif
+
+#if TQ_LOG_IN_HWC_INTRA
+FILE* g_fp_TQ_LOG_HWC_INTRA;
+#endif
+#if TQ_LOG_IN_HWC_ME
+FILE* g_fp_TQ_LOG_HWC_ME;
+#endif
 int main(int argc, char **argv)
 {
 #if HAVE_VLD
@@ -622,6 +640,42 @@ int main(int argc, char **argv)
     }
 
     x265_picture_init(param, pic_in);
+#ifdef RK_INTRA_PRED
+	g_fp_result_rk = fopen(PATH_NAME("result_rk.txt"),"w+");
+	if ( !g_fp_result_rk )
+	{
+	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+	}
+	g_fp_result_x265 = fopen(PATH_NAME("result_x265.txt"),"w+");
+	if ( !g_fp_result_x265 )
+	{
+	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+	}
+#endif	
+#if TQ_LOG_IN_HWC_INTRA
+	g_fp_TQ_LOG_HWC_INTRA = fopen(PATH_NAME("TQ_LOG_HWC_INTRA.txt"), "w+");
+	if (!g_fp_TQ_LOG_HWC_INTRA)
+	{
+		RK_HEVC_PRINT("creat TQ_LOG_HWC_INTRA failed.\n");
+	}
+#endif
+#if TQ_LOG_IN_HWC_ME
+	g_fp_TQ_LOG_HWC_ME = fopen(PATH_NAME("TQ_LOG_HWC_ME.txt"), "w+");
+	if (!g_fp_TQ_LOG_HWC_ME)
+	{
+		RK_HEVC_PRINT("creat TQ_LOG_HWC_ME failed.\n");
+	}
+#endif
+
+#ifdef INTRA_4x4_DEBUG
+	//g_previous_8x8_intra.
+	g_previous_8x8_intra.fenc 			= (Pel*)X265_MALLOC(Pel, 8*8);
+	g_previous_8x8_intra.reconEdgePixel = (Pel*)X265_MALLOC(Pel, 16+16+1);// 指向左下角，不是指向中间
+	g_previous_8x8_intra.bNeighborFlags = (bool*)X265_MALLOC(Pel, 9); // 指向起始
+#endif
+	
+    FILE *fp = fopen("hevc_enc_cmodel.cfg","rb+");
+    if (fp) G_hardwareC.ConfigFiles(fp);
 
     // main encoder loop
     uint32_t inFrameCount = 0;
@@ -707,6 +761,34 @@ int main(int argc, char **argv)
     cliopt.destroy();
 
     x265_param_free(param);
+
+    if(fp) fclose(fp);
+
+#ifdef RK_INTRA_PRED
+	if ( g_fp_result_rk )
+	{
+	    fclose(g_fp_result_rk);
+	}
+	if ( g_fp_result_x265)
+	{
+	    fclose(g_fp_result_x265);
+	}
+#endif
+
+#if TQ_LOG_IN_HWC_INTRA
+	fclose(g_fp_TQ_LOG_HWC_INTRA);
+	g_fp_TQ_LOG_HWC_INTRA = NULL;
+#endif
+#if TQ_LOG_IN_HWC_ME
+	fclose(g_fp_TQ_LOG_HWC_ME);
+	g_fp_TQ_LOG_HWC_ME = NULL;
+#endif
+#ifdef INTRA_4x4_DEBUG	
+	X265_FREE(g_previous_8x8_intra.fenc);
+	X265_FREE(g_previous_8x8_intra.reconEdgePixel);
+	X265_FREE(g_previous_8x8_intra.bNeighborFlags);
+
+#endif
 
 #if HAVE_VLD
     assert(VLDReportLeaks() == 0);
