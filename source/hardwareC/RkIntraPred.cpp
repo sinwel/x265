@@ -128,7 +128,16 @@ Rk_IntraPred::Rk_IntraPred()
 	{
 	    RK_HEVC_PRINT("creat file failed.\n");
 	}
-	
+	rk_logIntraPred[2] = fopen(PATH_NAME("refMain_Expand.txt"), "w+" );
+	if ( rk_logIntraPred[2] == NULL )
+	{
+	    RK_HEVC_PRINT("creat file failed.\n");
+	}
+	rk_logIntraPred[3] = fopen(PATH_NAME("intra_ang_tab.txt"), "w+" );
+	if ( rk_logIntraPred[3] == NULL )
+	{
+	    RK_HEVC_PRINT("creat file failed.\n");
+	}
 #endif
 	rk_bFlag32 = 1;
 	rk_bFlag16 = 1;
@@ -144,7 +153,7 @@ Rk_IntraPred::Rk_IntraPred()
 Rk_IntraPred::~Rk_IntraPred()
 {
 #ifdef X265_LOG_FILE_ROCKCHIP
-	for (int i = 0 ; i < 2 ; i++ )
+	for (int i = 0 ; i < 4 ; i++ )
 	{
 		fclose(rk_logIntraPred[i]);
 	}
@@ -434,11 +443,21 @@ void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample,
         refSide = refLeft; // + (width - 1);
 		
 		// 以above为主，从left中[下标从1开始，跳过左上角的点]选取一些追加到refMain的上面
+		RK_HEVC_FPRINT(rk_logIntraPred[2], "--- %dx%d, Mode = %2d, map left to above[ y --> x] --- \n",width, width, dirMode);
+		RK_HEVC_FPRINT(rk_logIntraPred[3], "--- %dx%d, Mode = %2d, [ y --> x] --- \n",width, width, dirMode);
 		if (intraPredAngle < 0)
         {
             for ( x = -1; x > ext_valid_idx; x--)
             {                
                 refMain[x] = refSide[(abs(invAngle*x) + 128) >> 8];
+				// log expand index				
+				RK_HEVC_FPRINT(rk_logIntraPred[2], "refLeft[ %2d ] map to refMain[ %2d ]\n", (abs(invAngle*x) + 128) >> 8, x);
+				// 硬件中认为 左上角的点二维下标为(-1,-1)
+				// 当前软件，refAbove refLeft都是包含左上角的点，且认为是 0 
+				// RK_HEVC_FPRINT(rk_logIntraPred[2], "[-1, %2d] map to [%2d, -1]\n", ((abs(invAngle*x) + 128) >> 8) - 1, x - 1);
+				// 再次映射 linebuf 下标
+				RK_HEVC_FPRINT(rk_logIntraPred[2], "LineBuf[ %2d ] map to LineBuf[ %2d ]\n", 2*width - ((abs(invAngle*x) + 128) >> 8), x + 2*width);
+
             }			
         }
 
@@ -454,6 +473,16 @@ void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample,
                 deltaPos += intraPredAngle;
                 deltaInt   = deltaPos >> 5;
                 deltaFract = deltaPos & (32 - 1);
+				// Int + 1, Int + 2是实际取数下标
+				// Int + 2*widht 就是 linebuf 的下标, 此时取数变成 (linebufIdx + 1) (linebufIdx + 2)
+				RK_HEVC_FPRINT(rk_logIntraPred[2], "y:[%2d] -> [Int = %2d (refMain) %2d (linebuf),used %2d, %2d,Fract = %2d] \n", y , deltaInt, deltaInt + 2*width,
+				deltaInt + 2*width + 1, deltaInt + 2*width + 2,deltaFract);
+
+				RK_HEVC_FPRINT(rk_logIntraPred[3], "y = %2d , %2d , %2d / %2d , %2d , %2d / %2d \n",
+											y , 32 - deltaFract, deltaInt + 1, deltaInt + 2*width + 1,
+												 	 deltaFract, deltaInt + 2, deltaInt + 2*width + 2);													
+
+
 #ifdef X265_LOG_FILE_ROCKCHIP
 				// 对某一角度的一个y,不同x = y*tan(角度)
 				rk_verdeltaFract[y] = deltaFract;
@@ -487,6 +516,10 @@ void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample,
         	// 注意 refMain中包含左上角的点，所以下标要比 predSample 的下标 + 1
             for (y = 0; y < width; y++)
             {
+ 				RK_HEVC_FPRINT(rk_logIntraPred[3], "y = %2d , %2d , %2d / %2d , %2d , %2d / %2d \n",
+										y , 32 - 0, 1, 1 + 2*width ,
+											 	 0, 2, 1 + 2*width + 1);													
+           
                 for (x = 0; x < width; x++)
                 {
                     predSample[y * stride + x] = refMain[x + 1];
@@ -516,12 +549,21 @@ void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample,
         refSide = refAbove; // + (width - 1);
 		
 		// 以left为主，从above中[下标从1开始，跳过左上角的点]选取一些追加到refMain的上面
+		RK_HEVC_FPRINT(rk_logIntraPred[2], "--- %dx%d, Mode = %0d, map above to left[ x --> y] ---  \n",width, width, dirMode);
+		RK_HEVC_FPRINT(rk_logIntraPred[3], "--- %dx%d, Mode = %0d, [ x --> y] ---  \n",width, width, dirMode);
 		if (intraPredAngle < 0)
         {
             for (y = -1; y > ext_valid_idx; y--)
             {                
                 refMain[y] = refSide[(abs(invAngle*y) + 128) >> 8];
-            }			
+				// log expand index				
+				RK_HEVC_FPRINT(rk_logIntraPred[2], "refAbove[ %2d ] map to refMain[ %2d ]\n", (abs(invAngle*y) + 128) >> 8, y);
+				// 硬件中认为 左上角的点二维下标为(-1,-1)
+				// 当前软件，refAbove refLeft都是包含左上角的点，且认为是 0 
+				//RK_HEVC_FPRINT(rk_logIntraPred[2], "[%2d, -1] map to [-1, %2d]\n\n", ((abs(invAngle*y) + 128) >> 8) - 1, y - 1);
+				// 再次映射 linebuf 下标
+				RK_HEVC_FPRINT(rk_logIntraPred[2], "LineBuf[ %2d ] map to LineBuf[ %2d ]\n", 2*width + ((abs(invAngle*y) + 128) >> 8), abs(y) + 2*width);
+			}			
         }
 
 
@@ -537,6 +579,15 @@ void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample,
                 deltaPos += intraPredAngle;
                 deltaInt   = deltaPos >> 5;
                 deltaFract = deltaPos & (32 - 1);
+				// Int + 1, Int + 2是实际取数下标
+				// Int + 2*widht 就是 linebuf 的下标, 此时取数变成 (linebufIdx - 1) (linebufIdx - 2)
+				RK_HEVC_FPRINT(rk_logIntraPred[2], "x:[%2d] -> [Int = %2d (refMain) %2d (linebuf),used %2d, %2d,Fract = %2d] \n", x , deltaInt, abs(deltaInt) + 2*width,  abs(deltaInt) + 2*width - 2,
+				 abs(deltaInt) + 2*width - 1, deltaFract);
+
+				RK_HEVC_FPRINT(rk_logIntraPred[3], "x = %2d , %2d , %2d / %2d , %2d , %2d / %2d \n",
+											x , 32 - deltaFract, abs(deltaInt) - 2, abs(deltaInt) + 2*width - 2,
+												 	 deltaFract, abs(deltaInt) - 1, abs(deltaInt) + 2*width - 1);													
+				
 #ifdef X265_LOG_FILE_ROCKCHIP
 				// 对某一角度的一个x,不同y = x*ctan(角度)
 				rk_hordeltaFract[x] = deltaFract;
@@ -566,10 +617,16 @@ void Rk_IntraPred::RkIntraPred_angular(uint8_t *predSample,
         }
 		else // (intraPredAngle == 0)
         {
+
+		
         	// 水平方向，直接一个像素点填充一整行
         	// 注意 refMain中包含左上角的点，所以下标要比 predSample 的下标 + 1
             for (x = 0; x < width; x++)
             {
+ 				RK_HEVC_FPRINT(rk_logIntraPred[3], "x = %2d , %2d , %2d / %2d , %2d , %2d / %2d \n",
+										x , 32 - 32, -2, -2 + 2*width ,
+											 	 32, -1, -1 + 2*width );													
+           
                 for (y = 0; y < width; y++)
                 {
                     predSample[y * stride + x] = refMain[y + 1];
