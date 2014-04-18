@@ -28,7 +28,7 @@ struct INTERFACE_INTRA_PROC
     uint8_t  *ReconY;
     uint8_t  *ReconU;
     uint8_t  *ReconV;
-    uint8_t   partSize;
+    uint8_t   partSize;         // 0 is 2Nx2N, 1 is NxN
     uint8_t   predModeIntra[4]; // if partSize == NxN, predMode exist 4 direction.
 };
 

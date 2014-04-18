@@ -60,7 +60,7 @@ struct CTU_CMD
 /* copy from RkIntraPred.h by zxy  */
 
 #if defined(_MSC_VER)
-	#define FILE_PATH "F:/HEVC/log_files/"
+	#define FILE_PATH "F:/SvnResource/x265/build/vc10-x86_64/tempfile/"
 	#define PATH_NAME(name) (FILE_PATH ## name)
 #elif  defined(__GNUC__)
 	#define FILE_PATH "/home2/zxy/log_files/"

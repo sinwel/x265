@@ -103,7 +103,7 @@ void hardwareC::ConfigFiles(FILE *fp)
             current_cfg = CFG_FOR_PREPROCESS;
             continue;
         }
-        OPT(cmdbuff, intra_cfg)) {
+        OPT(cmdbuff, intra_cfg) {
             current_cfg = CFG_FOR_INTRA;
             continue;
         }

@@ -652,13 +652,18 @@ void CU_LEVEL_CALC::intra_proc()
 	inf_intra_proc.totalCost = RdoCostCalc(inf_intra_proc.Distortion, totalBitsDepth, inf_tq.QP);  
 	//=====================================================================================//
 
-
-
+	inf_intra_proc.partSize 		= 0; // 2Nx2N
+	inf_intra_proc.predModeIntra[0] = inf_intra.DirMode;  
+	inf_intra_proc.predModeIntra[1] = 35;  // invalid mode
+	inf_intra_proc.predModeIntra[2] = 35;  // invalid mode
+	inf_intra_proc.predModeIntra[3] = 35;  // invalid mode
+	
 	if(m_size == 8)
     {
 		/*
 		** use 8x8 info to derivate 4x4 info
 		*/
+		uint8_t predModeLocal4x4[4] = {35,35,35,35};
 		choose4x4split = false; // default: not split to 4x4
 	    // TODO TU_SIZE == 4
 	#ifdef RK_INTRA_4x4_PRED
@@ -712,6 +717,8 @@ void CU_LEVEL_CALC::intra_proc()
 									4,
 									x_pos,
 									y_pos);
+
+			predModeLocal4x4[partIdx] = inf_intra4x4.DirMode;
 		#ifdef INTRA_RESULT_STORE_FILE_
 			m_rkIntraPred->Store4x4ReconInfo(g_fp_result_rk, inf_intra4x4, partIdx);
 		#endif
@@ -869,6 +876,14 @@ void CU_LEVEL_CALC::intra_proc()
 			m_rkIntraPred->Convert4x4To8x8(inf_tq_total[0].oriResi, coeff4x4); // Y
 			::memcpy(inf_tq_total[1].oriResi, coeff4x4[4], 64*2>>2); // Cb
 			::memcpy(inf_tq_total[2].oriResi, coeff4x4[5], 64*2>>2); // Cr
+
+			// store partSize
+			inf_intra_proc.partSize = 1; // NxN
+			// store predModeIntra[4]
+			inf_intra_proc.predModeIntra[0] = predModeLocal4x4[0];  
+			inf_intra_proc.predModeIntra[1] = predModeLocal4x4[1];  
+			inf_intra_proc.predModeIntra[2] = predModeLocal4x4[2];  
+			inf_intra_proc.predModeIntra[3] = predModeLocal4x4[3];  		
 		}
 
 	#endif

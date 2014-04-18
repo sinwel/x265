@@ -175,7 +175,10 @@ static const char * const x265_motion_est_names[] = { "dia", "hex", "umh", "star
 
     
 #else
-#define RK_HEVC_FPRINT(fp,fmt, ...) 
+#define RK_HEVC_FPRINT(fp,fmt, ...) \
+    if(0) { \
+        fprintf(fp," " fmt, ## __VA_ARGS__); \
+    } 
 #define RK_HEVC_LOGING(fp,fmt, ...)
 #endif
 

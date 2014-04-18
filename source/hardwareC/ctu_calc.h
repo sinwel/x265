@@ -171,9 +171,9 @@ public:
     MV_INFO  bs_mv[64];
 
     class CU_LEVEL_CALC cu_level_calc[4];
-#ifdef X265_LOG_FILE_ROCKCHIP
+
     FILE*    fp_rk_intra_params;
-#endif
+
 
     /* ctu_status_calc */
     uint32_t sw_pic_total_bits;
