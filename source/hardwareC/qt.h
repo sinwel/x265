@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include "module_interface.h"
 #include <macro.h>
+#include "rk_define.h"
 
 extern int idst_4x4_coeff[4][4];
 extern int idct_4x4_coeff[4][4];
@@ -47,10 +48,6 @@ extern int dct_32x32_coeff_odd[16][16];
 extern int dct_32x32_coeff_even[16][8];
 extern int dct_32x32_coeff[32][32]; // not used actually
 
-#ifndef CLIP
-#define CLIP(a, min, max)			(((a) < min) ? min : (((a) > max) ? max : (a)))
-#endif
-
 // private namespace
 
 //! \ingroup TLibCommon
@@ -59,7 +56,6 @@ extern int dct_32x32_coeff[32][32]; // not used actually
 // ====================================================================================================================
 // Constants
 // ====================================================================================================================
-
 
 
 
@@ -165,15 +161,13 @@ typedef struct
 	int16_t *inResi; // Input Residual, before QT and IQ/IT
 
 	uint8_t size;
-	uint8_t textType;			//0: luma,
+	uint8_t textType;			//0: luma, 1:Chroma
 	uint8_t predMode;
 	uint8_t sliceType;
 
 	int qp;
 	int qpBdOffset;
 	int chromaQPOffset;
-
-
 
 
 	uint32_t cuStride;			// cu stride(store residual)
@@ -219,12 +213,11 @@ public:
 	// main process
 	void creat(); //actually not used
 	void destroy(); //actually not used
-	void proc(); // for X265
+	void proc(int predMode); // for X265, predMode=0, means Intra; preMode=1, means Inter.
 	void proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType); // for intra
 	void proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType); //for inter
 	void procTandQ();
 	void procIQandIT();
-	void clearOutResi(); // inter, when absSum==0, clear outResi to zero
 	void setQPforQ(int qpy, uint8_t ttype, int qpBdOffset, int chromaQPOffset);
 	void fillResi(short* resi, int val, uint32_t resiStride, uint32_t tuSize); // to be debugged
 	void printInputLog(FILE* fp);
@@ -253,7 +246,7 @@ public:
 	void getFromX265();
 
 	// compare results with x265
-	int compareX265andHWC();
+	void compareX265andHWC();
 	// info from x265
 
 	infoFromX265*     m_infoFromX265;

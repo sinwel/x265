@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include "rk_define.h"
 
 #if _WIN32
 #include <sys/types.h>
@@ -238,6 +239,11 @@ void x265_param_default(x265_param *param)
     /* Quality Measurement Metrics */
     param->bEnablePsnr = 0;
     param->bEnableSsim = 1;
+
+#if RK_CHOOSE
+	/* RK Chosen dafault param */
+	param->bEnableSignHiding = 0;
+#endif
 }
 
 extern "C"

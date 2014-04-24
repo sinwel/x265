@@ -151,7 +151,7 @@ void CTU_CALC::begin()
     memcpy(L_intra_buf_y + 65, buf_y, ctu_w);
     memcpy(L_intra_buf_u + 33, buf_u, ctu_w >> 1);
     memcpy(L_intra_buf_v + 33, buf_v, ctu_w >> 1);
-    memcpy(L_cu_type + 9, buf_t, ctu_w >> 8);
+    memcpy(L_cu_type + 9,      buf_t, ctu_w >> 3);
 
     len = ctu_w;
     if(!(pos + ctu_w >= pHardWare->pic_w)) {
@@ -233,11 +233,15 @@ void CTU_CALC::end()
         buf_v[i] = L_intra_buf_v[32 - (ctu_w>>1) + i + 1];
     }
 
-    for(i=0; i<ctu_w>>8; i++){
+    for(i=0; i<ctu_w/8; i++){
         buf_t[i] = L_cu_type[8 - ctu_w/8 + i + 1];// | (inter_cbf[16 - ctu_w/4 + i*2 + 1] << 1) | (inter_cbf[16 - ctu_w/4 + i*2 + 2] << 2);
     }
 
     /* hor to ver */
+	for(i=0; i<(ctu_w/8 + 1); i++){
+		L_cu_type[i] = L_cu_type[8 + i];
+	}
+
     for(i=0; i<ctu_w + 1; i++){
         L_intra_buf_y[i] = L_intra_buf_y[64 + i];
     }
@@ -247,10 +251,6 @@ void CTU_CALC::end()
         L_intra_buf_v[i] = L_intra_buf_v[32 + i];
     }
 
-    for(i=0; i<ctu_w/8 + 1; i++){
-        L_cu_type[i] = L_cu_type[8 + i];
-
-    }
 
 
 	/* inter */

@@ -985,7 +985,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 	m_trQuant->m_hevcQT->m_infoFromX265->lastPos = lastPos;
 
 	assert(m_trQuant->m_hevcQT->m_infoFromX265->size <= 32);
-	m_trQuant->m_hevcQT->proc();
+	m_trQuant->m_hevcQT->proc(0); // QT proc for intra in x265
 #endif
 
 #ifdef X265_INTRA_DEBUG
@@ -1343,7 +1343,7 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 		m_trQuant->m_hevcQT->m_infoFromX265->absSum = absSum;
 		m_trQuant->m_hevcQT->m_infoFromX265->lastPos = lastPos;
 
-		m_trQuant->m_hevcQT->proc();
+		m_trQuant->m_hevcQT->proc(0);// QT proc for intra in x265
 #endif
     }
 
@@ -4803,13 +4803,41 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
         {
             m_entropyCoder->estimateBit(m_trQuant->m_estBitsSbac, trWidth, trHeight, TEXT_LUMA);
         }
+#if TQ_RUN_IN_X265_ME // Y
+		// get input
+		if (cu->getSlice()->getSliceType() == B_SLICE) m_trQuant->m1_hevcQT->m_infoFromX265->sliceType = 0; // B
+		if (cu->getSlice()->getSliceType() == P_SLICE) m_trQuant->m1_hevcQT->m_infoFromX265->sliceType = 1; // P
+		if (cu->getSlice()->getSliceType() == I_SLICE) m_trQuant->m1_hevcQT->m_infoFromX265->sliceType = 2; // I
+		m_trQuant->m1_hevcQT->m_infoFromX265->textType = 0; // Y
+		m_trQuant->m1_hevcQT->m_infoFromX265->qpBdOffset = cu->getSlice()->getSPS()->getQpBDOffsetY();
+		m_trQuant->m1_hevcQT->m_infoFromX265->chromaQPOffset = cu->getSlice()->getSPS()->getQpBDOffsetC();
+		m_trQuant->m1_hevcQT->m_infoFromX265->size = (uint8_t)trWidth;
+		m_trQuant->m1_hevcQT->m_infoFromX265->qp = cu->getQP(0);
+		m_trQuant->m1_hevcQT->m_infoFromX265->transformSkip = false;
 
+		// copy input residual, TU size in effect
+		for (uint32_t k = 0; k < trWidth; k++)
+		{
+			memcpy(&(m_trQuant->m1_hevcQT->m_infoFromX265->inResi[k*CTU_SIZE]),
+				   &(resiYuv->getLumaAddr(absTUPartIdx)[k*resiYuv->m_width]), trWidth*sizeof(int16_t));
+		}
+		if (cu->getPredictionMode(absPartIdx) == MODE_INTER)	 m_trQuant->m1_hevcQT->m_infoFromX265->predMode = 1;
+		if (cu->getPredictionMode(absPartIdx) == MODE_INTRA)	 m_trQuant->m1_hevcQT->m_infoFromX265->predMode = 0;
+
+
+		m_trQuant->m1_hevcQT->m_infoFromX265->ctuWidth = cu->getWidth(0);
+#endif
         m_trQuant->setQPforQuant(cu->getQP(0), TEXT_LUMA, cu->getSlice()->getSPS()->getQpBDOffsetY(), 0);
         m_trQuant->selectLambda(TEXT_LUMA);
 
         absSumY = m_trQuant->transformNxN(cu, resiYuv->getLumaAddr(absTUPartIdx), resiYuv->m_width, coeffCurY,
                                           trWidth, trHeight, TEXT_LUMA, absPartIdx, &lastPosY, false, curuseRDOQ);
-
+#if TQ_RUN_IN_X265_ME //Y
+		// get output
+		memcpy(m_trQuant->m1_hevcQT->m_infoFromX265->coeffTQ, coeffCurY, trWidth*trHeight*sizeof(int32_t));
+		m_trQuant->m1_hevcQT->m_infoFromX265->absSum = absSumY;
+		m_trQuant->m1_hevcQT->m_infoFromX265->lastPos = lastPosY;
+#endif
         cu->setCbfSubParts(absSumY ? setCbf : 0, TEXT_LUMA, absPartIdx, depth);
 
         if (bCodeChroma)
@@ -4820,18 +4848,76 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
             }
 
             int curChromaQpOffset = cu->getSlice()->getPPS()->getChromaCbQpOffset() + cu->getSlice()->getSliceQpDeltaCb();
-            m_trQuant->setQPforQuant(cu->getQP(0), TEXT_CHROMA, cu->getSlice()->getSPS()->getQpBDOffsetC(), curChromaQpOffset);
+#if TQ_RUN_IN_X265_ME // Cb
+			// get input
+			if (cu->getSlice()->getSliceType() == B_SLICE) m_trQuant->m2_hevcQT->m_infoFromX265->sliceType = 0; // B
+			if (cu->getSlice()->getSliceType() == P_SLICE) m_trQuant->m2_hevcQT->m_infoFromX265->sliceType = 1; // P
+			if (cu->getSlice()->getSliceType() == I_SLICE) m_trQuant->m2_hevcQT->m_infoFromX265->sliceType = 2; // I
+			m_trQuant->m2_hevcQT->m_infoFromX265->textType = 1; // Chroma
+			m_trQuant->m2_hevcQT->m_infoFromX265->qpBdOffset = cu->getSlice()->getSPS()->getQpBDOffsetY();
+			m_trQuant->m2_hevcQT->m_infoFromX265->chromaQPOffset = cu->getSlice()->getSPS()->getQpBDOffsetC();
+			m_trQuant->m2_hevcQT->m_infoFromX265->size = (uint8_t)trWidthC;
+			m_trQuant->m2_hevcQT->m_infoFromX265->qp = cu->getQP(0);
+			m_trQuant->m2_hevcQT->m_infoFromX265->transformSkip = false;
+
+			// copy input residual, TU size in effect
+			for (uint32_t k = 0; k < trWidthC; k++)
+			{
+				memcpy(&(m_trQuant->m2_hevcQT->m_infoFromX265->inResi[k*CTU_SIZE]),
+					   &(resiYuv->getCbAddr(absTUPartIdxC)[k*resiYuv->m_cwidth]), trWidthC*sizeof(int16_t));
+			}
+			if (cu->getPredictionMode(absPartIdx) == MODE_INTER)	 m_trQuant->m2_hevcQT->m_infoFromX265->predMode = 1;
+			if (cu->getPredictionMode(absPartIdx) == MODE_INTRA)	 m_trQuant->m2_hevcQT->m_infoFromX265->predMode = 0;
+
+
+			m_trQuant->m2_hevcQT->m_infoFromX265->ctuWidth = cu->getWidth(0);
+#endif
+			m_trQuant->setQPforQuant(cu->getQP(0), TEXT_CHROMA, cu->getSlice()->getSPS()->getQpBDOffsetC(), curChromaQpOffset);
 
             m_trQuant->selectLambda(TEXT_CHROMA);
 
             absSumU = m_trQuant->transformNxN(cu, resiYuv->getCbAddr(absTUPartIdxC), resiYuv->m_cwidth, coeffCurU,
                                               trWidthC, trHeightC, TEXT_CHROMA_U, absPartIdx, &lastPosU, false, curuseRDOQ);
-
+#if TQ_RUN_IN_X265_ME // Cb
+			// get output
+			memcpy(m_trQuant->m2_hevcQT->m_infoFromX265->coeffTQ, coeffCurU, trWidthC*trHeightC*sizeof(int32_t));
+			m_trQuant->m2_hevcQT->m_infoFromX265->absSum = absSumU;
+			m_trQuant->m2_hevcQT->m_infoFromX265->lastPos = lastPosU;
+#endif
             curChromaQpOffset = cu->getSlice()->getPPS()->getChromaCrQpOffset() + cu->getSlice()->getSliceQpDeltaCr();
-            m_trQuant->setQPforQuant(cu->getQP(0), TEXT_CHROMA, cu->getSlice()->getSPS()->getQpBDOffsetC(), curChromaQpOffset);
+#if TQ_RUN_IN_X265_ME // Cr
+			// get input
+			if (cu->getSlice()->getSliceType() == B_SLICE) m_trQuant->m3_hevcQT->m_infoFromX265->sliceType = 0; // B
+			if (cu->getSlice()->getSliceType() == P_SLICE) m_trQuant->m3_hevcQT->m_infoFromX265->sliceType = 1; // P
+			if (cu->getSlice()->getSliceType() == I_SLICE) m_trQuant->m3_hevcQT->m_infoFromX265->sliceType = 2; // I
+			m_trQuant->m3_hevcQT->m_infoFromX265->textType = 1; // Chroma
+			m_trQuant->m3_hevcQT->m_infoFromX265->qpBdOffset = cu->getSlice()->getSPS()->getQpBDOffsetY();
+			m_trQuant->m3_hevcQT->m_infoFromX265->chromaQPOffset = cu->getSlice()->getSPS()->getQpBDOffsetC();
+			m_trQuant->m3_hevcQT->m_infoFromX265->size = (uint8_t)trWidthC;
+			m_trQuant->m3_hevcQT->m_infoFromX265->qp = cu->getQP(0);
+			m_trQuant->m3_hevcQT->m_infoFromX265->transformSkip = false;
+
+			// copy input residual, TU size in effect
+			for (uint32_t k = 0; k < trWidthC; k++)
+			{
+				memcpy(&(m_trQuant->m3_hevcQT->m_infoFromX265->inResi[k*CTU_SIZE]),
+					   &(resiYuv->getCrAddr(absTUPartIdxC)[k*resiYuv->m_cwidth]), trWidthC*sizeof(int16_t));
+			}
+			if (cu->getPredictionMode(absPartIdx) == MODE_INTER)	 m_trQuant->m3_hevcQT->m_infoFromX265->predMode = 1;
+			if (cu->getPredictionMode(absPartIdx) == MODE_INTRA)	 m_trQuant->m3_hevcQT->m_infoFromX265->predMode = 0;
+
+
+			m_trQuant->m3_hevcQT->m_infoFromX265->ctuWidth = cu->getWidth(0);
+#endif
+			m_trQuant->setQPforQuant(cu->getQP(0), TEXT_CHROMA, cu->getSlice()->getSPS()->getQpBDOffsetC(), curChromaQpOffset);
             absSumV = m_trQuant->transformNxN(cu, resiYuv->getCrAddr(absTUPartIdxC), resiYuv->m_cwidth, coeffCurV,
                                               trWidthC, trHeightC, TEXT_CHROMA_V, absPartIdx, &lastPosV, false, curuseRDOQ);
-
+#if TQ_RUN_IN_X265_ME // Cr
+			// get output
+			memcpy(m_trQuant->m3_hevcQT->m_infoFromX265->coeffTQ, coeffCurV, trWidthC*trHeightC*sizeof(int32_t));
+			m_trQuant->m3_hevcQT->m_infoFromX265->absSum = absSumV;
+			m_trQuant->m3_hevcQT->m_infoFromX265->lastPos = lastPosV;
+#endif
             cu->setCbfSubParts(absSumU ? setCbf : 0, TEXT_CHROMA_U, absPartIdx, cu->getDepth(0) + trModeC);
             cu->setCbfSubParts(absSumV ? setCbf : 0, TEXT_CHROMA_V, absPartIdx, cu->getDepth(0) + trModeC);
         }
@@ -4877,6 +4963,14 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
             assert(m_qtTempTComYuv[qtlayer].m_width == MAX_CU_SIZE);
             m_trQuant->invtransformNxN(cu->getCUTransquantBypass(absPartIdx), REG_DCT, curResiY, MAX_CU_SIZE,  coeffCurY, trWidth, trHeight, scalingListType, false, lastPosY); //this is for inter mode only
 
+#if TQ_RUN_IN_X265_ME // Y
+			// get output
+			// copy output residual, TU size in effect
+			for (uint32_t k = 0; k < trHeight; k++)
+			{
+				memcpy(&(m_trQuant->m1_hevcQT->m_infoFromX265->outResi[k*CTU_SIZE]), &(curResiY[k*MAX_CU_SIZE]), trWidth*sizeof(int16_t));
+			}
+#endif
             const uint32_t nonZeroDistY = primitives.sse_ss[partSize](resiYuv->getLumaAddr(absTUPartIdx), resiYuv->m_width, m_qtTempTComYuv[qtlayer].getLumaAddr(absTUPartIdx), MAX_CU_SIZE);
             if (cu->isLosslessCoded(0))
             {
@@ -4916,6 +5010,17 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
             minCostY = m_rdCost->calcRdCost(distY, nullBitsY);
         }
 
+#if TQ_RUN_IN_X265_ME // Y
+		// get output
+		// if original absSumY==0, clearResi for comparing
+		int16_t *tmpResi1 = m_trQuant->m1_hevcQT->m_infoFromX265->outResi;
+		if(m_trQuant->m1_hevcQT->m_infoFromX265->absSum==0)
+		{
+			m_trQuant->m1_hevcQT->fillResi(tmpResi1, 0, CTU_SIZE, trWidth);
+		}
+
+		m_trQuant->m1_hevcQT->proc(1); // QT proc for inter in x265
+#endif
         if (!absSumY)
         {
             int16_t *ptr =  m_qtTempTComYuv[qtlayer].getLumaAddr(absTUPartIdx);
@@ -4948,6 +5053,16 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 assert(scalingListType < 6);
                 assert(m_qtTempTComYuv[qtlayer].m_cwidth == MAX_CU_SIZE / 2);
                 m_trQuant->invtransformNxN(cu->getCUTransquantBypass(absPartIdx), REG_DCT, pcResiCurrU, MAX_CU_SIZE / 2, coeffCurU, trWidthC, trHeightC, scalingListType, false, lastPosU);
+
+#if TQ_RUN_IN_X265_ME // Cb
+				// get output
+				// copy output residual, TU size in effect
+				int16_t *P = m_qtTempTComYuv[qtlayer].getCbAddr(absTUPartIdxC);
+				for (uint32_t k = 0; k < trHeightC; k++)
+				{
+					memcpy(&(m_trQuant->m2_hevcQT->m_infoFromX265->outResi[k*CTU_SIZE]), &(P[k*MAX_CU_SIZE / 2]), trWidthC*sizeof(int16_t));
+				}
+#endif
 
                 uint32_t dist = primitives.sse_ss[partSizeC](resiYuv->getCbAddr(absTUPartIdxC), resiYuv->m_cwidth,
                                                              m_qtTempTComYuv[qtlayer].getCbAddr(absTUPartIdxC),
@@ -5000,6 +5115,17 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 primitives.blockfill_s[(int)g_convertToBit[trWidthC]](ptr, MAX_CU_SIZE / 2, 0);
             }
 
+#if TQ_RUN_IN_X265_ME //Cb
+			// get output
+			// if original absSumU==0, clearResi for comparing
+			int16_t *tmpResi2 = m_trQuant->m2_hevcQT->m_infoFromX265->outResi;
+			if(m_trQuant->m2_hevcQT->m_infoFromX265->absSum==0)
+			{
+				m_trQuant->m2_hevcQT->fillResi(tmpResi2, 0, CTU_SIZE, trWidthC);
+			}
+
+			m_trQuant->m2_hevcQT->proc(1); // QT proc for inter in x265
+#endif
             distV = m_rdCost->scaleChromaDistCr(primitives.sse_sp[partSizeC](resiYuv->getCrAddr(absTUPartIdxC), resiYuv->m_cwidth, m_tempPel, trWidthC));
             if (outZeroDist)
             {
@@ -5016,6 +5142,14 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 assert(m_qtTempTComYuv[qtlayer].m_cwidth == MAX_CU_SIZE / 2);
                 m_trQuant->invtransformNxN(cu->getCUTransquantBypass(absPartIdx), REG_DCT, curResiV, MAX_CU_SIZE / 2, coeffCurV, trWidthC, trHeightC, scalingListType, false, lastPosV);
 
+#if TQ_RUN_IN_X265_ME // Cr
+				// get output
+				// copy output residual, TU size in effect
+				for (uint32_t k = 0; k < trHeightC; k++)
+				{
+					memcpy(&(m_trQuant->m3_hevcQT->m_infoFromX265->outResi[k*CTU_SIZE]), &(curResiV[k*MAX_CU_SIZE/2]), trWidthC*sizeof(int16_t));
+				}
+#endif
                 uint32_t dist = primitives.sse_ss[partSizeC](resiYuv->getCrAddr(absTUPartIdxC), resiYuv->m_cwidth,
                                                              m_qtTempTComYuv[qtlayer].getCrAddr(absTUPartIdxC),
                                                              MAX_CU_SIZE / 2);
@@ -5066,6 +5200,18 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 assert(trWidthC == trHeightC);
                 primitives.blockfill_s[(int)g_convertToBit[trWidthC]](ptr, MAX_CU_SIZE / 2, 0);
             }
+
+#if TQ_RUN_IN_X265_ME //Cr
+		// get output
+		// if original absSumV==0, clearResi for comparing
+		int16_t *tmpResi3 = m_trQuant->m3_hevcQT->m_infoFromX265->outResi;
+		if(m_trQuant->m3_hevcQT->m_infoFromX265->absSum==0)
+		{
+			m_trQuant->m3_hevcQT->fillResi(tmpResi3, 0, CTU_SIZE, trWidthC);
+		}
+
+		m_trQuant->m3_hevcQT->proc(1); // QT proc for inter in x265
+#endif
         }
         cu->setCbfSubParts(absSumY ? setCbf : 0, TEXT_LUMA, absPartIdx, depth);
         if (bCodeChroma)

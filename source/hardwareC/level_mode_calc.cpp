@@ -8,9 +8,6 @@ extern uint32_t g_rk_raster2zscan_depth_4[256];
 extern FILE* g_fp_result_rk;
 #endif
 
-#ifndef CLIP
-#define CLIP(a, min, max)			(((a) < min) ? min : (((a) > max) ? max : (a)))
-#endif
 
 CU_LEVEL_CALC::CU_LEVEL_CALC()
 {
@@ -24,7 +21,7 @@ void CU_LEVEL_CALC::init(uint8_t size)
 {
     m_size = size;
     cu_w = size;
-#ifdef TQ_RUN_IN_HWC_INTRA
+#if TQ_RUN_IN_HWC_INTRA
 	m_hevcQT = new hevcQT;
 #endif
 
@@ -114,7 +111,7 @@ void CU_LEVEL_CALC::deinit()
 	X265_FREE(inf_intra4x4.pred);
 	X265_FREE(inf_intra4x4.resi);
 #endif
-#ifdef TQ_RUN_IN_HWC_INTRA
+#if TQ_RUN_IN_HWC_INTRA
 	delete m_hevcQT;
 #endif
 
@@ -207,7 +204,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         bottom_left_valid = 0;
         for (m=0; m<bottom_left_len/8; m++) {
             if(constrain_intra) {
-                inf_intra.NeighborFlags[8 - (cu_w/8) - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m + cu_w/8) + 8];
+                inf_intra.NeighborFlags[8 - (cu_w/8) - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m) + 8];
                 bottom_left_valid += inf_intra.NeighborFlags[8 - cu_w/8 - m - 1];
             }
             else {
@@ -286,7 +283,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         top_right_valid = 0;
         for(m=0; m<top_right_len/8; m++) {
             if(constrain_intra) {
-                inf_intra.NeighborFlags[9 + m + cu_w/8] = pHardWare->ctu_calc.L_cu_type[((x_pos + cu_w)/8 + m + 1) - (y_pos/8) + 8];
+                inf_intra.NeighborFlags[9 + m + cu_w/8] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 + m + 1) - (y_pos/8) + 8];
                 top_right_valid += inf_intra.NeighborFlags[8 + m + 1 + cu_w/8];
             }
             else {

@@ -1,27 +1,16 @@
 #ifndef __RK_DEFINE_H__
 #define __RK_DEFINE_H__
 
-#define RK_CTU_CALC_PROC_ENABLE 1
-#define RK_OUTPUT_FILE 0
 
-/* TQ module macros begin */
-#define TQ_LOG_IN_X265_INTRA	0
-#define TQ_LOG_IN_HWC_INTRA		0
-#define TQ_LOG_IN_X265_ME		0
-#define TQ_LOG_IN_HWC_ME		0
-/* TQ module macros end */
-
-/* SAO module macros begin */
-#define SAO_LOG_IN_X265         0
-#define SAO_LOG_IN_HWC          0
-/* SAO module macros end */
+/* macros definitions */
+#define CLIP(a, min, max)			(((a) < min) ? min : (((a) > max) ? max : (a)))
 
 #define     FPRINT(fp, ...)  { if (fp) { fprintf(fp, ## __VA_ARGS__); fflush(fp);} }
 #define     FWRITE(fp, ...)  { if (fp) { fwrite (fp, ## __VA_ARGS__); fflush(fp);} }
 
 #define OPT(name0, name1) else if (!strncmp(name0, name1, sizeof(name1) - 1))
 
-
+/* data definitions */
 struct RK_MV
 {
     uint32_t mv_x        : 10; //8.2
@@ -74,6 +63,11 @@ struct CTU_CMD
 #define SIZE_32x32              32
 #define SIZE_64x64              64
 
+#define REG						int
+#define REG32					int
+#define REG16					short
+#define REG8					unsigned char
+
 #if 1
 // all case
 #define MATCH_CASE(size,partition) ( size != SIZE_64x64)
@@ -89,6 +83,7 @@ struct CTU_CMD
 
 #define RK_DEPTH                8
 
+#define RK_CHOOSE               1   // enable flag for default cfg modificaiton(e.g. RDOQ, signhide), added by lks
 
 #define RK_ClipY(x)			(((x) < 0) ? 0 : (((x) > ((1 << RK_DEPTH) - 1)) ? ((1 << RK_DEPTH) - 1) : (x)))
 #define RK_ClipC(x)			(((x) < 0) ? 0 : (((x) > ((1 << RK_DEPTH) - 1)) ? ((1 << RK_DEPTH) - 1) : (x)))

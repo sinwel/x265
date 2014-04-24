@@ -1936,12 +1936,12 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 
 		// do normal intra modes
 		// speedup for inter frames
-		/*
+		#if 0
 		if (outBestCU->getSlice()->getSliceType() == I_SLICE ||
 			outBestCU->getCbf(0, TEXT_LUMA) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_U) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_V) != 0) // avoid very complex intra if it is unlikely
-		*/ 
+		#endif
 		// always do intra forever
 		{
 			xCheckRDCostIntraInInter(outBestCU, outTempCU, SIZE_2Nx2N);

@@ -40,7 +40,7 @@
 #include <cstdlib>
 #include <stdio.h>
 #include <math.h>
-#include "rk_define.h"
+#include "macro.h"
 
 using namespace x265;
 

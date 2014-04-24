@@ -43,7 +43,7 @@ class CU_LEVEL_CALC
 public:
     Rk_IntraPred*    m_rkIntraPred;
 #endif
-#ifdef TQ_RUN_IN_HWC_INTRA
+#if TQ_RUN_IN_HWC_INTRA
 public:
 	hevcQT*			 m_hevcQT;
 #endif

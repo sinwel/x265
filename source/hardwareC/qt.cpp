@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <math.h>
 #include <memory.h>
-#include "rk_define.h"
+
 
 extern FILE* g_fp_TQ_LOG_HWC_INTRA;
 extern FILE* g_fp_TQ_LOG_HWC_ME;
@@ -1163,6 +1163,43 @@ void hevcQT::dct(int* coeffT, short* inResi, uint32_t tuWidth, bool isIntra, uin
 	}
 }
 
+/** Set qP for Quantization.
+* \param qpy QPy
+* \param bLowpass
+* \param sliceType
+* \param ttype
+* \param qpBdOffset
+* \param chromaQPOffset
+*
+* return void
+*/
+void hevcQT::setQPforQ(int baseQp, uint8_t ttype, int qpBdOffset, int chromaQPOffset)
+{
+	int qpScaled;
+
+	if (ttype == 0) // LUMA
+	{
+		qpScaled = baseQp + qpBdOffset;
+	}
+	else //Chroma
+	{
+		//qpScaled = Clip3(-qpBdOffset, 57, baseQp + chromaQPOffset);
+		qpScaled = CLIP(baseQp + chromaQPOffset, -qpBdOffset, 57);
+
+		if (qpScaled < 0)
+		{
+			qpScaled = qpScaled + qpBdOffset;
+		}
+		else
+		{
+			qpScaled = ChromaScale[qpScaled] + qpBdOffset;
+		}
+	}
+	m_infoForQT->qpPer = qpScaled / 6;
+	m_infoForQT->qpscaled = qpScaled;
+	m_infoForQT->qpRem = qpScaled % 6;
+	m_infoForQT->qpBits = RK_QP_BITS + m_infoForQT->qpPer;
+}
 uint32_t hevcQT::quant(int* out, int* in, int quantScale, int qBits, int add, int numCoeff, int32_t* lastPos)
 {
 
@@ -1220,39 +1257,30 @@ void hevcQT::getFromX265()
 	// debug use
 	m_infoForQT->ctuWidth = m_infoFromX265->ctuWidth;
 }
-// compare HEVC Inter results with x265
-int hevcQT::compareX265andHWC()
+// compare HEVC results with x265
+void hevcQT::compareX265andHWC()
 {
 	/*compare info first, and then output.
 	*tips: when assert happens, locate it,
 	*comment the assertion, and set the conditional breakpoint next line
 	*e.g. conditon: flagInfo==1
 	*/
-
 	uint32_t size = m_infoForQT->size;
-	int flagInfo = 0;
-	int flagOutparam = 0;
-	int flagResult = 0; // final result flag	 
-
 	// compare debug info
-	flagInfo += (m_infoFromX265->lastPos != m_infoForQT->lastPos); assert(!flagInfo);
-	// 	flagInfo += (m_infoFromX265->qpscaled != m_infoForQT->qpscaled); assert(!flagInfo);
-	// 	flagInfo += (m_infoFromX265->qpPer != m_infoForQT->qpPer); assert(!flagInfo);
-	// 	flagInfo += (m_infoFromX265->qpRem != m_infoForQT->qpRem); assert(!flagInfo);
-	// 	flagInfo += (m_infoFromX265->qpBits != m_infoForQT->qpBits); assert(!flagInfo);
-	// 	flagInfo += (m_infoFromX265->dequantScale != m_infoForQT->dequantScale); assert(!flagInfo);
+	//assert(m_infoFromX265->qpscaled == m_infoForQT->qpscaled);
+	//assert(m_infoFromX265->qpPer == m_infoForQT->qpPer); 
+	//assert(m_infoFromX265->qpRem == m_infoForQT->qpRem);
+	//assert(m_infoFromX265->qpBits == m_infoForQT->qpBits);
+	//assert(m_infoFromX265->dequantScale == m_infoForQT->dequantScale);
+	//assert(!memcmp(m_infoFromX265->quantCoef, m_infoForQT->quantCoef, tuWidth*tuHeight*sizeof(int32_t))); 
+	//assert(!memcmp(m_infoFromX265->coeffT, m_infoForQT->coeffT, size*size*sizeof(int32_t))); 
+	//assert(!memcmp(m_infoFromX265->coeffTQIQ, m_infoForQT->coeffTQIQ, size*size*sizeof(int32_t)));
 
-	//flagInfo += abs(memcmp(m_infoFromX265->quantCoef, m_infoForQT->quantCoef, tuWidth*tuHeight*sizeof(int32_t))); assert(!flagInfo);
-	//flagInfo += abs(memcmp(m_infoFromX265->coeffT, m_infoForQT->coeffT, size*size*sizeof(int32_t))); assert(!flagInfo);
-	flagInfo += abs(memcmp(m_infoFromX265->coeffTQ, m_infoForQT->coeffTQ, size*size*sizeof(int32_t))); assert(!flagInfo);
-	//flagInfo += abs(memcmp(m_infoFromX265->coeffTQIQ, m_infoForQT->coeffTQIQ, size*size*sizeof(int32_t))); assert(!flagInfo);
-
-	// compare outParamToIntra
-	flagOutparam += (m_infoFromX265->absSum != m_infoForQT->absSum); assert(!flagOutparam);
-	flagOutparam += abs(memcmp(m_infoFromX265->outResi, m_infoForQT->outResi, CTU_SIZE*CTU_SIZE*sizeof(int16_t))); assert(!flagOutparam);
-
-	flagResult = flagInfo + flagOutparam;
-	return flagResult;
+	// compare output
+	assert(m_infoFromX265->absSum == m_infoForQT->absSum);
+	assert(m_infoFromX265->lastPos == m_infoForQT->lastPos);
+	assert(!memcmp(m_infoFromX265->coeffTQ, m_infoForQT->coeffTQ, size*size*sizeof(int32_t)));	
+	assert(!memcmp(m_infoFromX265->outResi, m_infoForQT->outResi, CTU_SIZE*CTU_SIZE*sizeof(int16_t)));
 }
 
 
@@ -1435,53 +1463,7 @@ void hevcQT::printOutputLog(FILE* fp)
 	}
 	fprintf(fp, "---------------- TU end ----------------\n\n\n");
 }
-/** Set qP for Quantization.
-* \param qpy QPy
-* \param bLowpass
-* \param sliceType
-* \param ttype
-* \param qpBdOffset
-* \param chromaQPOffset
-*
-* return void
-*/
-void hevcQT::setQPforQ(int baseQp, uint8_t ttype, int qpBdOffset, int chromaQPOffset)
-{
-	int qpScaled;
 
-	if (ttype == 0) // LUMA
-	{
-		qpScaled = baseQp + qpBdOffset;
-	}
-	else //Chroma
-	{
-		//qpScaled = Clip3(-qpBdOffset, 57, baseQp + chromaQPOffset);
-		qpScaled = CLIP(baseQp + chromaQPOffset, -qpBdOffset, 57);
-
-		if (qpScaled < 0)
-		{
-			qpScaled = qpScaled + qpBdOffset;
-		}
-		else
-		{
-			qpScaled = ChromaScale[qpScaled] + qpBdOffset;
-		}
-	}
-	m_infoForQT->qpPer = qpScaled / 6;
-	m_infoForQT->qpscaled = qpScaled;
-	m_infoForQT->qpRem = qpScaled % 6;
-	m_infoForQT->qpBits = RK_QP_BITS + m_infoForQT->qpPer;
-}
-
-
-void hevcQT::clearOutResi()
-{
-	uint32_t size = m_infoFromX265->size;
-	int16_t* outResi = m_infoForQT->outResi;
-	// debug used, so comment next line
-	//memset(coeffTQ, 0, sizeof(TCoeff)* tuWidth * tuHeight); //clear coeffs after T and Q
-	fillResi(outResi, 0, CTU_SIZE, size);
-}
 
 void hevcQT::procTandQ()
 {
@@ -1587,17 +1569,20 @@ void hevcQT::procIQandIT()
 }
 
 // for X265
-void hevcQT::proc()
+void hevcQT::proc(int predMode)
 {
 	// get from x265
 	getFromX265();
 
 	// print input
+	
 #if TQ_LOG_IN_X265_INTRA
-	printInputLog(m_fp_TQ_LOG_X265_INTRA);
+	if(predMode==0) // Intra
+		printInputLog(m_fp_TQ_LOG_X265_INTRA);
 #endif
 #if TQ_LOG_IN_X265_ME
-	printInputLog(m_fp_TQ_LOG_X265_ME);
+	if(predMode==1) // Inter
+		printInputLog(m_fp_TQ_LOG_X265_ME);
 #endif
 	// T and Q
 	procTandQ();
@@ -1614,7 +1599,7 @@ void hevcQT::proc()
 #endif
 
 	// compare results
-	assert(!compareX265andHWC());
+	compareX265andHWC();
 }
 
 // for Intra
