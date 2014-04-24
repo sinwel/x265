@@ -2935,7 +2935,8 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 					bool* bNeighbour = rk_Interface_Intra.bNeighborFlags;
 					uint32_t x_pos = cu->m_cuPelX % 64;          ///< CU position in a pixel (X)
 					uint32_t y_pos = cu->m_cuPelY % 64;          ///< CU position in a pixel (Y)
-			        RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[x_pos = %d] [y_pos = %d]\n", x_pos, y_pos);
+			        RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[cu_x = %d] [cu_y = %d]\n", cu->m_cuPelX&(~63), cu->m_cuPelY&(~63));
+					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[x_pos = %d] [y_pos = %d]\n", x_pos, y_pos);
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[num = %d]\n",rk_Interface_Intra.numintraNeighbor);
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[size = %d]\n",cu->getWidth(0) >> initTrDepth);
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[initTrDepth = %d]\n",initTrDepth);

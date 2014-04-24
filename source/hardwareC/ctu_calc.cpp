@@ -234,7 +234,7 @@ void CTU_CALC::end()
     }
 
     for(i=0; i<ctu_w>>8; i++){
-        buf_t[i] = L_cu_type[8 - ctu_w/8 + i + 1] | (inter_cbf[16 - ctu_w/4 + i*2 + 1] << 1) | (inter_cbf[16 - ctu_w/4 + i*2 + 2] << 2);
+        buf_t[i] = L_cu_type[8 - ctu_w/8 + i + 1];// | (inter_cbf[16 - ctu_w/4 + i*2 + 1] << 1) | (inter_cbf[16 - ctu_w/4 + i*2 + 2] << 2);
     }
 
     /* hor to ver */
@@ -247,7 +247,7 @@ void CTU_CALC::end()
         L_intra_buf_v[i] = L_intra_buf_v[32 + i];
     }
 
-    for(i=0; i<ctu_w>>8; i++){
+    for(i=0; i<ctu_w/8 + 1; i++){
         L_cu_type[i] = L_cu_type[8 + i];
 
     }
@@ -783,6 +783,7 @@ void CTU_CALC::LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_
 		// + offset Ö¸Ïò×óÏÂ½Ç
 		bool bFlagCorner = (*inf_intra_proc.bNeighborFlags == 1) ? 1 : 0;
 		uint8_t* bNeighbour = inf_intra_proc.bNeighborFlags - (inf_intra_proc.size/4);
+        RK_HEVC_FPRINT(fp_rk_intra_params,"[cu_x = %d] [cu_y = %d]\n", ctu_x*ctu_w, ctu_y*ctu_w);
         RK_HEVC_FPRINT(fp_rk_intra_params,"[x_pos = %d] [y_pos = %d]\n", x_pos, y_pos);
 		RK_HEVC_FPRINT(fp_rk_intra_params,"[num = %d]\n", (bFlagCorner == 1 ) ?
 			inf_intra_proc.numIntraNeighbor * 2 - 1 : inf_intra_proc.numIntraNeighbor * 2);
@@ -842,8 +843,8 @@ void CTU_CALC::proc()
     unsigned int cu_x_3 = 0, cu_y_3 = 0;
 
     //IME 0:B 1:P 2:I
-	if (slice_type != 2)  // B or P
-		Ime();
+	//if (slice_type != 2)  // B or P
+	//	Ime();
 
     /*begin*/
     begin();
@@ -851,7 +852,7 @@ void CTU_CALC::proc()
 	if (pHardWare->ctu_y == 16 && pHardWare->ctu_x == 1)
 		pHardWare->ctu_y = pHardWare->ctu_y;
 
-#ifndef	CTU_CALC_STATUS_ENABLE
+#if 1 //ndef	CTU_CALC_STATUS_ENABLE
 	//==============================================================
     cu_level_calc[0].depth = 0;
     cu_level_calc[0].TotalCost = 0;
@@ -876,7 +877,7 @@ void CTU_CALC::proc()
 #endif
 #if TQ_RUN_IN_HWC_INTRA
 			//compare coeff(after T and Q), and Recon (Y, U, V)
-			compareCoeffandRecon(cu_level_calc, 1);
+			//compareCoeffandRecon(cu_level_calc, 1);
 #endif
         }
 
@@ -903,7 +904,7 @@ void CTU_CALC::proc()
 			#endif
 #if TQ_RUN_IN_HWC_INTRA
 			//compare coeff(after T and Q), and Recon (Y, U, V)
-			compareCoeffandRecon(cu_level_calc, 2);
+			//compareCoeffandRecon(cu_level_calc, 2);
 #endif
             }
 
@@ -929,7 +930,7 @@ void CTU_CALC::proc()
 				#endif
 #if 1 //wait for 4x4 intra to be done, added by lks
 				//compare coeff(after T and Q), and Recon (Y, U, V)
-				compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
+				//compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
 #endif
                 }
 

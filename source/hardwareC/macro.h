@@ -8,8 +8,8 @@
 /* add by zxy for intra */
 #define RK_INTRA_PRED
 #define X265_INTRA_DEBUG
-//#define LOG_INTRA_PARAMS_2_FILE
-//#define INTRA_RESULT_STORE_FILE
+#define LOG_INTRA_PARAMS_2_FILE
+#define INTRA_RESULT_STORE_FILE
 #define RK_CABAC
 #define INTRA_4x4_DEBUG
 #define RK_INTRA_4x4_PRED

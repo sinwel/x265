@@ -2621,7 +2621,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4]/4;	
 
 			splitTo4x4By8x8(&g_previous_8x8_intra, &inf_intra4x4, &g_4x4_total_reconEdge[zscan_idx][0][0], partOffset);
-		#ifdef INTRA_RESULT_STORE_FILE_
+		#ifdef INTRA_RESULT_STORE_FILE
 			Store4x4ReconInfo(g_fp_result_x265, inf_intra4x4, partOffset );
 		#endif
 		#if 0

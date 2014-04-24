@@ -208,7 +208,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         for (m=0; m<bottom_left_len/8; m++) {
             if(constrain_intra) {
                 inf_intra.NeighborFlags[8 - (cu_w/8) - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m + cu_w/8) + 8];
-                bottom_left_valid += inf_intra.NeighborFlags[cu_w/8 - m - 1];
+                bottom_left_valid += inf_intra.NeighborFlags[8 - cu_w/8 - m - 1];
             }
             else {
                 inf_intra.NeighborFlags[8 - (cu_w/8) - m - 1] = 1;
@@ -227,7 +227,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         if(constrain_intra) {
             for (m=0; m<cu_w/8; m++) {
                 inf_intra.NeighborFlags[8 - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m) + 8];
-                left_valid += inf_intra.NeighborFlags[2*cu_w/8 - m - 1];
+                left_valid += inf_intra.NeighborFlags[8 - m - 1];
             }
         }
         else {
@@ -719,7 +719,7 @@ void CU_LEVEL_CALC::intra_proc()
 									y_pos);
 
 			predModeLocal4x4[partIdx] = inf_intra4x4.DirMode;
-		#ifdef INTRA_RESULT_STORE_FILE_
+		#ifdef INTRA_RESULT_STORE_FILE
 			m_rkIntraPred->Store4x4ReconInfo(g_fp_result_rk, inf_intra4x4, partIdx);
 		#endif
 			// set chroma 4x4 dirMode by use the first part.

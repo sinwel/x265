@@ -1641,6 +1641,12 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
     }//add by zsq
     #endif
 
+	if ( (outBestCU->getSlice()->getSliceType() == P_SLICE) && (outBestCU->getWidth(0) == 16))
+	{
+		depth = depth;
+	}
+	
+
 	// variables for fast encoder decision
 	bool bTrySplit = true;
 
@@ -1930,10 +1936,13 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 
 		// do normal intra modes
 		// speedup for inter frames
+		/*
 		if (outBestCU->getSlice()->getSliceType() == I_SLICE ||
 			outBestCU->getCbf(0, TEXT_LUMA) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_U) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_V) != 0) // avoid very complex intra if it is unlikely
+		*/ 
+		// always do intra forever
 		{
 			xCheckRDCostIntraInInter(outBestCU, outTempCU, SIZE_2Nx2N);
 			outTempCU->initEstData(depth, qp);
