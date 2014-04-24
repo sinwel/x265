@@ -33,17 +33,18 @@ public:
     uint8_t  height;
     uint8_t  depth;
 
-    uint8_t  *cuPartSize;       // Nx2N NxN
-    uint8_t  *cuSkipFlag;     // CU Skip
+    uint8_t  *cuPartSize;    // Nx2N NxN
+    uint8_t  *cuSkipFlag;    // CU Skip
     uint8_t  *cuPredMode;    // P:0 I:1
 
     uint8_t  MergeFlag;      // CU Merge
     uint8_t  MergeIndex;     // CU MergeIndex
-    struct MV_INFO *mv;             // TODO inter relation
+    struct MV_INFO *mv;      // TODO inter relation
     uint32_t mvd;            // TODO
     uint8_t  mvdIndex;       // TODO
 
     uint8_t  intraDirMode[4];// intraLumaDirMode
+    uint8_t  interDirMode;   // interDirmode
 
     uint8_t  *cbfY;      //
     uint8_t  *cbfU;      //
@@ -80,9 +81,9 @@ public:
     uint8_t  input_curr_ref_y[256*128];
     uint8_t  input_curr_ref_u[128*64];
     uint8_t  input_curr_ref_v[128*64];
-    uint8_t  QP;
-    uint8_t  QP_cb_offset;
-    uint8_t  QP_cr_offset;
+    uint8_t  QP_lu;
+    uint8_t  QP_cb;
+    uint8_t  QP_cr;
 	uint8_t  slice_type; //0: B, 1: P, 2: I
 
 	/*ime input*/
@@ -229,7 +230,7 @@ public:
     void Destory();
     void LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos);
 	void LogFile(INTERFACE_TQ* inf_tq);
-    void convert8x8HWCtoX265Luma(int16_t* coeff);  
+    void convert8x8HWCtoX265Luma(int16_t* coeff);
     void compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level);
     void compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4split);
 	void Ime();

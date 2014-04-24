@@ -30,7 +30,7 @@
 #include "common.h"
 #include "x265.h"
 #include <stdio.h>
-#include "rk_define.h"
+#include "macro.h"
 
 #if HAVE_VLD
 /* Visual Leak Detector */
@@ -588,7 +588,8 @@ bool CLIOptions::parse(int argc, char **argv, x265_param* param)
 // Add by zxy for DEBUG
 FILE* g_fp_result_rk;
 FILE* g_fp_result_x265;
-
+FILE* g_fp_4x4_params_rk;
+FILE* g_fp_4x4_params_x265;
 #endif
 
 #if TQ_LOG_IN_HWC_INTRA
@@ -651,7 +652,17 @@ int main(int argc, char **argv)
 	{
 	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
 	}
-#endif	
+	g_fp_4x4_params_rk = fopen(PATH_NAME("4x4_params_rk.txt"),"w+");
+	if ( !g_fp_4x4_params_rk )
+	{
+	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+	}
+	g_fp_4x4_params_x265 = fopen(PATH_NAME("4x4_params_x265.txt"),"w+");
+	if ( !g_fp_4x4_params_x265 )
+	{
+	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+	}
+#endif
 #if TQ_LOG_IN_HWC_INTRA
 	g_fp_TQ_LOG_HWC_INTRA = fopen(PATH_NAME("TQ_LOG_HWC_INTRA.txt"), "w+");
 	if (!g_fp_TQ_LOG_HWC_INTRA)
@@ -673,9 +684,10 @@ int main(int argc, char **argv)
 	g_previous_8x8_intra.reconEdgePixel = (Pel*)X265_MALLOC(Pel, 16+16+1);// 指向左下角，不是指向中间
 	g_previous_8x8_intra.bNeighborFlags = (bool*)X265_MALLOC(Pel, 9); // 指向起始
 #endif
-	
+
     FILE *fp = fopen("hevc_enc_cmodel.cfg","rb+");
-    if (fp) G_hardwareC.ConfigFiles(fp);
+    if (fp)
+        G_hardwareC.ConfigFiles(fp);
 
     // main encoder loop
     uint32_t inFrameCount = 0;
@@ -773,6 +785,14 @@ int main(int argc, char **argv)
 	{
 	    fclose(g_fp_result_x265);
 	}
+	if ( g_fp_4x4_params_rk )
+	{
+	    fclose(g_fp_4x4_params_rk);
+	}
+	if ( g_fp_4x4_params_x265)
+	{
+	    fclose(g_fp_4x4_params_x265);
+	}
 #endif
 
 #if TQ_LOG_IN_HWC_INTRA
@@ -783,7 +803,7 @@ int main(int argc, char **argv)
 	fclose(g_fp_TQ_LOG_HWC_ME);
 	g_fp_TQ_LOG_HWC_ME = NULL;
 #endif
-#ifdef INTRA_4x4_DEBUG	
+#ifdef INTRA_4x4_DEBUG
 	X265_FREE(g_previous_8x8_intra.fenc);
 	X265_FREE(g_previous_8x8_intra.reconEdgePixel);
 	X265_FREE(g_previous_8x8_intra.bNeighborFlags);

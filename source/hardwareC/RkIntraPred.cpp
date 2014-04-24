@@ -10,7 +10,8 @@
 //using namespace RK_HEVC;
 extern FILE* g_fp_result_rk;
 extern FILE* g_fp_result_x265;
-
+extern FILE* g_fp_4x4_params_rk;
+extern FILE* g_fp_4x4_params_x265;
 static char rk_g_convertToBit[RK_MAX_CU_SIZE + 1];
 
 // luma direct mode entropy need bits.
@@ -2177,7 +2178,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			uint32_t bits = 0;
 		#endif
 
-			setLambda(30, 2);
+			//setLambda(30, 2);
 			costTotal[dirMode] =  costSad[dirMode] + ((bits * m_rklambdaMotionSAD + 32768) >> 16); 
 		}
 
@@ -2622,7 +2623,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 
 			splitTo4x4By8x8(&g_previous_8x8_intra, &inf_intra4x4, &g_4x4_total_reconEdge[zscan_idx][0][0], partOffset);
 		#ifdef INTRA_RESULT_STORE_FILE
-			Store4x4ReconInfo(g_fp_result_x265, inf_intra4x4, partOffset );
+			Store4x4ReconInfo(g_fp_4x4_params_x265, inf_intra4x4, partOffset );
 		#endif
 		#if 0
 			// compare fenc/bNeighborFlags/reconEdgePixel

@@ -374,7 +374,6 @@ void TEncCu::compressCU(TComDataCU* cu)
     pHardWare->pic_w = pHardWare->ctu_calc.pic_w = cu->m_slice->m_sps->m_picWidthInLumaSamples;
     pHardWare->pic_h = pHardWare->ctu_calc.pic_h = cu->m_slice->m_sps->m_picHeightInLumaSamples;
     pHardWare->ctu_w = pHardWare->ctu_calc.ctu_w = cu->m_slice->m_sps->m_maxCUWidth;
-	pHardWare->ctu_calc.slice_type = cu->getSlice()->getSliceType();
     //this->hardware.ctu_w_log2 = cu->m_slice->m_sps->m_maxCUWidth;
 
     if(pHardWare->ctu_y == 16)
@@ -386,6 +385,9 @@ void TEncCu::compressCU(TComDataCU* cu)
     pHardWare->hw_cfg.constrained_intra_enable = m_bestCU[0]->getSlice()->getPPS()->getConstrainedIntraPred();
     pHardWare->hw_cfg.TMVP_enable = m_bestCU[0]->getSlice()->getEnableTMVPFlag();
     pHardWare->hw_cfg.strong_intra_smoothing_enable = m_bestCU[0]->getSlice()->getSPS()->getUseStrongIntraSmoothing();
+    pHardWare->ctu_calc.QP_lu = cu->m_qp[0];
+    pHardWare->ctu_calc.QP_cb = cu->m_qp[0] + m_bestCU[0]->getSlice()->getPPS()->getChromaCbQpOffset();
+    pHardWare->ctu_calc.QP_cr = cu->m_qp[0] + m_bestCU[0]->getSlice()->getPPS()->getChromaCrQpOffset();
     #endif
 
     // analysis of CU
@@ -441,38 +443,6 @@ void TEncCu::compressCU(TComDataCU* cu)
 				interinfo.fmeinput.isValidCu[i] = false;
 			}
 			xCompressCU(m_bestCU[0], m_tempCU[0], 0, true);
-#if RK_CTU_CALC_PROC_ENABLE
-			/*用来联调*/
-			pHardWare->ctu_calc.ImeSearchRangeHeight = interinfo.imeinput.ImeSearchRangeHeight;
-			pHardWare->ctu_calc.ImeSearchRangeWidth = interinfo.imeinput.ImeSearchRangeWidth;
-			pHardWare->ctu_calc.Create();
-			memcpy(pHardWare->ctu_calc.pImeSearchRange, interinfo.imeinput.pImeSearchRange,
-				interinfo.imeinput.ImeSearchRangeWidth*interinfo.imeinput.ImeSearchRangeHeight);
-			memcpy(pHardWare->ctu_calc.pCurrCtu, interinfo.imeinput.pCurrCtu, pHardWare->ctu_calc.ctu_w*pHardWare->ctu_calc.ctu_w);
-			memcpy(pHardWare->ctu_calc.isValidCu, interinfo.imeinput.isValidCu, 85);
-			for (int i = 0; i < 4; i ++)
-			{
-				for (int j = 0; j < 85; j ++)
-				{
-					for (int k = 0; k < 3; k ++)
-					{
-						pHardWare->ctu_calc.cu_level_calc[i].MergeMvX[j][0][k] = interinfo.fmeinput.MergeMvX[j][0][k];
-						pHardWare->ctu_calc.cu_level_calc[i].MergeMvY[j][0][k] = interinfo.fmeinput.MergeMvY[j][0][k];
-					}
-				}
-				pHardWare->ctu_calc.cu_level_calc[i].FmeSearchRangeHeight = interinfo.fmeinput.FmeSearchRangeHeight;
-				pHardWare->ctu_calc.cu_level_calc[i].FmeSearchRangeWidth  = interinfo.fmeinput.FmeSearchRangeWidth;
-				memcpy(pHardWare->ctu_calc.cu_level_calc[i].isValidCu, interinfo.fmeinput.isValidCu, 85);
-			}
-			/*用来联调*/
-#endif //end RK_CTU_CALC_PROC_ENABLE
-			//motionEstimate(&interinfo);
-			//ImeProcCompare(&imeoutput, &interinfo.imeoutput, nCtuSize, nSplitDepth);
-			//FmeProcCompare(&fmeoutput, &interinfo.fmeoutput, nCtuSize, nSplitDepth);
-			//ResetImeParam(&interinfo.imeoutput);
-			//ResetImeParam(&imeoutput);
-			//ResetFmeParam(&interinfo.fmeoutput);
-			//ResetFmeParam(&fmeoutput);
 			delete[] pSearchRange; //在motionEstimate函数里开辟内存空间
 			delete[] pCurrCtu; //在motionEstimate函数里开辟内存空间
 #else
@@ -528,8 +498,6 @@ void TEncCu::compressCU(TComDataCU* cu)
 
     #if RK_CTU_CALC_PROC_ENABLE
     this->pHardWare->ctu_calc.proc();
-	if (cu->getSlice()->getSliceType() != I_SLICE)
-		pHardWare->ctu_calc.Destory();
     #endif
 }
 

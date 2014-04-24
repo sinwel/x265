@@ -207,13 +207,15 @@ void hevcQT::it4(short *out, short *in, int shift, int trType, int dim)
 	}
 #if IT_LOG_EN_4
 #define N 4
+if(trType==0)
+{
 	if (trType == 0)
 	{
-		printf("-------- QT Module Start DCT ------\n");
+		printf("-------- QT Module Start IDCT ------\n");
 	}
 	else
 	{
-		printf("-------- QT Module Start DST ------\n");
+		printf("-------- QT Module Start IDST ------\n");
 	}
 
 	printf("in:\n");
@@ -222,7 +224,7 @@ void hevcQT::it4(short *out, short *in, int shift, int trType, int dim)
 		for (int i = 0; i < N; i++)
 		{
 
-			printf("%d, ", in[j*N + i]);
+			printf("%04x, ", in[j*N + i]&0xffff); //%d
 		}
 		printf("\n");
 	}
@@ -232,12 +234,13 @@ void hevcQT::it4(short *out, short *in, int shift, int trType, int dim)
 	{
 		for (int i = 0; i < N; i++)
 		{
-			printf("%d, ", out[j*N + i]);
+			printf("%04x, ", out[j*N + i]&0xffff); //%d
 		}
 		printf("\n");
 	}
 	printf("-------- QT Module END ------\n");
 	printf("\n\n\n");
+}	
 #undef N	
 #endif
 }
@@ -738,8 +741,10 @@ void hevcQT::t4(short* out, short* in, int shift, int trType, int dim)
 
 	}
 
-#if QT_LOG_EN_4
+#if T_LOG_EN_4
 #define N 4
+if(trType==0) // only print dst
+{
 	if (trType == 0)
 	{
 		printf("-------- QT Module Start DCT ------\n");
@@ -755,7 +760,7 @@ void hevcQT::t4(short* out, short* in, int shift, int trType, int dim)
 		for (int i = 0; i < N; i++)
 		{
 
-			printf("%d, ", in[j*N + i]);
+			printf("%04x, ", in[j*N + i]&0xffff); //%d
 		}
 		printf("\n");
 	}
@@ -765,12 +770,13 @@ void hevcQT::t4(short* out, short* in, int shift, int trType, int dim)
 	{
 		for (int i = 0; i < N; i++)
 		{
-			printf("%d, ", out[j*N + i]);
+			printf("%04x, ", out[j*N + i]&0xffff);//%d
 		}
 		printf("\n");
 	}
 	printf("-------- QT Module END ------\n");
 	printf("\n\n\n");
+}	
 #undef N	
 #endif
 }
@@ -1173,28 +1179,19 @@ void hevcQT::dct(int* coeffT, short* inResi, uint32_t tuWidth, bool isIntra, uin
 *
 * return void
 */
-void hevcQT::setQPforQ(int baseQp, uint8_t ttype, int qpBdOffset, int chromaQPOffset)
+void hevcQT::setQPforQ(int qp, uint8_t ttype)
 {
 	int qpScaled;
 
 	if (ttype == 0) // LUMA
 	{
-		qpScaled = baseQp + qpBdOffset;
+		qpScaled = qp;
 	}
 	else //Chroma
 	{
-		//qpScaled = Clip3(-qpBdOffset, 57, baseQp + chromaQPOffset);
-		qpScaled = CLIP(baseQp + chromaQPOffset, -qpBdOffset, 57);
-
-		if (qpScaled < 0)
-		{
-			qpScaled = qpScaled + qpBdOffset;
-		}
-		else
-		{
-			qpScaled = ChromaScale[qpScaled] + qpBdOffset;
-		}
+		qpScaled = ChromaScale[qp];
 	}
+
 	m_infoForQT->qpPer = qpScaled / 6;
 	m_infoForQT->qpscaled = qpScaled;
 	m_infoForQT->qpRem = qpScaled % 6;
@@ -1284,7 +1281,7 @@ void hevcQT::compareX265andHWC()
 }
 
 
-void hevcQT::getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType)
+void hevcQT::getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t qp, uint8_t sliceType)
 {
 	for (int k = 0; k < inf_intra->size; k++)
 	{
@@ -1294,12 +1291,9 @@ void hevcQT::getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType)
 	m_infoForQT->size = inf_intra->size;
 	assert(m_infoForQT->size <= 32);
 	m_infoForQT->predMode = 0; //intra
-	m_infoForQT->sliceType = 2; //I
 	m_infoForQT->textType = textType;
-	m_infoForQT->qp = 30;
-	m_infoForQT->transformSkip = 0;
-	m_infoForQT->qpBdOffset = 0;
-	m_infoForQT->chromaQPOffset = 0;
+	m_infoForQT->qp = qp;
+	m_infoForQT->sliceType = sliceType; //I
 }
 
 void hevcQT::getFromInter(INTERFACE_ME* inf_me, uint8_t textType)
@@ -1348,9 +1342,8 @@ void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra)
 	inf_tq->sliceType = m_infoForQT->sliceType; //I
 	inf_tq->textType = m_infoForQT->textType;
 	inf_tq->QP = m_infoForQT->qp;
-	inf_tq->TransFormSkip = m_infoForQT->transformSkip;
-	inf_tq->qpBdOffset = m_infoForQT->qpBdOffset;
-	inf_tq->chromaQpOffset = m_infoForQT->chromaQPOffset;
+	//inf_tq->qpBdOffset = m_infoForQT->qpBdOffset;
+	//inf_tq->chromaQpOffset = m_infoForQT->chromaQPOffset;
 
 }
 
@@ -1494,7 +1487,7 @@ void hevcQT::procTandQ()
 	int transformShift = RK_MAX_TR_DYNAMIC_RANGE - RK_BIT_DEPTH - log2BlockSize - 2; // Represents scaling through forward transform
 
 	// set values from qp
-	setQPforQ(qp, textType, qpBdOffset, chromaQPOffset); //set qpPer, qpRem, qpBits
+	setQPforQ(qp, textType); //set qpPer, qpRem, qpBits
 	int qpPer = m_infoForQT->qpPer;
 	int qpRem = m_infoForQT->qpRem;
 
@@ -1603,10 +1596,10 @@ void hevcQT::proc(int predMode)
 }
 
 // for Intra
-void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType)
+void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t qp, uint8_t sliceType)
 {
 	//get from intra
-	getFromIntra(inf_intra, textType);
+	getFromIntra(inf_intra, textType, qp, sliceType);
 
 #if TQ_LOG_IN_HWC_INTRA
 	//print input

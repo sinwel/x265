@@ -64,12 +64,12 @@ struct INTERFACE_TQ
     int16_t *resi;
     uint8_t  textType;
     int      QP;
-    bool     TransFormSkip;
     uint8_t  Size;
     uint8_t  sliceType;
     uint8_t  predMode;
-    int      qpBdOffset;
-    int      chromaQpOffset;
+    //int      qpBdOffset;
+    //int      chromaQpOffset;
+    //bool     TransFormSkip; // default: 0
 
     /* output */
     int16_t *outResi;

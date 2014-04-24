@@ -1010,6 +1010,18 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			// save 4x4 recon edge 
 			m_rkIntraPred->RK_store4x4Recon2Ref(&g_4x4_single_reconEdge[0][0], m_rkIntraPred->rk_recon[X265_COMPENT], absPartIdx);
 			::memcpy(&g_4x4_total_reconEdge[cu->getZorderIdxInCU()/4][0][0],g_4x4_single_reconEdge,16);
+
+			// debug
+			#if 1
+			if ( ( g_4x4_total_reconEdge[0][PART_0_RIGHT][0] == 0xef ) && 
+				( g_4x4_total_reconEdge[0][PART_0_RIGHT][1] == 0xff ) &&
+				( g_4x4_total_reconEdge[0][PART_0_RIGHT][2] == 0xff ) &&
+				( g_4x4_total_reconEdge[0][PART_0_RIGHT][3] == 0xee ) )
+			{
+			    width = width;
+			}
+			#endif
+
 		}
 		else
 		{

@@ -17,13 +17,6 @@ void hardwareC::init()
     ctu_calc.ctu_w = ctu_w;
     ctu_calc.pHardWare = this;
 
-    /* inf_ime */
-    /* output */
-    inf_ime.ime_mv = ctu_calc.ime_mv;
-
-    /* inf_ctu_calc */
-    /* input */
-    inf_ctu_calc.ime_mv = ctu_calc.ime_mv;
     inf_ctu_calc.input_curr_y = ctu_calc.input_curr_y;
     inf_ctu_calc.input_curr_u = ctu_calc.input_curr_u;
     inf_ctu_calc.input_curr_v = ctu_calc.input_curr_v;
@@ -155,6 +148,7 @@ void hardwareC::ConfigFiles(FILE *fp)
             case CFG_FOR_PREPROCESS:
                 break;
             case CFG_FOR_INTRA:
+				//ctu_calc.cu_level_calc.m_rkIntraPred;
                 break;
             case CFG_FOR_IME:
                 break;

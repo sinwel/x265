@@ -6,8 +6,8 @@
 #ifdef RK_INTRA_4x4_PRED
 extern uint32_t g_rk_raster2zscan_depth_4[256];
 extern FILE* g_fp_result_rk;
+extern FILE* g_fp_4x4_params_rk;
 #endif
-
 
 CU_LEVEL_CALC::CU_LEVEL_CALC()
 {
@@ -52,8 +52,8 @@ void CU_LEVEL_CALC::init(uint8_t size)
 	for(int i=0; i<6; i++)
 	{
 		//[0~3]: Y,  [4]: U, [5]: V
-		coeff4x4[i] = (int16_t*)malloc(4*4 * 2); 
-		resi4x4[i] =  (int16_t*)malloc(4*4 * 2); 
+		coeff4x4[i] = (int16_t*)malloc(4*4 * 2);
+		resi4x4[i] =  (int16_t*)malloc(4*4 * 2);
 		recon4x4[i] = (uint8_t*)malloc(4*4 * 1);
 	}
 #endif
@@ -381,7 +381,7 @@ void CU_LEVEL_CALC::end()
     /* cu_type */
     for(m=0; m<cu_w/8; m++) {
         for(n=0; n<cu_w/8; n++) {
-            pHardWare->ctu_calc.L_cu_type[(x_pos/8 + n) - (y_pos/8 + m) + 8] = (!cost_best->predMode);
+            pHardWare->ctu_calc.L_cu_type[(x_pos/8 + n) - (y_pos/8 + m) + 8] = cost_best->predMode;
         }
     }
 
@@ -457,6 +457,11 @@ void CU_LEVEL_CALC::intra_proc()
     if(cu_w == 64)
         return;
 
+	uint8_t qpY = pHardWare->ctu_calc.QP_lu;
+	uint8_t qpU = pHardWare->ctu_calc.QP_cb;
+	uint8_t qpV = pHardWare->ctu_calc.QP_cr;
+	uint8_t sliceType = pHardWare->ctu_calc.slice_type;
+	
 #ifdef RK_CABAC
 	uint32_t zscan = g_rk_raster2zscan_depth_4[x_pos/4 + y_pos*4];
 	uint32_t totalBitsDepth = g_intra_depth_total_bits[depth][zscan];
@@ -466,7 +471,10 @@ void CU_LEVEL_CALC::intra_proc()
 	uint32_t totalBitsDepth = 0;
 	uint32_t totalBits8x8 = 0;
 	uint32_t totalBits4x4 = 0;
-#endif		
+#endif
+
+	// add by zxy for setLambda 	
+	m_rkIntraPred->setLambda(qpY, sliceType);
 
 	//=====================================================================================//
     /* -------------- Y ----------------*/
@@ -499,7 +507,7 @@ void CU_LEVEL_CALC::intra_proc()
 	}
 	// ---------------------------//
 
-	// ---- 1. TODO intra ---- 
+	// ---- 1. TODO intra ----
  	inf_intra.size				= inf_intra_proc.size;
 	inf_intra.cidx 				= 0;
 	inf_intra.fenc				= inf_intra_proc.fencY;
@@ -515,26 +523,26 @@ void CU_LEVEL_CALC::intra_proc()
 								y_pos);
 
 #endif
-    // ---- 2. TODO TQ() ---- 
+    // ---- 2. TODO TQ() ----
 #if TQ_RUN_IN_HWC_INTRA
-	m_hevcQT->proc(&inf_tq, &inf_intra, 0); // Y
+	m_hevcQT->proc(&inf_tq, &inf_intra, 0, qpY, sliceType); // Y
 	memcpy(inf_tq_total[0].oriResi, inf_tq.oriResi, inf_tq.Size*inf_tq.Size * 2);
 
 	/* Pointer connect */
     inf_recon.pred = inf_intra.pred; // intra pred connect to "recon" and "qt"
     inf_recon.resi = inf_tq.outResi; // tq outResi connect to "recon"
-    
-	// ---- 3. TODO reconstruction() ---- 	
-	//memcpy(inf_recon.pred)	
+
+	// ---- 3. TODO reconstruction() ----
+	//memcpy(inf_recon.pred)
 	recon();
 	memcpy(inf_recon_total[0].Recon, inf_recon.Recon, inf_tq.Size*inf_tq.Size); // for comparing in ctu_calc.cpp proc()
-		
+
 	// calc dist & update the CU Distortion for current depth
 	inf_intra_proc.Distortion += RdoDistCalc(inf_recon.SSE, 0);
 #endif
 
     //CABAC();
-    
+
     // store [ Y output] to [inf_intra_proc]
     inf_intra_proc.ReconY 	= inf_recon.Recon;
     inf_intra_proc.ResiY 	= inf_recon.resi;
@@ -554,7 +562,7 @@ void CU_LEVEL_CALC::intra_proc()
     inf_recon.size = cu_w/2;
 
 #ifdef RK_INTRA_PRED
-	// ---- 1. TODO intra ---- 
+	// ---- 1. TODO intra ----
  	inf_intra.size				= inf_intra_proc.size >> 1;
 	inf_intra.cidx 				= 1;
 	inf_intra.fenc				= inf_intra_proc.fencU;
@@ -571,18 +579,18 @@ void CU_LEVEL_CALC::intra_proc()
 
 #endif
 
-    // ---- 2. TODO TQ() ---- 
+    // ---- 2. TODO TQ() ----
 #if TQ_RUN_IN_HWC_INTRA
-	m_hevcQT->proc(&inf_tq, &inf_intra, 1); // Cb
+	m_hevcQT->proc(&inf_tq, &inf_intra, 1, qpU, sliceType); // Cb
 	memcpy(inf_tq_total[1].oriResi, inf_tq.oriResi, inf_tq.Size*inf_tq.Size * 2);
 
 
 	/* Pointer connect */
     inf_recon.pred = inf_intra.pred; // intra pred connect to "recon" and "qt"
     inf_recon.resi = inf_tq.outResi; // tq outResi connect to "recon"
-    	
-	// ---- 3. TODO reconstruction() ---- 	
-	recon();	
+
+	// ---- 3. TODO reconstruction() ----
+	recon();
 	memcpy(inf_recon_total[1].Recon, inf_recon.Recon, inf_tq.Size*inf_tq.Size); // for comparing in ctu_calc.cpp proc()
 
 	// calc dist & update the CU Distortion for current depth
@@ -603,7 +611,7 @@ void CU_LEVEL_CALC::intra_proc()
     inf_recon.ori = curr_cu_v;
     inf_recon.size = cu_w/2;
 #ifdef RK_INTRA_PRED
-	// ---- 1. TODO intra ---- 
+	// ---- 1. TODO intra ----
 
  	inf_intra.size				= inf_intra_proc.size >> 1;
 	inf_intra.cidx 				= 2;
@@ -621,19 +629,19 @@ void CU_LEVEL_CALC::intra_proc()
 
 #endif
 
-    // ---- 2. TODO TQ() ---- 
+    // ---- 2. TODO TQ() ----
 #if TQ_RUN_IN_HWC_INTRA
-	m_hevcQT->proc(&inf_tq, &inf_intra, 1); // Cr
+	m_hevcQT->proc(&inf_tq, &inf_intra, 2, qpV, sliceType); // Cr
 	memcpy(inf_tq_total[2].oriResi, inf_tq.oriResi, inf_tq.Size*inf_tq.Size *2);
 
 	/* Pointer connect */
     inf_recon.pred = inf_intra.pred; // intra pred connect to "recon" and "qt"
     inf_recon.resi = inf_tq.outResi; // tq outResi connect to "recon"
-    
-	// ---- 3. TODO reconstruction() ---- 	
+
+	// ---- 3. TODO reconstruction() ----
 	recon();
 	memcpy(inf_recon_total[2].Recon, inf_recon.Recon, inf_tq.Size*inf_tq.Size);// for comparing in ctu_calc.cpp proc()
-	
+
 	// calc dist & update the CU Distortion for current depth
 	inf_intra_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);
 #endif
@@ -642,19 +650,19 @@ void CU_LEVEL_CALC::intra_proc()
 	// store [ V output] to [inf_intra_proc]
     inf_intra_proc.ReconV 	= inf_recon.Recon;
     inf_intra_proc.ResiV 	= inf_recon.resi;
-	
+
 	// ---- 4. TODO RDOCostCalc for (Y + U + V) ----
-	// cost = distortion + lambda * bits	
+	// cost = distortion + lambda * bits
 	inf_intra_proc.Bits		 = totalBitsDepth;
-	inf_intra_proc.totalCost = RdoCostCalc(inf_intra_proc.Distortion, totalBitsDepth, inf_tq.QP);  
+	inf_intra_proc.totalCost = RdoCostCalc(inf_intra_proc.Distortion, totalBitsDepth, inf_tq.QP);
 	//=====================================================================================//
 
 	inf_intra_proc.partSize 		= 0; // 2Nx2N
-	inf_intra_proc.predModeIntra[0] = inf_intra.DirMode;  
+	inf_intra_proc.predModeIntra[0] = inf_intra.DirMode;
 	inf_intra_proc.predModeIntra[1] = 35;  // invalid mode
 	inf_intra_proc.predModeIntra[2] = 35;  // invalid mode
 	inf_intra_proc.predModeIntra[3] = 35;  // invalid mode
-	
+
 	if(m_size == 8)
     {
 		/*
@@ -682,7 +690,7 @@ void CU_LEVEL_CALC::intra_proc()
 			// assert RK recon data same to g_4x4_total_reconEdge
 			if ( partIdx == 1 )
 			{
-			    // check partIdx=0 recon 
+			    // check partIdx=0 recon
 			    for ( uint8_t i = 0 ; i < 4 ; i++ )
 			    {
 			        assert(g_4x4_total_reconEdge[zscan_idx][PART_0_RIGHT][i]  == single_reconEdge[PART_0_RIGHT][i]);
@@ -691,7 +699,7 @@ void CU_LEVEL_CALC::intra_proc()
 			}
 			else if ( partIdx == 2 )
 			{
-			    // check partIdx=1 recon 
+			    // check partIdx=1 recon
 			    for ( uint8_t i = 0 ; i < 4 ; i++ )
 			    {
 			        assert(g_4x4_total_reconEdge[zscan_idx][PART_1_BOTTOM][i]  == single_reconEdge[PART_1_BOTTOM][i]);
@@ -704,11 +712,11 @@ void CU_LEVEL_CALC::intra_proc()
 			    {
 			        assert(g_4x4_total_reconEdge[zscan_idx][PART_2_RIGHT][i]  == single_reconEdge[PART_2_RIGHT][i]);
 				}
-			    
+
 			}
 			//m_rkIntraPred->splitTo4x4By8x8(&inf_intra, &inf_intra4x4, &g_4x4_total_reconEdge[zscan_idx][0][0], partIdx);
 			m_rkIntraPred->splitTo4x4By8x8(&inf_intra, &inf_intra4x4, &single_reconEdge[0][0], partIdx);
-		    // ---- 1. TODO intra() ---- 
+		    // ---- 1. TODO intra() ----
 			m_rkIntraPred->Intra_Proc(&inf_intra4x4,
 									partIdx,
 									4,
@@ -717,19 +725,19 @@ void CU_LEVEL_CALC::intra_proc()
 
 			predModeLocal4x4[partIdx] = inf_intra4x4.DirMode;
 		#ifdef INTRA_RESULT_STORE_FILE
-			m_rkIntraPred->Store4x4ReconInfo(g_fp_result_rk, inf_intra4x4, partIdx);
+			m_rkIntraPred->Store4x4ReconInfo(g_fp_4x4_params_rk, inf_intra4x4, partIdx);
 		#endif
 			// set chroma 4x4 dirMode by use the first part.
 			if ( partIdx == 0 )
 			{
 	    		lumaDir = inf_intra4x4.DirMode;
 			}
-			
+
 #if TQ_RUN_IN_HWC_INTRA
-		    // ---- 2. TODO TQ() ---- 
-			m_hevcQT->proc(&inf_tq, &inf_intra4x4, 0); // Y
+		    // ---- 2. TODO TQ() ----
+			m_hevcQT->proc(&inf_tq, &inf_intra4x4, 0, qpY, sliceType); // Y, I slice
 			memcpy(coeff4x4[partIdx], inf_tq.oriResi,  inf_tq.Size*inf_tq.Size*2); // for comparing coeff(after T and Q)
-		
+
 			uint8_t  fenc4x4[16];
 			m_rkIntraPred->Convert8x8To4x4(fenc4x4, curr_cu_y, partIdx);
 			inf_recon.ori = fenc4x4;
@@ -739,25 +747,25 @@ void CU_LEVEL_CALC::intra_proc()
 			inf_recon.resi = inf_tq.outResi; // tq outResi connect to "recon"
 
 
-			// ---- 3. TODO recon() ---- 
+			// ---- 3. TODO recon() ----
 			recon();
 
 			// copy for compare Cost, 4 parts of 4x4 (Y)
 			memcpy(resi4x4[partIdx], inf_recon.resi, inf_tq.Size*inf_tq.Size*2);
 			memcpy(recon4x4[partIdx], inf_recon.Recon, inf_tq.Size*inf_tq.Size);
 
-			// calc dist 			
+			// calc dist
 			totalDist4x4 += RdoDistCalc(inf_recon.SSE, 0);
-#endif		
+#endif
 
 			//CABAC();
-		
+
 			m_rkIntraPred->RK_store4x4Recon2Ref(&single_reconEdge[0][0], recon4x4[partIdx], partIdx);
 
 		}
 
 		assert((lumaDir >= 0) && (lumaDir < 35));
-		
+
 		//*********************************************************************************//
 		// =========== U =============
 		inf_intra.fenc				= inf_intra_proc.fencU;
@@ -772,10 +780,10 @@ void CU_LEVEL_CALC::intra_proc()
 									x_pos,
 									y_pos);
 #if TQ_RUN_IN_HWC_INTRA
-		m_hevcQT->proc(&inf_tq, &inf_intra, 1); // Cb
+		m_hevcQT->proc(&inf_tq, &inf_intra, 1, qpU, sliceType); // Cb
 		memcpy(coeff4x4[4], inf_tq.oriResi,  inf_tq.Size*inf_tq.Size*2); // for comparing coeff(after T and Q)
 
-		
+
 		inf_recon.ori = curr_cu_u;
 
 		/* Pointer connect */
@@ -783,14 +791,14 @@ void CU_LEVEL_CALC::intra_proc()
 	    inf_recon.resi = inf_tq.outResi; // tq outResi connect to "recon"
 
 		recon();
-		
+
 		// copy for compare Cost, 4x4(U)
 		memcpy(resi4x4[4], inf_recon.resi, inf_tq.Size*inf_tq.Size*2);
-		memcpy(recon4x4[4], inf_recon.Recon, inf_tq.Size*inf_tq.Size);	
+		memcpy(recon4x4[4], inf_recon.Recon, inf_tq.Size*inf_tq.Size);
 
-		// calc dist 			
-		totalDist4x4 += RdoDistCalc(inf_recon.SSE, 1);	
-#endif		
+		// calc dist
+		totalDist4x4 += RdoDistCalc(inf_recon.SSE, 1);
+#endif
 		//CABAC();
 		//*********************************************************************************//
 		// =========== V =============
@@ -801,15 +809,15 @@ void CU_LEVEL_CALC::intra_proc()
 		inf_intra.lumaDirMode		= lumaDir;
 
 		// use the partIdx = 0 lumaDir do 4x4 again.
-	    // ---- 1. TODO intra() ---- 
+	    // ---- 1. TODO intra() ----
 		m_rkIntraPred->Intra_Proc(&inf_intra,
 									0,
 									4,
 									x_pos,
 									y_pos);
 #if TQ_RUN_IN_HWC_INTRA
-	    // ---- 2. TODO TQ() ---- 
-		m_hevcQT->proc(&inf_tq, &inf_intra, 1); // Cr
+	    // ---- 2. TODO TQ() ----
+		m_hevcQT->proc(&inf_tq, &inf_intra, 2, qpV, sliceType); // Cr
 		memcpy(coeff4x4[5], inf_tq.oriResi,  inf_tq.Size*inf_tq.Size*2); // for comparing coeff(after T and Q)
 
 		inf_recon.ori = curr_cu_v;
@@ -817,55 +825,55 @@ void CU_LEVEL_CALC::intra_proc()
 	    inf_recon.pred = inf_intra.pred; // intra pred connect to "recon" and "qt"
 	    inf_recon.resi = inf_tq.outResi; // tq outResi connect to "recon"
 
-	    // ---- 3. TODO recon() ---- 
+	    // ---- 3. TODO recon() ----
 		recon();
 
 		// copy for compare Cost, 4x4(V)
 		memcpy(resi4x4[5], inf_recon.resi, inf_tq.Size*inf_tq.Size*2);
-		memcpy(recon4x4[5], inf_recon.Recon, inf_tq.Size*inf_tq.Size);		
-		
-		// calc dist 			
-		totalDist4x4 += RdoDistCalc(inf_recon.SSE, 2);	
-#endif	
+		memcpy(recon4x4[5], inf_recon.Recon, inf_tq.Size*inf_tq.Size);
+
+		// calc dist
+		totalDist4x4 += RdoDistCalc(inf_recon.SSE, 2);
+#endif
 		//CABAC();
 		//*********************************************************************************//
 
 		// ---- 4. TODO RDOCostCalc for (Y + U + V) ----
-		// cost = distortion + lambda * bits	
+		// cost = distortion + lambda * bits
 		totalCost4x4 = RdoCostCalc(totalDist4x4, totalBits4x4, inf_tq.QP); // 4x4
 
 		#ifndef INTRA_RESULT_STORE_FILE
-		    RK_HEVC_FPRINT(g_fp_result_rk, 
+		    RK_HEVC_FPRINT(g_fp_result_rk,
 				"bits4x4 = %d dist4x4 = %d cost4x4 = %d \n bits8x8 = %d dist8x8 = %d cost8x8 = %d \n\n",
 				totalBits4x4,
 				totalDist4x4,
 				totalCost4x4,
 				totalBits8x8,
-				inf_intra_proc.Distortion,				
+				inf_intra_proc.Distortion,
 				inf_intra_proc.totalCost
 			);
-		#endif	
-		// compare 8x8 cost vs four 4x4 cost,choose the best.		
+		#endif
+		// compare 8x8 cost vs four 4x4 cost,choose the best.
 		if ( inf_intra_proc.totalCost > totalCost4x4 )
 		{
 			choose4x4split = true; // flag, used to decide whether convet8x8HWCtoX265 in ctu_calc.cpp for comparing
-			
+
 			// used 4x4 output to replace 8x8
-		    inf_intra_proc.totalCost	= totalCost4x4;			
+		    inf_intra_proc.totalCost	= totalCost4x4;
 			inf_intra_proc.Distortion 	= totalDist4x4;
 			inf_intra_proc.Bits			= totalBits4x4;
-		
+
 			// store [Y U V output] to [inf_intra_proc]
-			
+
 			// pack Y from recon4x4[0~3]
 			m_rkIntraPred->Convert4x4To8x8(inf_intra_proc.ReconY, recon4x4);
 			m_rkIntraPred->Convert4x4To8x8(inf_intra_proc.ResiY, resi4x4);
-			
+
 			::memcpy(inf_intra_proc.ReconU, recon4x4[4], 16) ;
-			::memcpy(inf_intra_proc.ResiU,  resi4x4[4],  32) ;			
+			::memcpy(inf_intra_proc.ResiU,  resi4x4[4],  32) ;
 			::memcpy(inf_intra_proc.ReconV, recon4x4[5], 16) ;
-			::memcpy(inf_intra_proc.ResiV,  resi4x4[5],  32) ;			
-	
+			::memcpy(inf_intra_proc.ResiV,  resi4x4[5],  32) ;
+
 			::memcpy(inf_recon_total[0].Recon, inf_intra_proc.ReconY, 64);
 			::memcpy(inf_recon_total[1].Recon, inf_intra_proc.ReconU, 64>>2);
 			::memcpy(inf_recon_total[2].Recon, inf_intra_proc.ReconV, 64>>2);
@@ -877,10 +885,10 @@ void CU_LEVEL_CALC::intra_proc()
 			// store partSize
 			inf_intra_proc.partSize = 1; // NxN
 			// store predModeIntra[4]
-			inf_intra_proc.predModeIntra[0] = predModeLocal4x4[0];  
-			inf_intra_proc.predModeIntra[1] = predModeLocal4x4[1];  
-			inf_intra_proc.predModeIntra[2] = predModeLocal4x4[2];  
-			inf_intra_proc.predModeIntra[3] = predModeLocal4x4[3];  		
+			inf_intra_proc.predModeIntra[0] = predModeLocal4x4[0];
+			inf_intra_proc.predModeIntra[1] = predModeLocal4x4[1];
+			inf_intra_proc.predModeIntra[2] = predModeLocal4x4[2];
+			inf_intra_proc.predModeIntra[3] = predModeLocal4x4[3];
 		}
 
 	#endif
@@ -971,7 +979,7 @@ uint32_t CU_LEVEL_CALC::RdoCostCalc(uint32_t dist, uint32_t bits, int qp)
 	// RDO formula: cost = dist + lambda * bits
 	int lambda;
 	uint32_t cost;
-	
+
 	/* get Lambda */
 	if (pHardWare->hw_cfg.slice_type == 2) // I Slice
 	{
@@ -981,7 +989,7 @@ uint32_t CU_LEVEL_CALC::RdoCostCalc(uint32_t dist, uint32_t bits, int qp)
 	{
 		lambda = rk_lambdaMotionSSE_tab_non_I[qp];
 	}
-		
+
 	/* calc  Cost */
 	cost = dist + ((bits * lambda + 32768) >> 16);
 
@@ -1032,27 +1040,35 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
     begin();
     //inter_proc();
     intra_proc();
-    //intra_4_proc();
 
     //RDOCompare();
 
+    cost_intra.predMode = 1;
     cost_best = &cost_intra;
 
-    memset(cu_matrix_data[matrix_pos].cuPredMode, cu_matrix_data[matrix_pos].cuPredMode[0], (cu_w/8)*(cu_w/8));
+
 
     //-------------------------------------------//
     // temp use for debug                        //
     //-------------------------------------------//
     src_cu = pHardWare->ctu_calc.cu_ori_data[depth][cu_pos++];
     dst_cu = &cu_matrix_data[matrix_pos];
+    memcpy(cost_best->recon_y, src_cu->ReconY, cu_w*cu_w);
+    memcpy(cost_best->recon_u, src_cu->ReconU, cu_w*cu_w/4);
+    memcpy(cost_best->recon_v, src_cu->ReconV, cu_w*cu_w/4);
 
-    memcpy(dst_cu->ReconY, src_cu->ReconY, cu_w*cu_w);
-    memcpy(dst_cu->ReconU, src_cu->ReconU, cu_w*cu_w/4);
-    memcpy(dst_cu->ReconV, src_cu->ReconV, cu_w*cu_w/4);
+    cost_best->predMode = src_cu->cuPredMode[0];
+    cost_best->partSize = src_cu->cuPartSize[0];
 
-    memcpy(dst_cu->CoeffY, src_cu->CoeffY, cu_w*cu_w*2);
-    memcpy(dst_cu->CoeffU, src_cu->CoeffU, cu_w*cu_w/2);
-    memcpy(dst_cu->CoeffV, src_cu->CoeffV, cu_w*cu_w/2);
+    //------------------------------------------//
+
+    memcpy(dst_cu->ReconY, cost_best->recon_y, cu_w*cu_w);
+    memcpy(dst_cu->ReconU, cost_best->recon_u, cu_w*cu_w/4);
+    memcpy(dst_cu->ReconV, cost_best->recon_v, cu_w*cu_w/4);
+
+    memset(cu_matrix_data[matrix_pos].cuPredMode, cost_best->predMode, (cu_w/8)*(cu_w/8));
+    memset(cu_matrix_data[matrix_pos].cuPartSize, cost_best->partSize, (cu_w/8)*(cu_w/8));
+    memset(cu_matrix_data[matrix_pos].cuSkipFlag, cost_best->skipFlag, (cu_w/8)*(cu_w/8));
 
     cost = (uint32_t)src_cu->totalCost;
 

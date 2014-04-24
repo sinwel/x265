@@ -719,17 +719,17 @@ void CTU_CALC::convert8x8HWCtoX265Luma(int16_t* coeff)
 			memcpy(&temp[16*i+j*4], &src[j*8], 4*sizeof(int16_t));
 		}
 	}
-	memcpy(coeff, &temp[0], 8*8*sizeof(int16_t));		
+	memcpy(coeff, &temp[0], 8*8*sizeof(int16_t));
 }
 
 void CTU_CALC::compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level)
 {
 	assert(level <= 3);
-	
+
 	int pos = hwc_data[level].cu_pos - 1;
 	int sizeY = ctu_w >>  level;
 	int sizeUV = ctu_w >> (level+1);
-	
+
 	//compare oriResi(after T and Q)
 	assert(!memcmp(hwc_data[level].inf_tq_total[0].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffY,
 		sizeY*sizeY*sizeof(int16_t)));
@@ -758,7 +758,7 @@ void CTU_CALC::compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4sp
 	{
 		convert8x8HWCtoX265Luma(hwc_data[3].inf_tq_total[0].oriResi);//only Luma
 	}
-	
+
 	//compare oriResi(after T and Q)
 	assert(!memcmp(hwc_data[3].inf_tq_total[0].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffY,
 		sizeY*sizeY*sizeof(int16_t)));
@@ -844,15 +844,14 @@ void CTU_CALC::proc()
 
     //IME 0:B 1:P 2:I
 	//if (slice_type != 2)  // B or P
-	//	Ime();
+		//Ime();
+	if (pHardWare->ctu_y == 0 && pHardWare->ctu_x == 0)
+		pHardWare->ctu_y = pHardWare->ctu_y;
 
     /*begin*/
     begin();
 
-	if (pHardWare->ctu_y == 16 && pHardWare->ctu_x == 1)
-		pHardWare->ctu_y = pHardWare->ctu_y;
-
-#if 1 //ndef	CTU_CALC_STATUS_ENABLE
+#ifndef	CTU_CALC_STATUS_ENABLE
 	//==============================================================
     cu_level_calc[0].depth = 0;
     cu_level_calc[0].TotalCost = 0;
@@ -903,8 +902,8 @@ void CTU_CALC::proc()
                 LogIntraParams2File(cu_level_calc[2].inf_intra_proc, cu_x_2, cu_y_2);
 			#endif
 #if TQ_RUN_IN_HWC_INTRA
-			//compare coeff(after T and Q), and Recon (Y, U, V)
-			//compareCoeffandRecon(cu_level_calc, 2);
+			    //compare coeff(after T and Q), and Recon (Y, U, V)
+			    //compareCoeffandRecon(cu_level_calc, 2);
 #endif
             }
 
@@ -919,8 +918,6 @@ void CTU_CALC::proc()
 
                 cost_3 = cu_level_calc[3].proc(3, cu_x_3, cu_y_3);
 
-
-
                 if (!(cost_3 & 0x80000000)) {
                     totalBits_3 += cu_level_calc[3].cost_best->Bits;
                     totalDist_3 += cu_level_calc[3].cost_best->Distortion;
@@ -929,8 +926,8 @@ void CTU_CALC::proc()
                     LogIntraParams2File(cu_level_calc[3].inf_intra_proc, cu_x_3, cu_y_3);
 				#endif
 #if 1 //wait for 4x4 intra to be done, added by lks
-				//compare coeff(after T and Q), and Recon (Y, U, V)
-				//compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
+				    //compare coeff(after T and Q), and Recon (Y, U, V)
+				    //compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
 #endif
                 }
 
@@ -981,7 +978,7 @@ void CTU_CALC::proc()
 		CTU_CALC_64_END         = 17,   // R
 		CTU_CALC_END            = 18,   // S
 	}ctu_cal_flag;
-	
+
 	struct __CTU_CALC_PCB {   // 状态跳转的控制参数块
 		bool    CTU_CMD_valid          ;
 		bool    ctu_calc_init_end      ;
@@ -1034,9 +1031,9 @@ void CTU_CALC::proc()
 		ctu_cal_pcb.cu_32_64_compare_ready  = false;
 		ctu_cal_pcb.cu_64_end_ready         = false;
 		ctu_cal_pcb.ctu_end_ready           = false;
-	}	
+	}
 
-#define  CTU_CALC_DEBUG 
+#define  CTU_CALC_DEBUG
 
 
 	ctu_cal_flag = CTU_CALC_IDLE;   // start point
@@ -1057,10 +1054,10 @@ void CTU_CALC::proc()
 				//---- next status ---
 
 				if (ctu_cal_pcb.CTU_CMD_valid)     // 1
-				{	
+				{
 					ctu_cal_flag = CTU_CALC_BEGIN;
 					CTU_CALC_DEBUG("1: A ==> B\n");
-				} 
+				}
 				else
 				{
 					ctu_cal_flag = CTU_CALC_IDLE;
@@ -1077,12 +1074,12 @@ void CTU_CALC::proc()
 
 				ctu_cal_pcb.ctu_calc_init_end = true;
 				//---- next status ---
-				
+
 				if (ctu_cal_pcb.ctu_calc_init_end)  // 2
 				{
 					ctu_cal_flag = CTU_CALC_PREPARE;
 					CTU_CALC_DEBUG("2: B ==> C\n");
-				} 
+				}
 				else
 				{
 					ctu_cal_flag = CTU_CALC_BEGIN;
@@ -1100,7 +1097,7 @@ void CTU_CALC::proc()
 
 				ctu_cal_pcb.IME_MV_ready         = true;
 				ctu_cal_pcb.ori_pixel_data_ready = true;
-				//---- next status ---	
+				//---- next status ---
 				if (ctu_cal_pcb.IME_MV_ready && ctu_cal_pcb.ori_pixel_data_ready && (ctu_cal_pcb.ctu_w == 64))      //3
 				{
 
@@ -1116,7 +1113,7 @@ void CTU_CALC::proc()
 					CTU_CALC_DEBUG("   C ==> E\n");
 
 				}
-				else 
+				else
 				{
 					ctu_cal_flag = CTU_CALC_PREPARE;
 					CTU_CALC_DEBUG("C ==> C\n");
@@ -1140,15 +1137,15 @@ void CTU_CALC::proc()
 					totalBits_1 = 0;
 					totalDist_1 = 0;
 
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_64_START;
 					CTU_CALC_DEBUG("   D ==> D\n");
 				}
 
 				//--------------------
-				
+
 
 				break;
 			case CTU_CALC_32_START:
@@ -1186,15 +1183,15 @@ void CTU_CALC::proc()
 					totalBits_2 = 0;
 					totalDist_2 = 0;
 
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_32_START;
 					CTU_CALC_DEBUG("   E ==> E\n");
 				}
 
 				//--------------------
-				
+
 
 				break;
 			case CTU_CALC_16_START:
@@ -1204,7 +1201,7 @@ void CTU_CALC::proc()
 				cu_level_calc[2].matrix_pos = ctu_cal_pcb.cu_16_num;
 				cu_x_2 = cu_x_1 + (ctu_cal_pcb.cu_16_num & 1)*16;
 				cu_y_2 = cu_y_1 + (ctu_cal_pcb.cu_16_num >>1)*16;
-				
+
 				cost_2 = cu_level_calc[2].proc(2, cu_x_2, cu_y_2);
 
 				if (!(cost_2 & 0x80000000)) {
@@ -1230,13 +1227,13 @@ void CTU_CALC::proc()
 					CTU_CALC_DEBUG("7: F ==> G\n");
 					totalBits_3 = 0;
 					totalDist_3 = 0;
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_16_START;
 					CTU_CALC_DEBUG("   F ==> F\n");
 				}
-				//--------------------				
+				//--------------------
 
 				break;
 			case CTU_CALC_8_START:
@@ -1246,7 +1243,7 @@ void CTU_CALC::proc()
 				cu_level_calc[3].matrix_pos = ctu_cal_pcb.cu_8_num;
 				cu_x_3 = cu_x_2 + (ctu_cal_pcb.cu_8_num & 1)*8;
 				cu_y_3 = cu_y_2 + (ctu_cal_pcb.cu_8_num >>1)*8;
-				
+
 				cost_3 = cu_level_calc[3].proc(3, cu_x_3, cu_y_3);
 
 				if (!(cost_3 & 0x80000000)) {
@@ -1270,15 +1267,15 @@ void CTU_CALC::proc()
 				{
 					ctu_cal_flag = CTU_CALC_8_ON;
 					CTU_CALC_DEBUG("8: G ==> H\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_8_START;
 					CTU_CALC_DEBUG("   G ==> G\n");
 				}
 
 				//--------------------
-				
+
 
 				break;
 			case CTU_CALC_8_ON:
@@ -1294,16 +1291,16 @@ void CTU_CALC::proc()
 				{
 					ctu_cal_flag = CTU_CALC_8_END;
 					CTU_CALC_DEBUG("9: H ==> I\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_8_ON;
 					CTU_CALC_DEBUG("   H ==> H\n");
 				}
 
 
 				//--------------------
-				
+
 
 				break;
 			case CTU_CALC_8_END:
@@ -1319,10 +1316,10 @@ void CTU_CALC::proc()
 				if (ctu_cal_pcb.cu_8_num != 3)       // 10
 				{
 					CTU_CALC_DEBUG("10: I ==> G\n");
-					ctu_cal_flag = CTU_CALC_8_START;	
+					ctu_cal_flag = CTU_CALC_8_START;
 					ctu_cal_pcb.cu_8_num++;
 
-				} 
+				}
 				else if (ctu_cal_pcb.cu_8_num == 3)  // 11
 				{
 					CTU_CALC_DEBUG("11: I ==> J\n");
@@ -1336,8 +1333,8 @@ void CTU_CALC::proc()
 					ctu_cal_flag = CTU_CALC_8_END;
 				}
 
-				//--------------------		
-				
+				//--------------------
+
 				break;
 			case CTU_CALC_8_16_WAIT:
 				//---- status todo ---
@@ -1350,10 +1347,10 @@ void CTU_CALC::proc()
 				//---- next status ---
 
 				if (ctu_cal_pcb.cu_16_calc_ready)   // 12
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_8_16_COMPARE;
 					CTU_CALC_DEBUG("12: J ==> K\n");
-				} 
+				}
 				else
 				{
 
@@ -1362,7 +1359,7 @@ void CTU_CALC::proc()
 				}
 
 				//--------------------
-				
+
 
 				break;
 			case CTU_CALC_8_16_COMPARE:
@@ -1379,16 +1376,16 @@ void CTU_CALC::proc()
 				ctu_cal_pcb.cu_8_16_compare_ready = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_8_16_compare_ready) // 13
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_16_END;
 					CTU_CALC_DEBUG("13: K ==> L\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_8_16_COMPARE;
 					CTU_CALC_DEBUG("   K ==> K\n");
 				}
-				//--------------------			
+				//--------------------
 
 				break;
 			case CTU_CALC_16_END:
@@ -1402,25 +1399,25 @@ void CTU_CALC::proc()
 				ctu_cal_pcb.cu_16_end_ready = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_16_end_ready && (ctu_cal_pcb.cu_16_num != 3))  // 14
-				{		
-					CTU_CALC_DEBUG("14: L ==> F\n");				
-					ctu_cal_flag = CTU_CALC_16_START;	
+				{
+					CTU_CALC_DEBUG("14: L ==> F\n");
+					ctu_cal_flag = CTU_CALC_16_START;
 					ctu_cal_pcb.cu_16_num++;
 
-				} 
+				}
 				else if((ctu_cal_pcb.cu_16_end_ready && (ctu_cal_pcb.cu_16_num == 3))) //15
 				{
-					CTU_CALC_DEBUG("15: L ==> M\n");					
+					CTU_CALC_DEBUG("15: L ==> M\n");
 					ctu_cal_flag = CTU_CALC_16_32_WAIT;
 					ctu_cal_pcb.cu_16_num = 0;
 				}
 				else
 				{
-					assert(ctu_cal_pcb.cu_16_num>=0 && ctu_cal_pcb.cu_16_num<=3);					
+					assert(ctu_cal_pcb.cu_16_num>=0 && ctu_cal_pcb.cu_16_num<=3);
 					ctu_cal_flag = CTU_CALC_16_END;
 					CTU_CALC_DEBUG("   L ==> L\n");
 				}
-				//--------------------		
+				//--------------------
 				break;
 			case CTU_CALC_16_32_WAIT:
 				//---- status todo ---
@@ -1432,18 +1429,18 @@ void CTU_CALC::proc()
 				ctu_cal_pcb.cu_32_calc_ready = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_32_calc_ready)    // 16
-				{					
+				{
 
 					ctu_cal_flag = CTU_CALC_16_32_COMPARE;
 					CTU_CALC_DEBUG("16: M ==> N\n");
-				} 
+				}
 				else
 				{
-					
+
 					ctu_cal_flag = CTU_CALC_16_32_WAIT;
 					CTU_CALC_DEBUG("   M ==> M\n");
 				}
-				//--------------------		
+				//--------------------
 				break;
 
 			case CTU_CALC_16_32_COMPARE:
@@ -1459,17 +1456,17 @@ void CTU_CALC::proc()
 				ctu_cal_pcb.cu_16_32_compare_ready  = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_16_32_compare_ready )  // 17
-				{					
+				{
 
 					ctu_cal_flag = CTU_CALC_32_END;
 					CTU_CALC_DEBUG("17: N ==> O\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_16_32_COMPARE;
 					CTU_CALC_DEBUG("   N ==> N\n");
 				}
-				//--------------------		
+				//--------------------
 				break;
 
 			case CTU_CALC_32_END:
@@ -1484,13 +1481,13 @@ void CTU_CALC::proc()
 				//---- next status ---
 				if (ctu_cal_pcb.cu_32_end_ready && (ctu_cal_pcb.cu_32_num != 3) &&(ctu_cal_pcb.ctu_w != 32))  // 18
 				{
-					CTU_CALC_DEBUG("18: O ==> E\n");					
+					CTU_CALC_DEBUG("18: O ==> E\n");
 					ctu_cal_flag = CTU_CALC_32_START;
 					ctu_cal_pcb.cu_32_num++;
-				} 
+				}
 				else if(ctu_cal_pcb.cu_32_end_ready && (ctu_cal_pcb.cu_32_num == 3) &&(ctu_cal_pcb.ctu_w != 32))  // 19
 				{
-					CTU_CALC_DEBUG("19: O ==> P\n");					
+					CTU_CALC_DEBUG("19: O ==> P\n");
 					ctu_cal_flag = CTU_CALC_32_64_WAIT;
 					ctu_cal_pcb.cu_32_num = 0;
 				}
@@ -1506,7 +1503,7 @@ void CTU_CALC::proc()
 					ctu_cal_flag = CTU_CALC_32_END;
 					CTU_CALC_DEBUG("   O ==> O\n");
 				}
-				//--------------------		
+				//--------------------
 				break;
 
 			case CTU_CALC_32_64_WAIT:
@@ -1519,17 +1516,17 @@ void CTU_CALC::proc()
 				ctu_cal_pcb.cu_64_calc_ready  = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_64_calc_ready )  // 20
-				{					
+				{
 
 					ctu_cal_flag = CTU_CALC_32_64_COMPARE;
 					CTU_CALC_DEBUG("20: P ==> Q\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_32_64_WAIT;
 					CTU_CALC_DEBUG("   P ==> P\n");
 				}
-				//--------------------	
+				//--------------------
 				break;
 
 			case CTU_CALC_32_64_COMPARE:
@@ -1548,41 +1545,41 @@ void CTU_CALC::proc()
 				ctu_cal_pcb.cu_32_64_compare_ready  = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_32_64_compare_ready )  // 22
-				{					
+				{
 
 					ctu_cal_flag = CTU_CALC_64_END;
 					CTU_CALC_DEBUG("22: Q ==> R\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_32_64_COMPARE;
 					CTU_CALC_DEBUG("   Q ==> Q\n");
 				}
-				//--------------------	
+				//--------------------
 				break;
 
 			case CTU_CALC_64_END:
 				//---- status todo ---
-				
+
 				cu_level_calc[0].end();
 
 				//---- status flag ---
 				ctu_cal_pcb.cu_64_end_ready  = true;
 				//---- next status ---
 				if (ctu_cal_pcb.cu_64_end_ready )  // 23
-				{					
+				{
 
 					ctu_cal_flag = CTU_CALC_END;
 					CTU_CALC_DEBUG("23: R ==> S\n");
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_64_END;
 					CTU_CALC_DEBUG("   R ==> R\n");
 				}
 
 
-				//--------------------	
+				//--------------------
 				break;
 
 			case CTU_CALC_END:
@@ -1591,17 +1588,17 @@ void CTU_CALC::proc()
 
 
 				//---- status flag ---
-				
+
 				ctu_cal_pcb.ctu_end_ready  = true;
 				//---- next status ---
 				if (ctu_cal_pcb.ctu_end_ready )  // 23
-				{	
+				{
 					ctu_cal_flag = CTU_CALC_IDLE;
 					CTU_CALC_DEBUG("24: S ==> A\n");
 					goto __ExitStatus;
-				} 
+				}
 				else
-				{					
+				{
 					ctu_cal_flag = CTU_CALC_END;
 					CTU_CALC_DEBUG("   S ==> S\n");
 				}
@@ -1612,7 +1609,7 @@ void CTU_CALC::proc()
 				assert("This status is not exist");   // others states exit
 				break;
 		}
-	}	
+	}
 
 __ExitStatus:
 	CTU_CALC_DEBUG("\n-------- CTU_CALC_DEBUG: END -------------\n\n");

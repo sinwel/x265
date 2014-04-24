@@ -214,11 +214,11 @@ public:
 	void creat(); //actually not used
 	void destroy(); //actually not used
 	void proc(int predMode); // for X265, predMode=0, means Intra; preMode=1, means Inter.
-	void proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType); // for intra
+	void proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t qp, uint8_t sliceType); // for intra
 	void proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType); //for inter
 	void procTandQ();
 	void procIQandIT();
-	void setQPforQ(int qpy, uint8_t ttype, int qpBdOffset, int chromaQPOffset);
+	void setQPforQ(int qpy, uint8_t ttype);
 	void fillResi(short* resi, int val, uint32_t resiStride, uint32_t tuSize); // to be debugged
 	void printInputLog(FILE* fp);
 	void printOutputLog(FILE* fp);
@@ -226,7 +226,7 @@ public:
 	/*                       debug in HWC                                  */
 	/************************************************************************/
 	// set info by other modules, called in other modules
-	void getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType);
+	void getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t qp, uint8_t sliceType);
 	void getFromInter(INTERFACE_ME* inf_me, uint8_t textType);
 	void setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra);
 

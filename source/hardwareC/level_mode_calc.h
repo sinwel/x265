@@ -63,10 +63,10 @@ public:
 	struct INTERFACE_TQ     inf_tq_total[3]; //Y+Cb+Cr, for comparing oriResi(after T and Q), added by lks
  	struct INTERFACE_RECON	inf_recon_total[3]; //Y+Cb+Cr, for comparing Recon(after T,Q,IQ,IT + predPixel), added by lks
     int16_t*                coeff4x4[6];//coeff after T,Q, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks
-    int16_t*                resi4x4[6]; //resi after T,Q,IQ,IT, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks        
- 	uint8_t*                recon4x4[6]; //reon, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks    
+    int16_t*                resi4x4[6]; //resi after T,Q,IQ,IT, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks
+ 	uint8_t*                recon4x4[6]; //reon, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks
     bool                    choose4x4split; // flag, only used when size==8, 1: choose 4x4 split, added by lks
-    
+
 	hardwareC *pHardWare;
     uint32_t TotalCost;
 
@@ -82,7 +82,7 @@ public:
     uint8_t curr_cu_u[32*32];
     uint8_t curr_cu_v[32*32];
 
-    uint8_t cuPredMode; // 0:B 1:P 2:I
+    uint8_t cuPredMode; // P:0 I:1
 
     uint8_t mergeFlag;
     uint8_t mergeIndex;
@@ -110,8 +110,8 @@ public:
     struct COST_DATA *cost_best;
     struct COST_DATA  cost_temp;
 
-    class cuData *cu_matrix_data;   //4?buf
-    unsigned int  matrix_pos;       //4?buf??
+    class cuData *cu_matrix_data;   //buf 4 for instead
+    unsigned int  matrix_pos;       //buf 4 pos for instead
     unsigned int depth;
     unsigned int ori_pos;
 
