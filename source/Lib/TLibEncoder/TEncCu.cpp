@@ -53,8 +53,9 @@
 #include "macro.h"
 
 #include "RkIntraPred.h"
+#ifdef RK_INTRA_PRED
 extern FILE* g_fp_result_x265;
-
+#endif
 
 using namespace x265;
 

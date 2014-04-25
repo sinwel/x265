@@ -8,9 +8,10 @@
 #include "../Lib/TLibCommon/CommonDef.h"
 
 //using namespace RK_HEVC;
+#ifdef RK_INTRA_PRED
 extern FILE* g_fp_result_rk;
 extern FILE* g_fp_result_x265;
-
+#endif
 static char rk_g_convertToBit[RK_MAX_CU_SIZE + 1];
 
 // luma direct mode entropy need bits.
@@ -2182,7 +2183,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 							puStride,
 							width);
 
-#ifndef INTRA_RESULT_STORE_FILE
+#ifdef INTRA_RESULT_STORE_FILE
 		RK_HEVC_FPRINT(g_fp_result_rk,"Y:\n");
 		StorePredSamples(g_fp_result_rk, rk_pred[RK_COMPENT], width, height);
 		StoreResidual(g_fp_result_rk, rk_residual[RK_COMPENT], puStride, width, height);
@@ -2251,7 +2252,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 							rk_residualCb[RK_COMPENT],
 							puStride,
 							width);
-#ifndef INTRA_RESULT_STORE_FILE
+#ifdef INTRA_RESULT_STORE_FILE
 		RK_HEVC_FPRINT(g_fp_result_rk,"U:\n");
 		StoreResidual(g_fp_result_rk, rk_residualCb[RK_COMPENT], puStride, width, height);
 #endif
@@ -2325,7 +2326,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 							puStride,
 							width);
 
-#ifndef INTRA_RESULT_STORE_FILE
+#ifdef INTRA_RESULT_STORE_FILE
 		RK_HEVC_FPRINT(g_fp_result_rk,"V:\n");
 		StoreResidual(g_fp_result_rk, rk_residualCr[RK_COMPENT], puStride, width, height);
 #endif
@@ -2547,7 +2548,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 
 		RK_CheckResidual(rk_residual[X265_COMPENT], rk_residual[RK_COMPENT],
 			puStride, width, height);
-#ifndef INTRA_RESULT_STORE_FILE
+#ifdef INTRA_RESULT_STORE_FILE
 		RK_HEVC_FPRINT(g_fp_result_x265,"Y:\n");
 		StorePredSamples(g_fp_result_x265, rk_pred[RK_COMPENT], width, height);
 		StoreResidual(g_fp_result_x265, rk_residual[RK_COMPENT], puStride, width, height);
@@ -2703,7 +2704,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 
 		RK_CheckResidual(rk_residualCb[X265_COMPENT], rk_residualCb[RK_COMPENT], puStride, width, height);
 
-#ifndef INTRA_RESULT_STORE_FILE
+#ifdef INTRA_RESULT_STORE_FILE
 		RK_HEVC_FPRINT(g_fp_result_x265,"U:\n");
 		StoreResidual(g_fp_result_x265, rk_residualCb[RK_COMPENT], puStride, width, height);
 #endif
@@ -2777,7 +2778,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 							width);
 
 		RK_CheckResidual(rk_residualCr[X265_COMPENT], rk_residualCr[RK_COMPENT], puStride, width, height);
-#ifndef INTRA_RESULT_STORE_FILE
+#ifdef INTRA_RESULT_STORE_FILE
 		RK_HEVC_FPRINT(g_fp_result_x265,"V:\n");
 		StoreResidual(g_fp_result_x265, rk_residualCr[RK_COMPENT], puStride, width, height);
 #endif

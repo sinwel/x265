@@ -472,8 +472,6 @@ void CU_LEVEL_CALC::intra_proc()
 	uint32_t totalBits4x4 = 0;
 #endif
 
-	// add by zxy for setLambda
-	m_rkIntraPred->setLambda(qpY, sliceType);
 
 	//=====================================================================================//
     /* -------------- Y ----------------*/
@@ -485,6 +483,10 @@ void CU_LEVEL_CALC::intra_proc()
     inf_recon.size = cu_w;
 	inf_intra_proc.Distortion = 0; // ensure the Distortion to be single CU.
 #ifdef RK_INTRA_PRED
+
+	// add by zxy for setLambda
+	m_rkIntraPred->setLambda(qpY, sliceType);
+
 	// --- covert uint8_t to bool ---//
 	// RK flag map to 8 pel. x265 flag map to 4 pel[Luma]
 	// RK flag map to 4 pel. x265 flag map to 2 pel[Chroma]
