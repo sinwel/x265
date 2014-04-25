@@ -1609,12 +1609,6 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
     }//add by zsq
     #endif
 
-	if ( (outBestCU->getSlice()->getSliceType() == P_SLICE) && (outBestCU->getWidth(0) == 16))
-	{
-		depth = depth;
-	}
-	
-
 	// variables for fast encoder decision
 	bool bTrySplit = true;
 
@@ -1910,7 +1904,6 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 			outBestCU->getCbf(0, TEXT_CHROMA_U) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_V) != 0) // avoid very complex intra if it is unlikely
 		#endif
-		// always do intra forever
 		{
 			xCheckRDCostIntraInInter(outBestCU, outTempCU, SIZE_2Nx2N);
 			outTempCU->initEstData(depth, qp);
@@ -2564,16 +2557,16 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 	if ( depth == 3 )
 	{
 		uint32_t *bits, *cost, *dist;
-		bits = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalBits8x8 : &m_search->m_rkIntraPred->rk_totalBits4x4;	    
-		dist = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalDist8x8 : &m_search->m_rkIntraPred->rk_totalDist4x4;	    
-		cost = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalCost8x8 : &m_search->m_rkIntraPred->rk_totalCost4x4;	    
+		bits = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalBits8x8 : &m_search->m_rkIntraPred->rk_totalBits4x4;
+		dist = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalDist8x8 : &m_search->m_rkIntraPred->rk_totalDist4x4;
+		cost = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalCost8x8 : &m_search->m_rkIntraPred->rk_totalCost4x4;
 		*bits = outTempCU->m_totalBits;
 		*dist = outTempCU->m_totalDistortion;
 		*cost = outTempCU->m_totalCost;
 
-	#ifdef RK_CABAC	
+	#ifdef RK_CABAC
 		uint8_t subDepth = (SIZE_2Nx2N == partSize) ? 0 : 1;
-		// only care depth = 3 and 4 
+		// only care depth = 3 and 4
 		g_intra_depth_total_bits[depth + subDepth][outTempCU->getZorderIdxInCU()] = outTempCU->m_totalBits;
 	#endif
 	}
@@ -2588,14 +2581,14 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 		// write to file
 		if ( SIZE_NxN == partSize )
 		{
-		#ifndef INTRA_RESULT_STORE_FILE
-		    RK_HEVC_FPRINT(g_fp_result_x265, 
+		#if 0 //def INTRA_RESULT_STORE_FILE
+		    RK_HEVC_FPRINT(g_fp_result_x265,
 				"bits4x4 = %d dist4x4 = %d cost4x4 = %d \n bits8x8 = %d dist8x8 = %d cost8x8 = %d \n\n",
 				m_search->m_rkIntraPred->rk_totalBits4x4,
 				m_search->m_rkIntraPred->rk_totalDist4x4,
 				m_search->m_rkIntraPred->rk_totalCost4x4,
 				m_search->m_rkIntraPred->rk_totalBits8x8,
-				m_search->m_rkIntraPred->rk_totalDist8x8,				
+				m_search->m_rkIntraPred->rk_totalDist8x8,
 				m_search->m_rkIntraPred->rk_totalCost8x8//,
 				//m_search->m_rkIntraPred->rk_totalBitsBest,
 				//m_search->m_rkIntraPred->rk_totalCostBest
@@ -2605,7 +2598,7 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 	}
 
 	// mask 64x64 CU
-#ifdef DISABLE_64x64_CU	
+#ifdef DISABLE_64x64_CU
 	if ( depth == 0 )
 	{
 	    outBestCU->m_totalCost 			= MAX_INT64;
@@ -2615,7 +2608,7 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 #endif
 
 #endif
-	
+
 }
 
 void TEncCu::xCheckRDCostIntraInInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU, PartSize partSize)

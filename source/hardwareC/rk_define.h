@@ -51,9 +51,13 @@ struct CTU_CMD
 #if defined(_MSC_VER)
 	#define FILE_PATH "F:/HEVC/log_files/"
 	#define PATH_NAME(name) (FILE_PATH ## name)
+    #define CFG_FILE "F:/HEVC/svn_x265/cfg/"
+    #define CFG_FILE_NAME(name) (CFG_FILE ## name)
 #elif  defined(__GNUC__)
 	#define FILE_PATH "/home2/zxy/log_files/"
-	#define PATH_NAME(name) ("/home2/zxy/log_files/"name)
+	#define PATH_NAME(name) (FILE_PATH name)
+    #define CFG_FILE "/home2/zxy/hevc/svn_x265/cfg/"
+    #define CFG_FILE_NAME(name) ( CFG_FILE name)    
 #endif
 
 

@@ -148,7 +148,7 @@ void hardwareC::ConfigFiles(FILE *fp)
             case CFG_FOR_PREPROCESS:
                 break;
             case CFG_FOR_INTRA:
-				//ctu_calc.cu_level_calc.m_rkIntraPred;
+                //Rk_IntraPred.model_cfg(cmdbuff);
                 break;
             case CFG_FOR_IME:
                 break;

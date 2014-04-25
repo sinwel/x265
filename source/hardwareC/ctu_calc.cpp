@@ -145,8 +145,8 @@ void CTU_CALC::begin()
     buf_y = line_intra_buf_y + (pos);
     buf_u = line_intra_buf_u + (pos >> 1);
     buf_v = line_intra_buf_v + (pos >> 1);
-    buf_t = line_cu_type + (pos >> 8);
-    buf_mv= line_mv_buf + (pos >> 8);
+    buf_t = line_cu_type + (pos / 8);
+    buf_mv= line_mv_buf + (pos / 8);
 
     memcpy(L_intra_buf_y + 65, buf_y, ctu_w);
     memcpy(L_intra_buf_u + 33, buf_u, ctu_w >> 1);
@@ -158,7 +158,7 @@ void CTU_CALC::begin()
         memcpy(L_intra_buf_y + 65 + (ctu_w),      buf_y + (ctu_w),      32);
         memcpy(L_intra_buf_u + 33 + (ctu_w >> 1), buf_u + (ctu_w >> 1), 32 >> 1);
         memcpy(L_intra_buf_v + 33 + (ctu_w >> 1), buf_v + (ctu_w >> 1), 32 >> 1);
-        memcpy(L_cu_type + 9 + (ctu_w >> 8), buf_t + (ctu_w >> 8), 32 >> 8);
+        memcpy(L_cu_type + 9 + (ctu_w >> 3), buf_t + (ctu_w >> 3), 32 >> 3);
     }
 
     /* inter */
@@ -221,7 +221,7 @@ void CTU_CALC::end()
     buf_y = line_intra_buf_y + (pos);
     buf_u = line_intra_buf_u + (pos >> 1);
     buf_v = line_intra_buf_v + (pos >> 1);
-    buf_t = line_cu_type + (pos >> 8);
+    buf_t = line_cu_type + (pos / 8);
 
     /* ver to hor */
     for(i=0; i<ctu_w; i++){
@@ -257,14 +257,14 @@ void CTU_CALC::end()
     pos = ctu_x * ctu_w;
 
     /* ver to hor */
-    buf_mv = line_mv_buf + (pos>>8);
+    buf_mv = line_mv_buf + (pos/8);
 
-    for(i=0; i<(ctu_w>>8); i++){
+    for(i=0; i<(ctu_w/8); i++){
         buf_mv[i] = L_mv_buf[8 - ctu_w/8 + i];
     }
 
     /* hor to ver */
-    for(i=0; i<(ctu_w>>8); i++){
+    for(i=0; i<(ctu_w/8); i++){
         L_mv_buf[i] = L_mv_buf[8 + i];
     }
 }
@@ -845,7 +845,7 @@ void CTU_CALC::proc()
     //IME 0:B 1:P 2:I
 	//if (slice_type != 2)  // B or P
 		//Ime();
-	if (pHardWare->ctu_y == 0 && pHardWare->ctu_x == 0)
+	if (pHardWare->ctu_y == 1 && pHardWare->ctu_x == 0)
 		pHardWare->ctu_y = pHardWare->ctu_y;
 
     /*begin*/
@@ -1631,7 +1631,8 @@ void CTU_CALC::model_cfg(char *cmd)
     OPT(cmd, ctu_calc_cmdf)     { fp_ctu_calc_cmdf = fopen(cmd + sizeof(ctu_calc_cmdf)-1,"wb+");}
     OPT(cmd, ctu_calc_recon_y)  { fp_ctu_calc_recon_y = fopen(cmd + sizeof(ctu_calc_cmdf)-1,"wb+");}
     OPT(cmd, ctu_calc_recon_uv) { fp_ctu_calc_recon_uv = fopen(cmd + sizeof(ctu_calc_cmdf)-1,"wb+");}
-    else ;
+    else
+        ;
 
 }
 

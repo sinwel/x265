@@ -165,12 +165,12 @@ static const char * const x265_motion_est_names[] = { "dia", "hex", "umh", "star
 #ifdef X265_LOG_FILE_ROCKCHIP
 #define RK_HEVC_FPRINT(fp,fmt, ...) \
     do { \
-        fprintf(fp," " fmt, ## __VA_ARGS__); \
+        fprintf(fp," " fmt, ## __VA_ARGS__); fflush(fp);\
     } while(0);  
 #define RK_HEVC_LOGING(fp,fmt, ...) \
      do { \
         fprintf(fp,"[%s]: %s \n line:%d \n",__FILE__,__FUNCTION__,__LINE__); \
-        fprintf(fp," " fmt, ## __VA_ARGS__); \
+        fprintf(fp," " fmt, ## __VA_ARGS__); fflush(fp); \
     } while(0);  
 
     

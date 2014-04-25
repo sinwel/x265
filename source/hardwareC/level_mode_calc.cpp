@@ -204,7 +204,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         bottom_left_valid = 0;
         for (m=0; m<bottom_left_len/8; m++) {
             if(constrain_intra) {
-                inf_intra.NeighborFlags[8 - (cu_w/8) - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + m) + 8];
+                inf_intra.NeighborFlags[8 - (cu_w/8) - m - 1] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 - 1) - (y_pos/8 + cu_w/8 + m) + 8];
                 bottom_left_valid += inf_intra.NeighborFlags[8 - cu_w/8 - m - 1];
             }
             else {
@@ -262,7 +262,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         top_valid = 0;
         if(constrain_intra) {
             for(m=0; m<cu_w/8; m++) {
-                inf_intra.NeighborFlags[9 + m] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 + m + 1) - (y_pos/8) + 8];
+                inf_intra.NeighborFlags[9 + m] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 + m) - (y_pos/8 - 1) + 8];
                 top_valid += inf_intra.NeighborFlags[8 + m + 1];
             }
         }
@@ -283,7 +283,7 @@ void CU_LEVEL_CALC::intra_neighbour_flag_descion()
         top_right_valid = 0;
         for(m=0; m<top_right_len/8; m++) {
             if(constrain_intra) {
-                inf_intra.NeighborFlags[9 + m + cu_w/8] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 + m + 1) - (y_pos/8) + 8];
+                inf_intra.NeighborFlags[9 + m + cu_w/8] = pHardWare->ctu_calc.L_cu_type[(x_pos/8 + cu_w/8 + m) - (y_pos/8 - 1) + 8];
                 top_right_valid += inf_intra.NeighborFlags[8 + m + 1 + cu_w/8];
             }
             else {
@@ -380,9 +380,8 @@ void CU_LEVEL_CALC::end()
 
     /* cu_type */
     for(m=0; m<cu_w/8; m++) {
-        for(n=0; n<cu_w/8; n++) {
-            pHardWare->ctu_calc.L_cu_type[(x_pos/8 + n) - (y_pos/8 + m) + 8] = cost_best->predMode;
-        }
+        pHardWare->ctu_calc.L_cu_type[(x_pos/8 + cu_w/8 - 1) - (y_pos/8 + m) + 8] = cu_src->cuPredMode[m*cu_w/8 + cu_w/8 - 1];
+        pHardWare->ctu_calc.L_cu_type[(x_pos/8 + m) - (y_pos/8 + cu_w/8 - 1) + 8] = cu_src->cuPredMode[(cu_w/8 - 1)*cu_w/8 + m];
     }
 
     /* cu_data_valid flag */
@@ -461,7 +460,7 @@ void CU_LEVEL_CALC::intra_proc()
 	uint8_t qpU = pHardWare->ctu_calc.QP_cb;
 	uint8_t qpV = pHardWare->ctu_calc.QP_cr;
 	uint8_t sliceType = pHardWare->ctu_calc.slice_type;
-	
+
 #ifdef RK_CABAC
 	uint32_t zscan = g_rk_raster2zscan_depth_4[x_pos/4 + y_pos*4];
 	uint32_t totalBitsDepth = g_intra_depth_total_bits[depth][zscan];
@@ -473,7 +472,7 @@ void CU_LEVEL_CALC::intra_proc()
 	uint32_t totalBits4x4 = 0;
 #endif
 
-	// add by zxy for setLambda 	
+	// add by zxy for setLambda
 	m_rkIntraPred->setLambda(qpY, sliceType);
 
 	//=====================================================================================//
@@ -842,7 +841,7 @@ void CU_LEVEL_CALC::intra_proc()
 		// cost = distortion + lambda * bits
 		totalCost4x4 = RdoCostCalc(totalDist4x4, totalBits4x4, inf_tq.QP); // 4x4
 
-		#ifndef INTRA_RESULT_STORE_FILE
+		#if 0//def INTRA_RESULT_STORE_FILE
 		    RK_HEVC_FPRINT(g_fp_result_rk,
 				"bits4x4 = %d dist4x4 = %d cost4x4 = %d \n bits8x8 = %d dist8x8 = %d cost8x8 = %d \n\n",
 				totalBits4x4,

@@ -54,7 +54,7 @@ DECLARE_CYCLE_COUNTER(ME);
 //! \ingroup TLibEncoder
 //! \{
 void static logRefAndFencParam2File(FILE* fp_w, uint32_t initTrDepth, INTERFACE_INTRA rk_Interface_Intra)
-{			
+{
 	if ( initTrDepth == 0 )// 屏蔽 4x4 这一层
 	{
 		uint8_t flag_map_pel = 4;
@@ -118,7 +118,7 @@ void static logRefAndFencParam2File(FILE* fp_w, uint32_t initTrDepth, INTERFACE_
 				}
 			}
 		}
-		
+
 		RK_HEVC_FPRINT(fp_w,"\n\n");
 
 		// rk_Interface_Intra.fenc
@@ -197,7 +197,7 @@ TEncSearch::~TEncSearch()
 #ifdef RK_INTRA_MODE_CHOOSE
     delete m_rkIntraPredFast;
 #endif
-	
+
     delete[] m_qtTempCoeffY;
     delete[] m_qtTempCoeffCb;
     delete[] m_qtTempCoeffCr;
@@ -601,20 +601,20 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 	    roiOrigin = cu->getPic()->getPicYuvRec()->getLumaAddr(cu->getAddr(), cu->getZorderIdxInCU() + absPartIdx);
 	    adiTemp   = m_predBuf;
 
-		m_rkIntraPred->fillReferenceSamples(roiOrigin, 
-			adiTemp, 
-			bNeighborFlags, 
-			numIntraNeighbor, 
-			unitSize, 
-			numUnitsInCU, 
-			totalUnits, 
-			cuWidth_t, 
-			cuHeight_t, 
-			width_t, 
-			height_t, 
+		m_rkIntraPred->fillReferenceSamples(roiOrigin,
+			adiTemp,
+			bNeighborFlags,
+			numIntraNeighbor,
+			unitSize,
+			numUnitsInCU,
+			totalUnits,
+			cuWidth_t,
+			cuHeight_t,
+			width_t,
+			height_t,
 			picStride,
 			trDepth);
-		
+
 		assert(width == height);
 
 		if ( cu->getWidth(0) != SIZE_64x64)
@@ -639,28 +639,28 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			{
 			    RK_HEVC_PRINT("%s do not support for RK_HEVC encoder.\n",__FUNCTION__);
 			}
-			
+
 			// 正常由上层给，这里从 x265中抽取
-			Pel* pTmp = rk_Interface_Intra.reconEdgePixel; 
-			Pel* pReconRef = roiOrigin - 1; 
+			Pel* pTmp = rk_Interface_Intra.reconEdgePixel;
+			Pel* pReconRef = roiOrigin - 1;
 			for (int i = 0 ; i < cuHeight2_t ; i++ )
 			{
 			    pTmp[cuHeight2_t - i - 1] = pReconRef[i*picStride];
-			}	
+			}
 			pTmp += cuHeight2_t;
-			pReconRef = roiOrigin - picStride - 1; 
+			pReconRef = roiOrigin - picStride - 1;
 			for (int i = 0 ; i < cuWidth2_t + 1; i++ )
 			{
 			    pTmp[i] = pReconRef[i];
 			}
-						
+
 			::memcpy(rk_Interface_Intra.bNeighborFlags,bNeighborFlags,4 * MAX_NUM_SPU_W + 1);
 			rk_Interface_Intra.numintraNeighbor = numIntraNeighbor;
 			rk_Interface_Intra.size = width;
 			rk_Interface_Intra.useStrongIntraSmoothing = cu->getSlice()->getSPS()->getUseStrongIntraSmoothing();
 
 		}
-		
+
 	    // generate filtered intra prediction samples
 	    // left and left above border + above and above right border + top left corner = length of 3. filter buffer
 	    //int bufSize = cuHeight2_t + cuWidth2_t + 1;
@@ -684,21 +684,34 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 	    memcpy(&m_rkIntraPred->rk_LineBufTmp[l], &adiTemp[1], cuWidth2_t * sizeof(*filterBuf));
 
 		/* 函数接口 输出 rk_LineBuf */
-		m_rkIntraPred->RkIntrafillRefSamples(roiOrigin, 
-			bNeighborFlags, 
-			numIntraNeighbor, 
-			unitSize, 
-			numUnitsInCU, 
-			totalUnits, 
-			width, 
-			height, 
+		m_rkIntraPred->RkIntrafillRefSamples(roiOrigin,
+			bNeighborFlags,
+			numIntraNeighbor,
+			unitSize,
+			numUnitsInCU,
+			totalUnits,
+			width,
+			height,
 			picStride,
 			m_rkIntraPred->rk_LineBuf);
-
+		/* debug */
+		uint8_t count_debug = 0;
+		for (uint8_t i_count = 0 ; i_count < 33 ; i_count++ )
+		{
+			if ( m_rkIntraPred->rk_LineBuf[i_count] == 0x83 )
+			{
+			    count_debug++;
+			}		
+		}
+		if (( count_debug == 33)&&( width == 8 ))
+		{
+		    count_debug = count_debug;
+		}
+		
 		// 对比 最后的 L buffer
 		m_rkIntraPred->RkIntraFillRefSamplesCheck(refAbove + width - 1,refLeft + height - 1,
 			cuWidth_t, cuHeight_t);
-	
+
 #endif
 // 验证smoothing
 #ifdef X265_INTRA_DEBUG
@@ -729,7 +742,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 
 		//===== get prediction signal =====
         predIntraLumaAng(lumaPredMode, pred, stride, width);
-		
+
 // 验证35种预测模式
 #ifdef X265_INTRA_DEBUG
 	if ( cu->getWidth(0) != SIZE_64x64)
@@ -748,7 +761,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 		int mode_idx;
 		for ( mode_idx = 0 ; mode_idx < 35 ; mode_idx++ )
 		{
-		
+
 			//int dirMode = lumaPredMode;
 			int dirMode = mode_idx;
 		    int diff = std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
@@ -758,43 +771,43 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 		        filterIdx = 0; //no smoothing for DC or LM chroma
 		    }
 		    assert(filterIdx <= 1);
-			
+
 		    Pel *refLft, *refAbv;
 		    refLft = refLeft + width - 1 ;
 		    refAbv = refAbove + width - 1;
-			
+
 		    if (filterIdx)
 		    {
 		        refLft = refLeftFlt + width - 1;
 		        refAbv = refAboveFlt + width - 1;
 		    }
-			
+
 	//			RK_HEVC_PRINT("dirMode = %d \t", dirMode);
 	//			RK_HEVC_PRINT("stride = %d, puSize  = %d x %d \n",stride, width,width);
 
 		    bool bFilter = width <= 16 && dirMode != PLANAR_IDX;
 
 				primitives.intra_pred[log2BlkSize - 2][dirMode](
-					m_rkIntraPred->rk_IntraPred_35.rk_predSampleOrg, 
-					stride, 
-					refLft, 
-					refAbv, 
-					dirMode, 
+					m_rkIntraPred->rk_IntraPred_35.rk_predSampleOrg,
+					stride,
+					refLft,
+					refAbv,
+					dirMode,
 					bFilter);
 
 			// 采用RK作为输入
 		    refLft = rk_refLeft + width - 1 ;
 		    refAbv = rk_refAbove + width - 1;
-			
+
 		    if (filterIdx)
 		    {
 		        refLft = rk_refLeftFlt + width - 1;
 		        refAbv = rk_refAboveFlt + width - 1;
 		    }
 
-			m_rkIntraPred->RkIntraPredAll(m_rkIntraPred->rk_IntraPred_35.rk_predSample, 
-						refAbv , 
-						refLft , 
+			m_rkIntraPred->RkIntraPredAll(m_rkIntraPred->rk_IntraPred_35.rk_predSample,
+						refAbv ,
+						refLft ,
 						stride ,
 						log2BlkSize,
 						0, //(0=Y, 1=Cb, 2=Cr)
@@ -802,7 +815,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			// 存储 35 种预测数据
 			if ( trDepth == 0 )
 			{
-				::memcpy(m_rkIntraPred->rk_IntraPred_35.rk_predSampleTmp[dirMode], 
+				::memcpy(m_rkIntraPred->rk_IntraPred_35.rk_predSampleTmp[dirMode],
 					m_rkIntraPred->rk_IntraPred_35.rk_predSample,width*height);
 			}
 			else if ( trDepth == 1 )
@@ -831,11 +844,11 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			int squareBlockIdx[5] = {0,1,4,11,18};
 			pixelcmp_t sad = primitives.sad[squareBlockIdx[g_convertToBit[width]]];
 
-			
-            modeCosts[dirMode] 		= sa8d(fenc, stride, 
+
+            modeCosts[dirMode] 		= sa8d(fenc, stride,
 					m_rkIntraPred->rk_IntraPred_35.rk_predSample, stride);
 
-			modeCosts_SAD[dirMode] 	= sad(fenc, stride, 
+			modeCosts_SAD[dirMode] 	= sad(fenc, stride,
 					m_rkIntraPred->rk_IntraPred_35.rk_predSample, stride);
 			#if 1
 				uint32_t sad_value = modeCosts_SAD[dirMode];
@@ -843,15 +856,15 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
                 uint32_t sad = modeCosts[dirMode];
 			#endif
             uint32_t bits = xModeBitsIntra(cu, dirMode, absPartIdx, cu->getDepth(0), trDepth);
-			
+
 			uint64_t cost = m_rdCost->calcRdSADCost(sad_value, bits);
-			
+
 			m_rkIntraPred->rk_modeCostsSadAndCabac[dirMode] = cost;
 		#endif
 			//
 			m_rkIntraPred->rk_puwidth_35 = width;
 			m_rkIntraPred->rk_dirMode = dirMode;
-			m_rkIntraPred->RkIntraPred_angularCheck();	
+			m_rkIntraPred->RkIntraPred_angularCheck();
 
 		}
 
@@ -920,7 +933,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
     m_trQuant->setQPforQuant(cu->getQP(0), TEXT_LUMA, cu->getSlice()->getSPS()->getQpBDOffsetY(), 0);
     m_trQuant->selectLambda(TEXT_LUMA);
 #if TQ_RUN_IN_X265_INTRA
-	// get input 
+	// get input
 	if (cu->getSlice()->getSliceType() == B_SLICE) m_trQuant->m_hevcQT->m_infoFromX265->sliceType = 0; // B
 	if (cu->getSlice()->getSliceType() == P_SLICE) m_trQuant->m_hevcQT->m_infoFromX265->sliceType = 1; // P
 	if (cu->getSlice()->getSliceType() == I_SLICE) m_trQuant->m_hevcQT->m_infoFromX265->sliceType = 2; // I
@@ -946,6 +959,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 
     absSum = m_trQuant->transformNxN(cu, residual, stride, coeff, width, height, TEXT_LUMA, absPartIdx, &lastPos, useTransformSkip);
 #if TQ_RUN_IN_X265_INTRA
+	// get output
 	memcpy(m_trQuant->m_hevcQT->m_infoFromX265->coeffTQ, coeff, width*width*sizeof(int32_t));
 #endif
     //--- set coded block flag ---
@@ -1006,22 +1020,10 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 				pdst += width; // intra_proc中是4x4连续存储的
 				psrc += stride;
 			}
-			
-			// save 4x4 recon edge 
+
+			// save 4x4 recon edge
 			m_rkIntraPred->RK_store4x4Recon2Ref(&g_4x4_single_reconEdge[0][0], m_rkIntraPred->rk_recon[X265_COMPENT], absPartIdx);
 			::memcpy(&g_4x4_total_reconEdge[cu->getZorderIdxInCU()/4][0][0],g_4x4_single_reconEdge,16);
-
-			// debug
-			#if 1
-			if ( ( g_4x4_total_reconEdge[0][PART_0_RIGHT][0] == 0xef ) && 
-				( g_4x4_total_reconEdge[0][PART_0_RIGHT][1] == 0xff ) &&
-				( g_4x4_total_reconEdge[0][PART_0_RIGHT][2] == 0xff ) &&
-				( g_4x4_total_reconEdge[0][PART_0_RIGHT][3] == 0xee ) )
-			{
-			    width = width;
-			}
-			#endif
-
 		}
 		else
 		{
@@ -1029,7 +1031,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 		}
 	}
 #endif
-	
+
 }
 
 void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
@@ -1109,16 +1111,16 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 		int  totalUnits = 0;
 		bool bNeighborFlags[4 * MAX_NUM_SPU_W + 1];
 		int  numIntraNeighbor = 0;
-		
+
 		uint32_t partIdxLT, partIdxRT, partIdxLB;
-		
+
 		cu->deriveLeftRightTopIdxAdi(partIdxLT, partIdxRT, absPartIdx, trDepth);
 		cu->deriveLeftBottomIdxAdi(partIdxLB,              absPartIdx, trDepth);
-		
+
 	    unitSize      = (g_maxCUWidth >> g_maxCUDepth) >> cu->getHorzChromaShift(); // for chroma
-		numUnitsInCU  = (cuWidth_t / unitSize) >> cu->getHorzChromaShift();      
+		numUnitsInCU  = (cuWidth_t / unitSize) >> cu->getHorzChromaShift();
 		totalUnits    = (numUnitsInCU << 2) + 1;
-		
+
 		bNeighborFlags[numUnitsInCU * 2] = cu->getPattern()->isAboveLeftAvailable(cu, partIdxLT);
 		numIntraNeighbor  += (int)(bNeighborFlags[numUnitsInCU * 2]);
 		numIntraNeighbor  += cu->getPattern()->isAboveAvailable(cu, partIdxLT, partIdxRT, bNeighborFlags + (numUnitsInCU * 2) + 1);
@@ -1129,7 +1131,7 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 	    cuWidth_t = cuWidth_t >> cu->getHorzChromaShift(); // for chroma
 	    cuHeight_t = cuHeight_t >> cu->getVertChromaShift(); // for chroma
 
-		
+
 		width_t = cuWidth_t*2 + 1;
 		height_t = cuHeight_t*2 + 1;
 	    if ((4 * width_t > m_predBufStride) || (4 * height > m_predBufStride))
@@ -1139,38 +1141,38 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 		}
 
 	    // get Cb pattern
-		roiOrigin = chromaId > 0 ? 
+		roiOrigin = chromaId > 0 ?
 		cu->getPic()->getPicYuvRec()->getCrAddr(cu->getAddr(), cu->getZorderIdxInCU() + absPartIdx) :
 		cu->getPic()->getPicYuvRec()->getCbAddr(cu->getAddr(), cu->getZorderIdxInCU() + absPartIdx);
-		
+
 		if( cu->getWidth(0) != SIZE_64x64)
 		{
-		
+
 			if ( trDepth == 0 )
 			{
 				uint8_t* pfenc = chromaId > 0 ? rk_Interface_IntraCr.fenc : rk_Interface_IntraCb.fenc;
 			    ::memcpy(pfenc, fenc, width*height);
-			}		
+			}
 			else
 			{
 			    RK_HEVC_PRINT("%s do not support for RK_HEVC encoder.\n",__FUNCTION__);
 			}
-	 			
+
 			// 正常由上层给，这里从 x265中抽取
 			Pel* pTmp = chromaId > 0 ? rk_Interface_IntraCr.reconEdgePixel : rk_Interface_IntraCb.reconEdgePixel;
-			Pel* pReconRef = roiOrigin - 1; 
+			Pel* pReconRef = roiOrigin - 1;
 			for (int i = 0 ; i < cuHeight_t*2 ; i++ )
 			{
 			    pTmp[cuHeight_t*2 - i - 1] = pReconRef[i*picStride];
-			}	
+			}
 			pTmp += cuHeight_t*2;
-			pReconRef = roiOrigin - picStride - 1; 
+			pReconRef = roiOrigin - picStride - 1;
 			for (int i = 0 ; i < cuWidth_t*2 + 1; i++ )
 			{
 			    pTmp[i] = pReconRef[i];
 			}
-			if ( chromaId > 0 )			
-			{			
+			if ( chromaId > 0 )
+			{
 				::memcpy(rk_Interface_IntraCr.bNeighborFlags,bNeighborFlags,4 * MAX_NUM_SPU_W + 1);
 				rk_Interface_IntraCr.numintraNeighbor = numIntraNeighbor;
 				rk_Interface_IntraCr.size = width;
@@ -1181,12 +1183,12 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 				::memcpy(rk_Interface_IntraCb.bNeighborFlags,bNeighborFlags,4 * MAX_NUM_SPU_W + 1);
 				rk_Interface_IntraCb.numintraNeighbor = numIntraNeighbor;
 				rk_Interface_IntraCb.size = width;
-				rk_Interface_IntraCb.lumaDirMode = chromaPredMode;				
+				rk_Interface_IntraCb.lumaDirMode = chromaPredMode;
 			}
-				
+
 		}
 
-		
+
 		assert(width == height);
 
 		// 从 chromaPred 中提取 refAbv 和 refLft
@@ -1202,18 +1204,18 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 	    {
 	        refLft[k + width - 1] = chromaPred[k * ADI_BUF_STRIDE];
 	    }
-		
+
 		Pel* pLineBuf = chromaId > 0 ? m_rkIntraPred->rk_LineBufCr : m_rkIntraPred->rk_LineBufCb;
-	
+
 		/* 函数接口 输出在 rk_LineBuf*/
-		m_rkIntraPred->RkIntrafillRefSamples(roiOrigin, 
-			bNeighborFlags, 
-			numIntraNeighbor, 
-			unitSize, 
-			numUnitsInCU, 
-			totalUnits, 
-			width, 
-			height, 
+		m_rkIntraPred->RkIntrafillRefSamples(roiOrigin,
+			bNeighborFlags,
+			numIntraNeighbor,
+			unitSize,
+			numUnitsInCU,
+			totalUnits,
+			width,
+			height,
 			picStride,
 			pLineBuf);
 
@@ -1223,8 +1225,8 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
 							refLft + height - 1,
 							cuWidth_t, cuHeight_t);
 
-		
-		
+
+
 #endif
 
 
@@ -1232,11 +1234,11 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
         predIntraChromaAng(chromaPred, chromaPredMode, pred, stride, width);
 #ifdef X265_INTRA_DEBUG
 		// 存储 35 种预测数据
-		if( cu->getWidth(0) != SIZE_64x64)		
+		if( cu->getWidth(0) != SIZE_64x64)
 		{
 			Pel* pPredSample = chromaId > 0 ? m_rkIntraPred->rk_IntraPred_35.rk_predSampleCr : m_rkIntraPred->rk_IntraPred_35.rk_predSampleCb;
 			::memcpy(pPredSample, pred, width*height);
-		}	
+		}
 #endif
         // save prediction
         if (default0Save1Load2 == 1)
@@ -1259,7 +1261,7 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
     int size = g_convertToBit[width];
     primitives.calcresidual[size](fenc, pred, residual, stride);
 #ifdef X265_INTRA_DEBUG
-	if( cu->getWidth(0) != SIZE_64x64)		
+	if( cu->getWidth(0) != SIZE_64x64)
 	{
 		//RK_HEVC_PRINT("0x%016x\n",(uint64_t)residual);
 		//residual 在下面会被重构的更新，需要进行暂存
@@ -1302,7 +1304,7 @@ void TEncSearch::xIntraCodingChromaBlk(TComDataCU* cu,
         m_trQuant->selectLambda(TEXT_CHROMA);
 
 #if TQ_RUN_IN_X265_INTRA
-		// get input 
+		// get input
 		if (cu->getSlice()->getSliceType() == B_SLICE) m_trQuant->m_hevcQT->m_infoFromX265->sliceType = 0; // B
 		if (cu->getSlice()->getSliceType() == P_SLICE) m_trQuant->m_hevcQT->m_infoFromX265->sliceType = 1; // P
 		if (cu->getSlice()->getSliceType() == I_SLICE) m_trQuant->m_hevcQT->m_infoFromX265->sliceType = 2; // I
@@ -2546,7 +2548,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 		int rk_candidate[20];
 		::memset(rk_candidate,0xff,sizeof(rk_candidate));
 		uint32_t modeCostsWithCabac[35];
-#endif		
+#endif
         int numModesForFullRD = g_intraModeNumFast[widthBit];
 
         bool doFastSearch = (numModesForFullRD != numModesAvailable);
@@ -2682,11 +2684,6 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
             // Find N least cost modes. N = numModesForFullRD
             for (uint32_t mode = 0; mode < numModesAvailable; mode++)
             {
-	
-			  // method 4, skip odd direct for 4x4 and 8x8
-			  //if ( ! (( mode % 2 == 1 )&&( mode != 1 )&&(width == 8)))	
-			  {
-			
 #ifdef RK_INTRA_SAD_REPALCE_SATD
 				uint32_t sad = modeCosts_SAD[mode];
 #else
@@ -2718,26 +2715,14 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				m_rkIntraPred->rk_bits[partOffset][mode] = bits;
 				m_rkIntraPred->rk_modeCostsSadAndCabacCorrect[mode] = cost;
 				m_rkIntraPred->rk_lambdaMotionSAD = m_rdCost->getlambdaMotionSAD();
-			
-#endif				
+
+#endif
 #ifdef RK_INTRA_MODE_CHOOSE
 				modeCostsWithCabac[mode] = cost;
                 candNum += xUpdateCandList(mode, cost, 35, rdModeList, candCostList);
-#else			
-			// method 3
- 			#if 0
-				// Disable odd direct predmode
-				if ( ! (( mode % 2 == 1 )&&( mode != 1 )&&(width == 4)))
-				{
-	                candNum += xUpdateCandList(mode, cost, numModesForFullRD, rdModeList, candCostList);
-				}
-			#else
+#else
                 candNum += xUpdateCandList(mode, cost, numModesForFullRD, rdModeList, candCostList);
-			#endif
 #endif
-
-			  }
-			
             }
 
             int preds[3] = { -1, -1, -1 };
@@ -2764,48 +2749,48 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
                     rdModeList[numModesForFullRD++] = mostProbableMode;
                 }
             }
-			
+
 #ifdef RK_INTRA_MODE_CHOOSE
 		bool missflag[2] = {true,true};
 		assert(rk_candidate[18] == -1);
 		m_rkIntraPredFast->RkIntraPriorModeChoose(rk_candidate,modeCosts,false);
 
-		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"%02d\n",rdModeList[0]);			
+		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"%02d\n",rdModeList[0]);
         for (uint32_t mode = 0; mode < 18; mode++)
     	{
 			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"%02d ",rk_candidate[mode] );
 			// 判断是否命中
 			if ( rdModeList[0] == rk_candidate[mode] )
 			{
-				missflag[0] = false;			    
+				missflag[0] = false;
 			}
-		
+
 		}
-		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"\n");			
+		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"\n");
 
 		// 从rk_candidate的18种选择SAD/SATD最小的作为 bestMode
-		m_rkIntraPredFast->RkIntraPriorModeChoose(rk_candidate,modeCostsWithCabac,true);		
-	
+		m_rkIntraPredFast->RkIntraPriorModeChoose(rk_candidate,modeCostsWithCabac,true);
+
 		if ( rdModeList[0] == rk_candidate[0] )
 		{
-			missflag[1] = false;			    
+			missflag[1] = false;
 		}
 		if ( missflag[0] != missflag[1] )
 		{
 		    missflag[0] = missflag[0];
 		}
-		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"\n");	
+		RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"\n");
 		if( !missflag[0] )
 		{
-			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"yes\n");			    
+			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"yes\n");
 		}
 		else
 		{
-			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"miss\n");			    
+			RK_HEVC_FPRINT(m_rkIntraPredFast->rk_logIntraPred[1],"miss\n");
 		}
 #endif
 
-			
+
         }
         else
         {
@@ -2815,7 +2800,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
             }
         }
         x265_emms();
-		
+
         //===== check modes (using r-d costs) =====
         uint32_t bestPUMode  = 0;
         uint32_t bestPUDistY = 0;
@@ -2907,16 +2892,16 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				::memset(rk_Interface_Intra.bNeighborFlags,0, 4 * MAX_NUM_SPU_W + 1);
 				::memset(rk_Interface_Intra.pred,0, 32*32);
 				::memset(rk_Interface_Intra.resi,0, 2*32*32);
-			
+
 	 		}
-	 #endif		
+	 #endif
             xRecurIntraCodingQT(cu, initTrDepth, partOffset, bLumaOnly, fencYuv, predYuv, resiYuv, puDistY, puDistC, false, puCost);
 
 	 #ifdef X265_INTRA_DEBUG
-			//if ( cu->getWidth(0) != SIZE_64x64) 
+			//if ( cu->getWidth(0) != SIZE_64x64)
 			if ( MATCH_CASE(cu->getWidth(0),cu->getPartitionSize(0)) )
 			{
-				assert(partOffset < 4);	
+				assert(partOffset < 4);
 				// 查看这个log，注意最好把wpp关掉，不然是多线程交叉显示
 	        	//RK_HEVC_PRINT("[width = %d] partOffset %d in [%d] dirmode  is %d\n",
 				//	cu->getWidth(0),partOffset, numPU, origMode);
@@ -2925,9 +2910,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				// pred
 
 				// resi,在xIntraCodingLumaBlk中赋值
-				
 
-				// intra_proc	
+
+				// intra_proc
 				rk_Interface_Intra.cidx = 0;
 				m_rkIntraPred->RkIntra_proc(&rk_Interface_Intra,
 												partOffset,
@@ -2942,13 +2927,13 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 			#ifdef LOG_INTRA_PARAMS_2_FILE
 				// logLumaParam2File
 				if ( initTrDepth == 0 )// 屏蔽 4x4 这一层
-				{			
+				{
 					// log rk_Interface_Intra.bNeighborFlags
 					bool* bNeighbour = rk_Interface_Intra.bNeighborFlags;
 					uint32_t x_pos = cu->m_cuPelX % 64;          ///< CU position in a pixel (X)
 					uint32_t y_pos = cu->m_cuPelY % 64;          ///< CU position in a pixel (Y)
-			        RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[cu_x = %d] [cu_y = %d]\n", cu->m_cuPelX&(~63), cu->m_cuPelY&(~63));
-					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[x_pos = %d] [y_pos = %d]\n", x_pos, y_pos);
+					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[cu_x = %d] [cu_y = %d]\n", cu->m_cuPelX&(~63), cu->m_cuPelY&(~63));
+			        RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[x_pos = %d] [y_pos = %d]\n", x_pos, y_pos);
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[num = %d]\n",rk_Interface_Intra.numintraNeighbor);
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[size = %d]\n",cu->getWidth(0) >> initTrDepth);
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"[initTrDepth = %d]\n",initTrDepth);
@@ -2965,9 +2950,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 					RK_HEVC_FPRINT(m_rkIntraPred->rk_logIntraPred[0],"\n\n");
 
 				}
-				
+
 				logRefAndFencParam2File(m_rkIntraPred->rk_logIntraPred[0], initTrDepth, rk_Interface_Intra);
-			#endif	
+			#endif
 				// free rk_Interface_Intra
 				X265_FREE(rk_Interface_Intra.fenc);
 				X265_FREE(rk_Interface_Intra.reconEdgePixel);
@@ -2975,14 +2960,14 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				X265_FREE(rk_Interface_Intra.pred);
 				X265_FREE(rk_Interface_Intra.resi);
 
-				
+
 			}
 	#endif
-			
+
             // check r-d cost
             if (puCost < bestPUCost)
             {
-            
+
                 bestPUMode  = origMode;
                 bestPUDistY = puDistY;
                 bestPUDistC = puDistC;
@@ -2999,7 +2984,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
                 ::memcpy(m_qtTempTransformSkipFlag[1], cu->getTransformSkip(TEXT_CHROMA_U) + partOffset, qPartNum * sizeof(UChar));
                 ::memcpy(m_qtTempTransformSkipFlag[2], cu->getTransformSkip(TEXT_CHROMA_V) + partOffset, qPartNum * sizeof(UChar));
             }
-        } 
+        }
 
         //--- update overall distortion ---
         overallDistY += bestPUDistY;
@@ -3236,12 +3221,12 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 			rk_Interface_IntraCr.resi			= (int16_t*)X265_MALLOC(int16_t, 16*16);
 
  		}
- #endif		
-		
+ #endif
+
         xRecurIntraChromaCodingQT(cu, 0, 0, fencYuv, predYuv, resiYuv, dist);
 
  #ifdef X265_INTRA_DEBUG
-		//if (( cu->getWidth(0) != SIZE_64x64) && ( cu->getPartitionSize(0) == SIZE_2Nx2N )) // 屏蔽4x4		
+		//if (( cu->getWidth(0) != SIZE_64x64) && ( cu->getPartitionSize(0) == SIZE_2Nx2N )) // 屏蔽4x4
 		if ( MATCH_CASE(cu->getWidth(0),cu->getPartitionSize(0)) )
  		{
         	//RK_HEVC_PRINT("[width = %d] partOffset %d in [%d] dirmode  is %d\n",
@@ -3251,9 +3236,9 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 			// pred
 
 			// resi,在xIntraCodingLumaBlk中赋值
-			
 
-			// intra_proc [Cb]	
+
+			// intra_proc [Cb]
 			rk_Interface_IntraCb.cidx = 1;
 			m_rkIntraPred->RkIntra_proc(&rk_Interface_IntraCb,
 												0,
@@ -3263,7 +3248,7 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 
 
 
-			// intra_proc [Cr]	
+			// intra_proc [Cr]
 			rk_Interface_IntraCr.cidx = 2;
 			m_rkIntraPred->RkIntra_proc(&rk_Interface_IntraCr,
 												0,
@@ -3281,9 +3266,9 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
 				logRefAndFencParam2File(m_rkIntraPred->rk_logIntraPred[0],0, rk_Interface_IntraCb);
 				logRefAndFencParam2File(m_rkIntraPred->rk_logIntraPred[0],0, rk_Interface_IntraCr);
 			}
-		
-		#endif	
-		
+
+		#endif
+
 
 			// free rk_Interface_Intra
 			X265_FREE(rk_Interface_IntraCb.fenc);
@@ -3304,7 +3289,7 @@ void TEncSearch::estIntraPredChromaQT(TComDataCU* cu,
         {
             m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
         }
-		
+
 
         uint32_t bits = xGetIntraBitsQT(cu, 0, 0, false, true);
         uint64_t cost = m_rdCost->calcRdCost(dist, bits);
@@ -3740,7 +3725,7 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
                     MV mvmin, mvmax;
 					int satdCost;
 #if RK_INTER_METEST
-#if INTER_IME_TEST 
+#if INTER_IME_TEST
 					int merangex = cu->getSlice()->getSPS()->getMeRangeX() / 2;
 					int merangey = cu->getSlice()->getSPS()->getMeRangeY() / 2;
 					bool isSave = cu->getDepth(0) == 0;

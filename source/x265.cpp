@@ -685,7 +685,7 @@ int main(int argc, char **argv)
 	g_previous_8x8_intra.bNeighborFlags = (bool*)X265_MALLOC(Pel, 9); // 指向起始
 #endif
 
-    FILE *fp = fopen("hevc_enc_cmodel.cfg","rb+");
+    FILE *fp = fopen(CFG_FILE_NAME("hevc_enc_cmodel.cfg"),"rb+");
     if (fp)
         G_hardwareC.ConfigFiles(fp);
 
