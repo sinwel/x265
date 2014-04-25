@@ -140,15 +140,35 @@ void hardwareC::ConfigFiles(FILE *fp)
             current_cfg = CFG_FOR_ENC_CTRL;
             continue;
         }
-        else
-            current_cfg = -1;
+        else {
+            current_cfg = current_cfg;
+        }
 
         switch (current_cfg)
         {
             case CFG_FOR_PREPROCESS:
                 break;
             case CFG_FOR_INTRA:
-                //Rk_IntraPred.model_cfg(cmdbuff);
+                //ctu_calc.cu_level_calc[0].m_rkIntraPred
+                //ctu_calc.cu_level_calc[1].m_rkIntraPred
+                //ctu_calc.cu_level_calc[2].m_rkIntraPred
+
+				//add by zxy for init fp for different level
+				ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_lu 	= fopen(cmdbuff, "w+");
+				ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cb	= fopen(cmdbuff, "w+");
+				ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cr	= fopen(cmdbuff, "w+");
+				ctu_calc.cu_level_calc[3].fp_intra_4_ref_pixel		= fopen(cmdbuff, "w+");
+				ctu_calc.cu_level_calc[3].fp_intra_4_sad			= fopen(cmdbuff, "w+");
+
+                //ctu_calc.cu_level_calc[3].m_rkIntraPred->StoreDataForHardware(); // 4x4
+	
+				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_lu);
+				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cb);
+				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cr);
+				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ref_pixel);
+				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_sad);
+				
+
                 break;
             case CFG_FOR_IME:
                 break;

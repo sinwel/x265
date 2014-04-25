@@ -3128,5 +3128,15 @@ void Rk_IntraPred::RK_IntraCalcuResidual(uint8_t*	org,
     }
 }
 
-
+/*
+void Rk_IntraPred::StoreDataForHardware(char *cmd)
+{
+	//intra_4_ori_pixel_lu.txt
+	//intra_4_ori_pixel_cb.txt
+	//intra_4_ori_pixel_cr.txt
+	//intra_4_ref_pixel.txt
+	//intra_4_sad.txt
+	
+}
+*/
 
