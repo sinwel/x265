@@ -41,14 +41,7 @@ class CU_LEVEL_CALC
 {
 #ifdef RK_INTRA_PRED
 public:
-    Rk_IntraPred*    m_rkIntraPred;
-    
-    FILE* fp_intra_4_ori_pixel_lu;
-    FILE* fp_intra_4_ori_pixel_cb;
-    FILE* fp_intra_4_ori_pixel_cr;
-    FILE* fp_intra_4_ref_pixel;
-    FILE* fp_intra_4_sad;
-    
+    Rk_IntraPred*    m_rkIntraPred;      
 #endif
 #if TQ_RUN_IN_HWC_INTRA
 public:

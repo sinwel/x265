@@ -652,9 +652,10 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
     m_origYuv[depth]->copyFromPicYuv(pic->getPicYuvOrg(), outBestCU->getAddr(), outBestCU->getZorderIdxInCU());
     #if RK_CTU_CALC_PROC_ENABLE
     if(depth == 0) {
-        memcpy(pHardWare->ctu_calc.input_curr_y, m_origYuv[depth]->m_bufY, pHardWare->ctu_calc.ctu_w*pHardWare->ctu_calc.ctu_w);
-        memcpy(pHardWare->ctu_calc.input_curr_u, m_origYuv[depth]->m_bufU, pHardWare->ctu_calc.ctu_w*pHardWare->ctu_calc.ctu_w/4);
-        memcpy(pHardWare->ctu_calc.input_curr_v, m_origYuv[depth]->m_bufV, pHardWare->ctu_calc.ctu_w*pHardWare->ctu_calc.ctu_w/4);
+        uint8_t ctu_w = pHardWare->ctu_w;
+        memcpy(pHardWare->ctu_calc.input_curr_y, m_origYuv[depth]->m_bufY, ctu_w*ctu_w);
+        memcpy(pHardWare->ctu_calc.input_curr_u, m_origYuv[depth]->m_bufU, ctu_w*ctu_w/4);
+        memcpy(pHardWare->ctu_calc.input_curr_v, m_origYuv[depth]->m_bufV, ctu_w*ctu_w/4);
     }//add by zsq
     #endif
 
@@ -821,22 +822,22 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         switch(depth)
         {
             case 0:
-                pHardWare->ctu_calc.intra_temp_64.m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_64.m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_64.m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_0.m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_0.m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_0.m_totalCost       = outTempCU->m_totalCost;
                 break;
             case 1:
                 pos = pHardWare->ctu_calc.temp_pos[1];
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalCost       = outTempCU->m_totalCost;
                 pHardWare->ctu_calc.temp_pos[1]++;
                 break;
             case 2:
                 pos = pHardWare->ctu_calc.temp_pos[2];
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalCost       = outTempCU->m_totalCost;
                 pHardWare->ctu_calc.temp_pos[2]++;
                 break;
             case 3:
@@ -915,14 +916,15 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
     if(depth == 0)
     {
         uint32_t m;
-        memcpy(pHardWare->ctu_calc.ori_recon_y, m_bestRecoYuv[0]->m_bufY, 64*64);
-        memcpy(pHardWare->ctu_calc.ori_recon_u, m_bestRecoYuv[0]->m_bufU, 32*32);
-        memcpy(pHardWare->ctu_calc.ori_recon_v, m_bestRecoYuv[0]->m_bufV, 32*32);
+        uint32_t ctu_w = pHardWare->ctu_w;
+        memcpy(pHardWare->ctu_calc.ori_recon_y, m_bestRecoYuv[0]->m_bufY, ctu_w*ctu_w);
+        memcpy(pHardWare->ctu_calc.ori_recon_u, m_bestRecoYuv[0]->m_bufU, ctu_w*ctu_w/4);
+        memcpy(pHardWare->ctu_calc.ori_recon_v, m_bestRecoYuv[0]->m_bufV, ctu_w*ctu_w/4);
 
-        for(m=0; m<64*64; m++)
+        for(m=0; m<ctu_w*ctu_w; m++)
             pHardWare->ctu_calc.ori_resi_y[m] = outBestCU->m_trCoeffY[m];
 
-        for(m=0; m<32*32; m++) {
+        for(m=0; m<ctu_w*ctu_w/4; m++) {
             pHardWare->ctu_calc.ori_resi_u[m] = outBestCU->m_trCoeffCb[m];
             pHardWare->ctu_calc.ori_resi_v[m] = outBestCU->m_trCoeffCr[m];
         }
@@ -1322,22 +1324,22 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
         switch(depth)
         {
             case 0:
-                pHardWare->ctu_calc.intra_temp_64.m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_64.m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_64.m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_0.m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_0.m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_0.m_totalCost       = outTempCU->m_totalCost;
                 break;
             case 1:
                 pos = pHardWare->ctu_calc.temp_pos[1];
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalCost       = outTempCU->m_totalCost;
                 pHardWare->ctu_calc.temp_pos[1]++;
                 break;
             case 2:
                 pos = pHardWare->ctu_calc.temp_pos[2];
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalCost       = outTempCU->m_totalCost;
                 pHardWare->ctu_calc.temp_pos[2]++;
                 break;
             case 3:
@@ -2088,22 +2090,22 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
         switch(depth)
         {
             case 0:
-                pHardWare->ctu_calc.intra_temp_64.m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_64.m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_64.m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_0.m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_0.m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_0.m_totalCost       = outTempCU->m_totalCost;
                 break;
             case 1:
                 pos = pHardWare->ctu_calc.temp_pos[1];
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_32[pos].m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_1[pos].m_totalCost       = outTempCU->m_totalCost;
                 pHardWare->ctu_calc.temp_pos[1]++;
                 break;
             case 2:
                 pos = pHardWare->ctu_calc.temp_pos[2];
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalDistortion = outTempCU->m_totalDistortion;
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalBits       = outTempCU->m_totalBits;
-                pHardWare->ctu_calc.intra_temp_16[pos].m_totalCost       = outTempCU->m_totalCost;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalDistortion = outTempCU->m_totalDistortion;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalBits       = outTempCU->m_totalBits;
+                pHardWare->ctu_calc.intra_temp_2[pos].m_totalCost       = outTempCU->m_totalCost;
                 pHardWare->ctu_calc.temp_pos[2]++;
                 break;
             case 3:

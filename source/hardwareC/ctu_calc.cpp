@@ -848,6 +848,11 @@ void CTU_CALC::proc()
 	if (pHardWare->ctu_y == 1 && pHardWare->ctu_x == 0)
 		pHardWare->ctu_y = pHardWare->ctu_y;
 
+    cu_level_calc[0].cu_w = ctu_w >> 0;
+    cu_level_calc[1].cu_w = ctu_w >> 1;
+    cu_level_calc[2].cu_w = ctu_w >> 2;
+    cu_level_calc[3].cu_w = ctu_w >> 3;
+
     /*begin*/
     begin();
 
@@ -874,14 +879,16 @@ void CTU_CALC::proc()
 #ifdef LOG_INTRA_PARAMS_2_FILE
             LogIntraParams2File(cu_level_calc[1].inf_intra_proc, cu_x_1, cu_y_1);
 #endif
-#if TQ_RUN_IN_HWC_INTRA
+#if 0//TQ_RUN_IN_HWC_INTRA
 			//compare coeff(after T and Q), and Recon (Y, U, V)
-			//compareCoeffandRecon(cu_level_calc, 1);
+			compareCoeffandRecon(cu_level_calc, 1);
 #endif
         }
 
         totalBits_2 = 0;
         totalDist_2 = 0;
+        if(ctu_w == 16)
+            continue;
         for(n=0; n<4; n++)
         {
             cu_level_calc[2].depth = 2;
@@ -901,9 +908,9 @@ void CTU_CALC::proc()
 			#ifdef LOG_INTRA_PARAMS_2_FILE
                 LogIntraParams2File(cu_level_calc[2].inf_intra_proc, cu_x_2, cu_y_2);
 			#endif
-#if TQ_RUN_IN_HWC_INTRA
+#if 0//TQ_RUN_IN_HWC_INTRA
 			    //compare coeff(after T and Q), and Recon (Y, U, V)
-			    //compareCoeffandRecon(cu_level_calc, 2);
+			    compareCoeffandRecon(cu_level_calc, 2);
 #endif
             }
 
@@ -925,9 +932,9 @@ void CTU_CALC::proc()
 				#ifdef LOG_INTRA_PARAMS_2_FILE
                     LogIntraParams2File(cu_level_calc[3].inf_intra_proc, cu_x_3, cu_y_3);
 				#endif
-#if 1 //wait for 4x4 intra to be done, added by lks
+#if 0 //wait for 4x4 intra to be done, added by lks
 				    //compare coeff(after T and Q), and Recon (Y, U, V)
-				    //compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
+				    compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
 #endif
                 }
 
@@ -937,21 +944,21 @@ void CTU_CALC::proc()
             }
             //EncoderCuSplitFlag();
             //calcRDOCOST
-            cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_16[cu_level_calc[2].temp_pos-1].m_totalCost;
+            cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_2[cu_level_calc[2].temp_pos-1].m_totalCost;
             cu_level_compare(cost_2, cost_3_total, 2);
             cu_level_calc[2].end();
             cu_level_calc[2].ori_pos++;
         }
         //EncoderCuSplitFlag();
         //calcRDOCOST
-        cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_32[cu_level_calc[1].temp_pos-1].m_totalCost;
+        cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_1[cu_level_calc[1].temp_pos-1].m_totalCost;
         cu_level_compare(cost_1, cost_2_total, 1);
         cu_level_calc[1].end();
         cu_level_calc[1].ori_pos++;
     }
     //EncoderCuSplitFlag();
     //calcRDOCOST
-    cost_1_total = (uint32_t)pHardWare->ctu_calc.intra_temp_64.m_totalCost;
+    cost_1_total = (uint32_t)pHardWare->ctu_calc.intra_temp_0.m_totalCost;
     cu_level_compare(cost_0, cost_1_total, 0);
     cu_level_calc[0].end();
 	//========================================================================

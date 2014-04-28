@@ -135,6 +135,7 @@ Rk_IntraPred::Rk_IntraPred()
 	rk_bFlag16 = 1;
 	rk_bFlag8	= 1;
 	rk_bFlag4	= 1;
+	num_fp		= 0;
 	::memset(rk_verdeltaFract,0,sizeof(rk_verdeltaFract));
 	::memset(rk_hordeltaFract,0,sizeof(rk_hordeltaFract));
 
@@ -2000,6 +2001,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 									uint32_t cur_x_in_cu,
 									uint32_t cur_y_in_cu)
 {
+#define OUTPUT_4X4_DATA 1
 	uint8_t* fenc 	= pInterface_Intra->fenc;
 	int32_t width 	= pInterface_Intra->size;
 	int32_t height	= pInterface_Intra->size;
@@ -2014,6 +2016,18 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 // ----------------- luma ------------------------//
 	if ( pInterface_Intra->cidx == 0)
 	{
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 16 ; i++ )
+			{
+				FPRINT(fp_intra_4x4[0],"0x%02x  ",fenc[15 - i]);			    
+			}
+			FPRINT(fp_intra_4x4[0],"\n");			    
+		}
+	#endif
+
+	
 		/* step 1 */
 		// fill
 		//uint8_t LineBuf[129];
@@ -2030,6 +2044,18 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		RK_HEVC_FPRINT(g_fp_result_rk,"Y:\n");
 		StoreLineBuf(g_fp_result_rk, LineBuf, 2*width + 2*height + 1);
 #endif
+
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 17 ; i++ )
+			{
+				FPRINT(fp_intra_4x4[3],"0x%02x  ",LineBuf[16 - i]);			    
+			}
+			FPRINT(fp_intra_4x4[3],"\n");
+		}
+	#endif
+		
 		// step 2 //
 
 		// smoothing
@@ -2136,6 +2162,17 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		StoreCost(g_fp_result_rk, costTotal);
 #endif
 
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 35 ; i++ )
+			{
+				FPRINT(fp_intra_4x4[4],"0x%-8x ",costSad[i]);			    
+			}
+			FPRINT(fp_intra_4x4[4],"\n");			    
+		}
+	#endif
+
 		// step 5 //
 		// get minnum costSad + lambad*bits,decide the dirMode
 		uint32_t index[35];
@@ -2195,6 +2232,18 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	else if ( pInterface_Intra->cidx == 1 )
 	{
 	// ----------------- chroma U------------------------//
+
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 16 ; i++ )
+			{
+				FPRINT(fp_intra_4x4[1],"0x%02x  ",fenc[15 - i]);			    
+			}
+			FPRINT(fp_intra_4x4[1],"\n");			    
+		}
+	#endif
+
 		// step 1 //
 		// fill
 		RK_IntraFillReferenceSamples(
@@ -2265,6 +2314,18 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	else if ( pInterface_Intra->cidx == 2 )
 	{
 	// ----------------- chroma V------------------------//
+
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 16 ; i++ )
+			{
+				FPRINT(fp_intra_4x4[2],"0x%02x  ",fenc[15 - i]);			    
+			}
+			FPRINT(fp_intra_4x4[2],"\n");			    
+		}
+	#endif
+
 		// step 1 //
 		// fill
 		RK_IntraFillReferenceSamples(
@@ -2337,7 +2398,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	{
 		RK_HEVC_PRINT("%s Error case Happen.\n",__FUNCTION__);
 	}
-
+#undef OUTPUT_4X4_DATA
 }
 
 

@@ -793,7 +793,16 @@ int main(int argc, char **argv)
 	{
 	    fclose(g_fp_4x4_params_x265);
 	}
+	
+	for (int i = 0; i < G_hardwareC.ctu_calc.cu_level_calc[3].m_rkIntraPred->num_fp; i++)
+	{
+		if (G_hardwareC.ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[i])
+			fclose(G_hardwareC.ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[i]);
+	}
+	
 #endif
+
+
 
 #if TQ_LOG_IN_HWC_INTRA
 	fclose(g_fp_TQ_LOG_HWC_INTRA);

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "macro.h"
 #include "hardwareC.h"
+#include "rk_define.h"
 
 hardwareC G_hardwareC;
 
@@ -76,7 +77,8 @@ void hardwareC::ConfigFiles(FILE *fp)
     char  enc_ctrl_cfg[]    = "config for enc_ctrl";
 
     char  cmdbuff[512];
-
+	char  namebuff[512];
+	int   num = 0;
     if(!fp)
       return;
     fseek(fp, 0, SEEK_SET);
@@ -144,31 +146,25 @@ void hardwareC::ConfigFiles(FILE *fp)
             current_cfg = current_cfg;
         }
 
+		if (( cmdbuff[0] == 59 ) || ( cmdbuff[0] == 0 )) // ";" means skip
+		{
+		    continue;
+		}
+
+
         switch (current_cfg)
         {
             case CFG_FOR_PREPROCESS:
                 break;
-            case CFG_FOR_INTRA:
-                //ctu_calc.cu_level_calc[0].m_rkIntraPred
-                //ctu_calc.cu_level_calc[1].m_rkIntraPred
-                //ctu_calc.cu_level_calc[2].m_rkIntraPred
-
-				//add by zxy for init fp for different level
-				ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_lu 	= fopen(cmdbuff, "w+");
-				ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cb	= fopen(cmdbuff, "w+");
-				ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cr	= fopen(cmdbuff, "w+");
-				ctu_calc.cu_level_calc[3].fp_intra_4_ref_pixel		= fopen(cmdbuff, "w+");
-				ctu_calc.cu_level_calc[3].fp_intra_4_sad			= fopen(cmdbuff, "w+");
-
-                //ctu_calc.cu_level_calc[3].m_rkIntraPred->StoreDataForHardware(); // 4x4
-	
-				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_lu);
-				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cb);
-				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ori_pixel_cr);
-				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_ref_pixel);
-				fclose(ctu_calc.cu_level_calc[3].fp_intra_4_sad);
+            case CFG_FOR_INTRA:										
 				
-
+				
+				strcpy( namebuff, CFG_FILE);
+				strcat( namebuff, cmdbuff);
+			
+				/*open output file */
+				ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[num] = fopen(namebuff, "w+");
+				num++;
                 break;
             case CFG_FOR_IME:
                 break;
@@ -183,7 +179,7 @@ void hardwareC::ConfigFiles(FILE *fp)
             case CFG_FOR_SAO_FILTER:
                 break;
             case CFG_FOR_CTU_CALC:
-                ctu_calc.model_cfg(cmdbuff);
+                //ctu_calc.model_cfg(cmdbuff);
                 break;
             case CFG_FOR_CABAC:
                 break;
@@ -195,6 +191,9 @@ void hardwareC::ConfigFiles(FILE *fp)
                 //printf("%s\n",cmdbuff);
                 break;
         }
+
+		
     }
+	ctu_calc.cu_level_calc[3].m_rkIntraPred->num_fp = num;
 #endif
 }
