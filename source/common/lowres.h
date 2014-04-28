@@ -39,6 +39,8 @@ struct ReferencePlanes
     ReferencePlanes() { memset(this, 0, sizeof(ReferencePlanes)); }
 
     pixel* fpelPlane;
+	pixel* fpelPlaneOrig;  //for CIME, add by hdl
+	short* fpelPlaneOrigDS; //for test add by hdl
     pixel* lowresPlane[4];
 
     bool isWeighted;

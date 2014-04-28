@@ -162,5 +162,6 @@ void Lowres::init(TComPicYuv *orig, int poc, int type, int bframes)
     orig->xExtendPicCompBorder(lowresPlane[1], lumaStride, width, lines, orig->getLumaMarginX(), orig->getLumaMarginY());
     orig->xExtendPicCompBorder(lowresPlane[2], lumaStride, width, lines, orig->getLumaMarginX(), orig->getLumaMarginY());
     orig->xExtendPicCompBorder(lowresPlane[3], lumaStride, width, lines, orig->getLumaMarginX(), orig->getLumaMarginY());
+	orig->xExtendPicCompBorder(orig->getLumaAddr(), orig->getStride(), orig->getWidth(), orig->getHeight(), orig->getLumaMarginX(), orig->getLumaMarginY()); //for CIME, add by hdl
     fpelPlane = lowresPlane[0];
 }

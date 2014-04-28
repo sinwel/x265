@@ -694,20 +694,7 @@ void TEncSearch::xIntraCodingLumaBlk(TComDataCU* cu,
 			height,
 			picStride,
 			m_rkIntraPred->rk_LineBuf);
-		/* debug */
-		uint8_t count_debug = 0;
-		for (uint8_t i_count = 0 ; i_count < 33 ; i_count++ )
-		{
-			if ( m_rkIntraPred->rk_LineBuf[i_count] == 0x83 )
-			{
-			    count_debug++;
-			}		
-		}
-		if (( count_debug == 33)&&( width == 8 ))
-		{
-		    count_debug = count_debug;
-		}
-		
+
 		// 对比 最后的 L buffer
 		m_rkIntraPred->RkIntraFillRefSamplesCheck(refAbove + width - 1,refLeft + height - 1,
 			cuWidth_t, cuHeight_t);
@@ -3638,6 +3625,7 @@ void TEncSearch::xRestrictBipredMergeCand(TComDataCU* cu, uint32_t puIdx, TComMv
  * \param bUseMRG
  * \returns void
  */
+#if !RK_INTER_METEST
 void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG, bool bLuma, bool bChroma)
 {
     MV mvzero(0, 0);
@@ -3717,7 +3705,7 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
                     mvpIdx[list][idx] = cu->getMVPIdx(list, partAddr);
                     mvpNum[list][idx] = cu->getMVPNum(list, partAddr);
 
-                    bitsTemp += MVP_IDX_BITS;
+                    bitsTemp ++;
                     int merange; merange = m_adaptiveRange[list][idx];
                     MV& mvp = mvPred[list][idx];
                     MV& outmv = mvTemp[list][idx];
@@ -3725,101 +3713,12 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
                     MV mvmin, mvmax;
 					int satdCost;
 #if RK_INTER_METEST
-#if INTER_IME_TEST
-					int merangex = cu->getSlice()->getSPS()->getMeRangeX() / 2;
-					int merangey = cu->getSlice()->getSPS()->getMeRangeY() / 2;
-					bool isSave = cu->getDepth(0) == 0;
-					uint32_t offsIdx = getOffsetIdx(nCtuSize, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
-					xSetSearchRange(cu, merangex, merangey, mvmin, mvmax);
-					merangex = mvmax.x - mvmin.x + 4 * 2 + nCtuSize;
-					merangey = mvmax.y - mvmin.y + 4 * 2 + nCtuSize;
-					isSave = true;
-					static uint32_t prevCtuAddr = MAX_UINT;
-					uint32_t currCtuAddr = cu->getAddr();
-					if (prevCtuAddr != currCtuAddr)
-					{
-						isSave = true;
-						prevCtuAddr = currCtuAddr;
-					}
-					else
-						isSave = false;
-
-					if (isSave)
-					{
-						pSearchRange = new pixel[merangex*merangey];
-						pCurrCtu = new pixel[nCtuSize*nCtuSize];
-					}
-					satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv, isSave, offsIdx, pSearchRange, merangex, merangey, pCurrCtu);
-					m_me.setMVP(mvp);
-					costTemp = satdCost + m_rdCost->getCost(bitsTemp);
-					if (isSave)
-					{
-						interinfo.imeinput.ImeSearchRangeWidth = merangex;
-						interinfo.imeinput.ImeSearchRangeHeight = merangey;
-						interinfo.imeinput.pImeSearchRange = pSearchRange;
-						interinfo.fmeinput.pFmeSearchRange = pSearchRange;
-						interinfo.fmeinput.FmeSearchRangeWidth = merangex;
-						interinfo.fmeinput.FmeSearchRangeHeight = merangey;
-						interinfo.imeinput.pCurrCtu = pCurrCtu;
-					}
-					interinfo.imeinput.isValidCu[offsIdx] = true;
-					interinfo.fmeinput.isValidCu[offsIdx] = true;
-#endif //end #if INTER_IME_TEST
-#if INTER_IME_DOWNSCALE_VS_NOT_DOWNSCALE
 					int merangex = cu->getSlice()->getSPS()->getMeRangeX() / 2;
 					int merangey = cu->getSlice()->getSPS()->getMeRangeY() / 2;
 					xSetSearchRange(cu, MV(0, 0), merangex, merangey, mvmin, mvmax);
 					satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv);
 					m_me.setMVP(mvp);
 					costTemp = satdCost + m_rdCost->getCost(bitsTemp);
-					MV outMv_new, outMv_old;
-					outMv_old = outmv >> 2;
-					m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outMv_new, true);
-					const short mvDist = 8;
-					static uint64_t count_8x8[mvDist], count_16x16[mvDist], count_32x32[mvDist], count_64x64[mvDist];
-					static uint64_t count_8x8_All[mvDist], count_16x16_All[mvDist], count_32x32_All[mvDist], count_64x64_All[mvDist];
-					for (int i = 0; i < mvDist; i ++)
-					{
-						if ((abs(outMv_new.x - outMv_old.x) <= i) && (abs(outMv_new.y - outMv_old.y) <= i))
-						{
-							switch (cu->getDepth(0))
-							{
-							case 0: count_64x64[i] ++; break;
-							case 1: count_32x32[i] ++; break;
-							case 2: count_16x16[i] ++; break;
-							case 3: count_8x8[i] ++;     break;
-							default: assert(false);
-							}
-						}
-						switch (cu->getDepth(0))
-						{
-						case 0: count_64x64_All[i] ++; break;
-						case 1: count_32x32_All[i] ++; break;
-						case 2: count_16x16_All[i] ++; break;
-						case 3: count_8x8_All[i] ++;     break;
-						default: assert(false);
-						}
-					}
-					FILE *fp = fopen("All_Mv_Dist_0_to_9.txt", "wb");
-					for (int i = 0; i < mvDist; i ++)
-					{
-						fprintf(fp, "\n\npixel distant is %d:\n", i);
-						fprintf(fp, "CU Size is 64x64: All,%lld, Hit,%lld\n", count_64x64_All[i], count_64x64[i]);
-						fprintf(fp, "CU Size is 32x32: All,%lld, Hit,%lld\n", count_32x32_All[i], count_32x32[i]);
-						fprintf(fp, "CU Size is 16x16: All,%lld, Hit,%lld\n", count_16x16_All[i], count_16x16[i]);
-						fprintf(fp, "CU Size is   8x8 : All,%lld, Hit,%lld\n", count_8x8_All[i], count_8x8[i]);
-					}
-					fclose(fp);
-
-#endif //end #if INTER_IME_DOWNSCALE_VS_NOT_DOWNSCALE
-#if (!INTER_IME_TEST && !INTER_IME_DOWNSCALE_VS_NOT_DOWNSCALE)
-					int merangex = cu->getSlice()->getSPS()->getMeRangeX() / 2;
-					int merangey = cu->getSlice()->getSPS()->getMeRangeY() / 2;
-					xSetSearchRange(cu, MV(0, 0), merangex, merangey, mvmin, mvmax);
-					satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv);
-					m_me.setMVP(mvp);
-					costTemp = satdCost + m_rdCost->getCost(bitsTemp);
-#endif
 #else
 					xSetSearchRange(cu, mvp, merange, mvmin, mvmax);
 					satdCost = m_me.motionEstimate(m_mref[list][idx],mvmin, mvmax, mvp, 3, m_mvPredictors, merange, outmv);
@@ -4075,6 +3974,712 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 
     setWpScalingDistParam(cu, -1, REF_PIC_LIST_X);
 }
+#else
+void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG, bool bLuma, bool bChroma)
+{
+	MV mvzero(0, 0);
+	MV mv[2];
+	MV mvBidir[2];
+	MV mvTemp[2][33];
+	MV mvPred[2][33];
+	MV mvPredBi[2][33];
+
+	int mvpIdxBi[2][33];
+	int mvpIdx[2][33];
+	int mvpNum[2][33];
+	AMVPInfo amvpInfo[2][33];
+
+	uint32_t mbBits[3] = { 1, 1, 0 };
+	int refIdx[2] = { 0, 0 }; // If un-initialized, may cause SEGV in bi-directional prediction iterative stage.
+	int refIdxBidir[2] = { 0, 0 };
+
+	PartSize partSize = cu->getPartitionSize(0);
+	uint32_t lastMode = 0;
+	int numPart = cu->getNumPartInter();
+	int numPredDir = cu->getSlice()->isInterP() ? 1 : 2;
+
+	TComPicYuv *fenc = cu->getSlice()->getPic()->getPicYuvOrg();
+	TComMvField mvFieldNeighbours[MRG_MAX_NUM_CANDS << 1]; // double length for mv of both lists
+	UChar interDirNeighbours[MRG_MAX_NUM_CANDS];
+	int numValidMergeCand = 0;
+
+	int totalmebits = 0;
+
+	for (int partIdx = 0; partIdx < numPart; partIdx++)
+	{
+		uint32_t listCost[2] = { MAX_UINT, MAX_UINT };
+		uint32_t bits[3];
+		uint32_t costbi = MAX_UINT;
+		uint32_t costTemp = 0;
+		uint32_t bitsTemp;
+		MV   mvValidList1;
+		int  refIdxValidList1 = 0;
+		uint32_t bitsValidList1 = MAX_UINT;
+		uint32_t costValidList1 = MAX_UINT;
+
+		uint32_t partAddr;
+		int  roiWidth, roiHeight; //pu的宽度和高度  add by hdl
+		xGetBlkBits(partSize, cu->getSlice()->isInterP(), partIdx, lastMode, mbBits);
+		cu->getPartIndexAndSize(partIdx, partAddr, roiWidth, roiHeight);
+
+		Pel* pu = fenc->getLumaAddr(cu->getAddr(), cu->getZorderIdxInCU() + partAddr);
+		m_me.setSourcePU(pu - fenc->getLumaAddr(), roiWidth, roiHeight);
+
+		/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
+		const int nAllNeighMv = 36;
+		static MV tmpMv[nAllNeighMv]; //保存当前CTU周围的18个mv add by hdl
+		static MV TenMv[10];
+		TComDataCU *CTU = cu->getPic()->getCU(cu->getAddr());//当前CU/PU所处的CTU add by hdl;
+		/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
+		char ImeParam[4] = { 0 }; //bitwidth, sampdist, isdirect, ImeSamp flag   add by hdl
+
+		ImeParam[0] = 8; //8 bit
+		ImeParam[1] = 4; //行列都是1/4采样
+		ImeParam[2] = 1; //0:直接求SAD, 1:临近样本求和再求SAD
+		ImeParam[3] = 2; 
+
+		cu->getMvPredLeft(m_mvPredictors[0]);
+		cu->getMvPredAbove(m_mvPredictors[1]);
+		cu->getMvPredAboveRight(m_mvPredictors[2]);
+
+		bool bTestNormalMC = true;
+
+		if (bUseMRG && cu->getWidth(0) > 8 && numPart == 2)
+		{
+			bTestNormalMC = false;
+		}
+
+		if (bTestNormalMC)
+		{
+			// Uni-directional prediction
+			for (int list = 0; list < numPredDir; list++)
+			{
+				for (int idx = 0; idx < cu->getSlice()->getNumRefIdx(list); idx++)
+				{
+					bitsTemp = mbBits[list];
+					if (cu->getSlice()->getNumRefIdx(list) > 1)
+					{
+						bitsTemp += idx + 1;
+						if (idx == cu->getSlice()->getNumRefIdx(list) - 1) bitsTemp--;
+					}
+					MV& outmv = mvTemp[list][idx];
+					/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
+					MV mvmin, mvmax;
+					short merangeX = cu->getSlice()->getSPS()->getMeRangeX() / 2;
+					short merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 2;
+					bool isHaveMvd = true;
+
+					uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
+					bool isSavePmv = false;
+					static uint32_t prevAddr = MAX_INT;
+					uint32_t currAddr = cu->getAddr();
+					static MV Mvmin, Mvmax;
+					isSavePmv = false;
+					static int cand = 0;
+					if (currAddr != prevAddr)
+					{
+						isSavePmv = true;
+						prevAddr = currAddr;
+						bool isValid[nAllNeighMv];
+						for (int i = 0; i < nAllNeighMv; i ++)
+						{
+							tmpMv[i].x = 0; 
+							tmpMv[i].y = 0;
+						}
+						getNeighMvs(CTU, tmpMv, list, isValid, true);
+						/*从36个mv中选择2个用于确定精搜索位置*/
+						int idxFirst = MAX_INT;
+						for (int idy = 0; idy < nAllNeighMv; idy++)
+						{
+							if (isValid[idy])
+							{
+								idxFirst = idy;
+								break;
+							}
+						}
+
+						for (int idy = idxFirst; idy < nAllNeighMv - 1; idy++)
+						{
+							if (!isValid[idy])
+								continue;
+							for (int idx = idy + 1; idx < nAllNeighMv; idx++)
+							{
+								//if (tmpMv[idx].word == tmpMv[idy].word)
+								if (abs(tmpMv[idx].x - tmpMv[idy].x) <= nRectSize && abs(tmpMv[idx].y - tmpMv[idy].y) <= nRectSize)
+								{//这里8个修改对应到motion.cpp文件里的rectsize的修改
+									isValid[idx] = false;
+								}
+							}
+						}
+
+						cand = 0; //TenMv后三个存放mvp的替代
+						int tmpCand = 0;
+						for (int i = 0; i < nAllNeighMv; i++)
+						{
+							if (isValid[i] && cand < nNeightMv)
+							{
+								TenMv[cand++] = tmpMv[i];
+							}
+							if (isValid[i] && tmpCand < 3) //replace real mvp
+							{
+								TenMv[7 + tmpCand++] = tmpMv[i];
+							}
+						}
+						if (tmpCand < 3)
+						{
+							for (int i = tmpCand; i < 3; i++) //如果没满3个就设置为跟第一个一样
+								TenMv[7 + i] = TenMv[7];
+						}
+						/*从36个mv中选择2个用于确定精搜索位置*/
+					}
+					xSetSearchRange(cu, MV(0, 0), merangeX, merangeY, mvmin, mvmax);
+
+					intptr_t blockOffset_ds = 0;
+					int stride = 0;
+					int nValidCtuWidth = g_maxCUWidth;
+					int nValidCtuHeight = g_maxCUWidth;
+					if (isSavePmv)
+					{
+						int MarginX = g_maxCUWidth + g_nSearchRangeWidth + 4 + 12;
+						stride = cu->getSlice()->getSPS()->getPicWidthInLumaSamples() / 4 + MarginX/2;
+						uint32_t nCtuAddr = cu->getAddr();
+						uint32_t numCtuInWidth = cu->getPic()->getFrameWidthInCU();
+						uint32_t numCtuInHeight = cu->getPic()->getFrameHeightInCU();
+						int nCtuPosWidth = nCtuAddr%numCtuInWidth;
+						int nCtuPosHeight = nCtuAddr / numCtuInWidth;
+						blockOffset_ds = nCtuPosWidth * g_maxCUWidth/4 + nCtuPosHeight * g_maxCUWidth/4 * stride;
+						uint32_t nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
+						uint32_t nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
+						if (nPicHeight / g_maxCUWidth < numCtuInHeight && nCtuPosHeight == numCtuInHeight - 1)
+						{
+							nValidCtuHeight = nPicHeight - nPicHeight / g_maxCUWidth*g_maxCUWidth;
+						}
+						if (nPicWidth / g_maxCUWidth<numCtuInWidth && nCtuPosWidth == numCtuInWidth - 1)
+						{
+							nValidCtuWidth = nPicWidth - nPicWidth / g_maxCUWidth*g_maxCUWidth;
+						}
+					}
+					int satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv, TenMv, cand, isHaveMvd,
+						isSavePmv, offsIdx, cu->getDepth(0), blockOffset_ds, stride, nValidCtuWidth, nValidCtuHeight);
+
+					xEstimateMvPredAMVP(cu, partIdx, list, idx, mvPred[list][idx], outmv);
+					mvpIdx[list][idx] = cu->getMVPIdx(list, partAddr);
+					mvpNum[list][idx] = cu->getMVPNum(list, partAddr);
+					m_me.setMVP(mvPred[list][idx]);
+					bitsTemp ++; // add mvp idx bit cost
+					/* Get total cost of partition, but only include MV bit cost once */
+					bitsTemp += m_me.bitcost(outmv); //这两步计算的开mvd的代价  add by hdl
+					costTemp = satdCost + m_rdCost->getCost(bitsTemp);
+
+					xCopyAMVPInfo(cu->getCUMvField(list)->getAMVPInfo(), &amvpInfo[list][idx]); // must always be done ( also when AMVP_MODE = AM_NONE )
+					//xCheckBestMVP(cu, list, mvTemp[list][idx], mvPred[list][idx], mvpIdx[list][idx], bitsTemp, costTemp);
+#if RK_INTER_ME_TEST
+					g_mvAmvp[offsIdx][0].x = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[0].x;
+					g_mvAmvp[offsIdx][0].y = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[0].y;
+					g_mvAmvp[offsIdx][1].x = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[1].x;
+					g_mvAmvp[offsIdx][1].y = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[1].y;
+#endif
+
+					if (costTemp < listCost[list])
+					{
+						listCost[list] = costTemp;
+						bits[list] = bitsTemp; // storing for bi-prediction
+
+						// set motion
+						mv[list] = mvTemp[list][idx];
+						refIdx[list] = idx;
+					}
+
+					if (list == 1 && costTemp < costValidList1)
+					{
+						costValidList1 = costTemp; //list为1时保存的内容同 listCost[list]  add by hdl
+						bitsValidList1 = bitsTemp; //list为1时保存的内容同 bits[list]  add by hdl
+
+						// set motion
+						mvValidList1 = mvTemp[list][idx]; //list为1时保存的内容同 mv[list]  add by hdl
+						refIdxValidList1 = idx; //list为1时保存的内容同 refIdx[list]  add by hdl
+					}
+				}
+			}
+
+			// Bi-directional prediction
+			if ((cu->getSlice()->isInterB()) && (cu->isBipredRestriction(partIdx) == false))
+			{
+				mvBidir[0] = mv[0];
+				mvBidir[1] = mv[1];
+				refIdxBidir[0] = refIdx[0];
+				refIdxBidir[1] = refIdx[1];
+
+				::memcpy(mvPredBi, mvPred, sizeof(mvPred));
+				::memcpy(mvpIdxBi, mvpIdx, sizeof(mvpIdx));
+
+				// Generate reference subpels
+				xPredInterLumaBlk(cu, cu->getSlice()->getRefPic(REF_PIC_LIST_0, refIdx[0])->getPicYuvRec(), partAddr, &mv[0], roiWidth, roiHeight, &m_predYuv[0]);
+				xPredInterLumaBlk(cu, cu->getSlice()->getRefPic(REF_PIC_LIST_1, refIdx[1])->getPicYuvRec(), partAddr, &mv[1], roiWidth, roiHeight, &m_predYuv[1]);
+
+				pixel *ref0 = m_predYuv[0].getLumaAddr(partAddr); //插值后的luma图像  add by hdl
+				pixel *ref1 = m_predYuv[1].getLumaAddr(partAddr); //插值后的luma图像  add by hdl
+
+				ALIGN_VAR_32(pixel, avg[MAX_CU_SIZE * MAX_CU_SIZE]);
+				//avg开两个重构之后的图像的平均，pu开原始图像信息  add by hdl
+				int partEnum = partitionFromSizes(roiWidth, roiHeight);
+				primitives.pixelavg_pp[partEnum](avg, roiWidth, ref0, m_predYuv[0].getStride(), ref1, m_predYuv[1].getStride(), 32);
+				int satdCost = primitives.satd[partEnum](pu, fenc->getStride(), avg, roiWidth);
+				x265_emms();
+				bits[2] = bits[0] + bits[1] - mbBits[0] - mbBits[1] + mbBits[2];
+				costbi = satdCost + m_rdCost->getCost(bits[2]);
+
+				if (mv[0].notZero() || mv[1].notZero())
+				{
+					ref0 = m_mref[0][refIdx[0]]->fpelPlane + (pu - fenc->getLumaAddr());  //MV(0,0) of ref0
+					ref1 = m_mref[1][refIdx[1]]->fpelPlane + (pu - fenc->getLumaAddr());  //MV(0,0) of ref1
+					intptr_t refStride = m_mref[0][refIdx[0]]->lumaStride;
+
+					primitives.pixelavg_pp[partEnum](avg, roiWidth, ref0, refStride, ref1, refStride, 32);
+					satdCost = primitives.satd[partEnum](pu, fenc->getStride(), avg, roiWidth);
+					x265_emms();
+
+					unsigned int bitsZero0, bitsZero1;
+					m_me.setMVP(mvPredBi[0][refIdxBidir[0]]);
+					bitsZero0 = bits[0] - m_me.bitcost(mv[0]) + m_me.bitcost(mvzero);
+
+					m_me.setMVP(mvPredBi[1][refIdxBidir[1]]);
+					bitsZero1 = bits[1] - m_me.bitcost(mv[1]) + m_me.bitcost(mvzero);
+
+					uint32_t costZero = satdCost + m_rdCost->getCost(bitsZero0) + m_rdCost->getCost(bitsZero1);
+
+					MV mvpZero[2];
+					int mvpidxZero[2];
+					mvpZero[0] = mvPredBi[0][refIdxBidir[0]];
+					mvpidxZero[0] = mvpIdxBi[0][refIdxBidir[0]];
+					xCopyAMVPInfo(&amvpInfo[0][refIdxBidir[0]], cu->getCUMvField(REF_PIC_LIST_0)->getAMVPInfo());
+					xCheckBestMVP(cu, REF_PIC_LIST_0, mvzero, mvpZero[0], mvpidxZero[0], bitsZero0, costZero);
+					mvpZero[1] = mvPredBi[1][refIdxBidir[1]];
+					mvpidxZero[1] = mvpIdxBi[1][refIdxBidir[1]];
+					xCopyAMVPInfo(&amvpInfo[1][refIdxBidir[1]], cu->getCUMvField(REF_PIC_LIST_1)->getAMVPInfo());
+					xCheckBestMVP(cu, REF_PIC_LIST_1, mvzero, mvpZero[1], mvpidxZero[1], bitsZero1, costZero);
+
+					if (costZero < costbi)
+					{
+						costbi = costZero;
+						mvBidir[0].x = mvBidir[0].y = 0;
+						mvBidir[1].x = mvBidir[1].y = 0;
+						mvPredBi[0][refIdxBidir[0]] = mvpZero[0];
+						mvPredBi[1][refIdxBidir[1]] = mvpZero[1];
+						mvpIdxBi[0][refIdxBidir[0]] = mvpidxZero[0];
+						mvpIdxBi[1][refIdxBidir[1]] = mvpidxZero[1];
+						bits[2] = bitsZero0 + bitsZero1 - mbBits[0] - mbBits[1] + mbBits[2];
+					}
+				}
+			} // if (B_SLICE)
+		} //end if bTestNormalMC
+
+		//  Clear Motion Field
+		cu->getCUMvField(REF_PIC_LIST_0)->setAllMvField(TComMvField(), partSize, partAddr, 0, partIdx);
+		cu->getCUMvField(REF_PIC_LIST_1)->setAllMvField(TComMvField(), partSize, partAddr, 0, partIdx);
+		cu->getCUMvField(REF_PIC_LIST_0)->setAllMvd(mvzero, partSize, partAddr, 0, partIdx);
+		cu->getCUMvField(REF_PIC_LIST_1)->setAllMvd(mvzero, partSize, partAddr, 0, partIdx);
+
+		cu->setMVPIdxSubParts(-1, REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+		cu->setMVPNumSubParts(-1, REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+		cu->setMVPIdxSubParts(-1, REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+		cu->setMVPNumSubParts(-1, REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+
+		uint32_t mebits = 0;
+		// Set Motion Field_
+		mv[1] = mvValidList1;
+		refIdx[1] = refIdxValidList1;
+		bits[1] = bitsValidList1;
+		listCost[1] = costValidList1;
+
+		if (bTestNormalMC)
+		{
+			if (costbi <= listCost[0] && costbi <= listCost[1])
+			{
+				lastMode = 2;
+				{
+					cu->getCUMvField(REF_PIC_LIST_0)->setAllMv(mvBidir[0], partSize, partAddr, 0, partIdx);
+					cu->getCUMvField(REF_PIC_LIST_0)->setAllRefIdx(refIdxBidir[0], partSize, partAddr, 0, partIdx);
+					cu->getCUMvField(REF_PIC_LIST_1)->setAllMv(mvBidir[1], partSize, partAddr, 0, partIdx);
+					cu->getCUMvField(REF_PIC_LIST_1)->setAllRefIdx(refIdxBidir[1], partSize, partAddr, 0, partIdx);
+				}
+				{
+					MV mvtmp = mvBidir[0] - mvPredBi[0][refIdxBidir[0]];
+					cu->getCUMvField(REF_PIC_LIST_0)->setAllMvd(mvtmp, partSize, partAddr, 0, partIdx);
+				}
+				{
+					MV mvtmp = mvBidir[1] - mvPredBi[1][refIdxBidir[1]];
+					cu->getCUMvField(REF_PIC_LIST_1)->setAllMvd(mvtmp, partSize, partAddr, 0, partIdx);
+				}
+
+				cu->setInterDirSubParts(3, partAddr, partIdx, cu->getDepth(0));
+
+				cu->setMVPIdxSubParts(mvpIdxBi[0][refIdxBidir[0]], REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPNumSubParts(mvpNum[0][refIdxBidir[0]], REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPIdxSubParts(mvpIdxBi[1][refIdxBidir[1]], REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPNumSubParts(mvpNum[1][refIdxBidir[1]], REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+
+				mebits = bits[2];
+			}
+			else if (listCost[0] <= listCost[1])
+			{
+				lastMode = 0;
+				cu->getCUMvField(REF_PIC_LIST_0)->setAllMv(mv[0], partSize, partAddr, 0, partIdx);
+				cu->getCUMvField(REF_PIC_LIST_0)->setAllRefIdx(refIdx[0], partSize, partAddr, 0, partIdx);
+				{
+					MV mvtmp = mv[0] - mvPred[0][refIdx[0]];
+					cu->getCUMvField(REF_PIC_LIST_0)->setAllMvd(mvtmp, partSize, partAddr, 0, partIdx);
+				}
+				cu->setInterDirSubParts(1, partAddr, partIdx, cu->getDepth(0));
+
+				cu->setMVPIdxSubParts(mvpIdx[0][refIdx[0]], REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPNumSubParts(mvpNum[0][refIdx[0]], REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+
+				mebits = bits[0];
+			}
+			else
+			{
+				lastMode = 1;
+				cu->getCUMvField(REF_PIC_LIST_1)->setAllMv(mv[1], partSize, partAddr, 0, partIdx);
+				cu->getCUMvField(REF_PIC_LIST_1)->setAllRefIdx(refIdx[1], partSize, partAddr, 0, partIdx);
+				{
+					MV mvtmp = mv[1] - mvPred[1][refIdx[1]];
+					cu->getCUMvField(REF_PIC_LIST_1)->setAllMvd(mvtmp, partSize, partAddr, 0, partIdx);
+				}
+				cu->setInterDirSubParts(2, partAddr, partIdx, cu->getDepth(0));
+
+				cu->setMVPIdxSubParts(mvpIdx[1][refIdx[1]], REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPNumSubParts(mvpNum[1][refIdx[1]], REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+
+				mebits = bits[1];
+			}
+#if CU_STAT_LOGFILE
+			meCost += listCost[0];
+#endif
+		} // end if bTestNormalMC
+
+		if (cu->getPartitionSize(partAddr) != SIZE_2Nx2N)
+		{
+			uint32_t mrgInterDir = 0;
+			TComMvField mrgMvField[2];
+			uint32_t mrgIndex = 0;
+
+			uint32_t meInterDir = 0;
+			TComMvField meMvField[2];
+
+			// calculate ME cost
+			uint32_t meError = MAX_UINT;
+			uint32_t meCost = MAX_UINT;
+
+			if (bTestNormalMC)
+			{
+				meError = xGetInterPredictionError(cu, partIdx);
+				meCost = meError + m_rdCost->getCost(mebits);
+			}
+
+			// save ME result.
+			meInterDir = cu->getInterDir(partAddr);
+			cu->getMvField(cu, partAddr, REF_PIC_LIST_0, meMvField[0]);
+			cu->getMvField(cu, partAddr, REF_PIC_LIST_1, meMvField[1]);
+
+			// find Merge result
+			uint32_t mrgCost = MAX_UINT;
+			uint32_t mrgBits = 0;
+			xMergeEstimation(cu, partIdx, mrgInterDir, mrgMvField, mrgIndex, mrgCost, mrgBits, mvFieldNeighbours, interDirNeighbours, numValidMergeCand);
+			if (mrgCost < meCost)
+			{
+				// set Merge result
+				cu->setMergeFlagSubParts(true, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMergeIndexSubParts(mrgIndex, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setInterDirSubParts(mrgInterDir, partAddr, partIdx, cu->getDepth(partAddr));
+				{
+					cu->getCUMvField(REF_PIC_LIST_0)->setAllMvField(mrgMvField[0], partSize, partAddr, 0, partIdx);
+					cu->getCUMvField(REF_PIC_LIST_1)->setAllMvField(mrgMvField[1], partSize, partAddr, 0, partIdx);
+				}
+
+				cu->getCUMvField(REF_PIC_LIST_0)->setAllMvd(mvzero, partSize, partAddr, 0, partIdx);//merge的情况mvd为0  add by hdl
+				cu->getCUMvField(REF_PIC_LIST_1)->setAllMvd(mvzero, partSize, partAddr, 0, partIdx);
+
+				cu->setMVPIdxSubParts(-1, REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPNumSubParts(-1, REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPIdxSubParts(-1, REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setMVPNumSubParts(-1, REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
+#if CU_STAT_LOGFILE
+				meCost += mrgCost;
+#endif
+				totalmebits += mrgBits;
+			}
+			else
+			{
+				// set ME result
+				cu->setMergeFlagSubParts(false, partAddr, partIdx, cu->getDepth(partAddr));
+				cu->setInterDirSubParts(meInterDir, partAddr, partIdx, cu->getDepth(partAddr));
+				{
+					cu->getCUMvField(REF_PIC_LIST_0)->setAllMvField(meMvField[0], partSize, partAddr, 0, partIdx);
+					cu->getCUMvField(REF_PIC_LIST_1)->setAllMvField(meMvField[1], partSize, partAddr, 0, partIdx);
+				}
+#if CU_STAT_LOGFILE
+				meCost += meCost;
+#endif
+				totalmebits += mebits;
+			}
+		}
+		else
+		{
+			totalmebits += mebits;
+		}
+		motionCompensation(cu, predYuv, REF_PIC_LIST_X, partIdx, bLuma, bChroma);
+	}
+
+	cu->m_totalBits = totalmebits;
+
+	setWpScalingDistParam(cu, -1, REF_PIC_LIST_X);
+}
+unsigned int TEncSearch::getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, unsigned int width)
+{
+	unsigned int offsIdx = 0;
+	if (64 == nCtuSize)
+	{
+		if (width == 8)
+			offsIdx = (nCuPelX % 64) / 8 + (nCuPelY % 64) / 8 * 8;
+		else if (width == 16)
+			offsIdx = 64 + (nCuPelX % 64) / 16 + (nCuPelY % 64) / 16 * 4;
+		else if (width == 32)
+			offsIdx = 80 + (nCuPelX % 64) / 32 + (nCuPelY % 64) / 32 * 2;
+		else
+			offsIdx = 84;
+	}
+	else if (32 == nCtuSize)
+	{
+		if (width == 8)
+			offsIdx = (nCuPelX % 32) / 8 + (nCuPelY % 32) / 8 * 4;
+		else if (width == 16)
+			offsIdx = 16 + (nCuPelX % 32) / 16 + (nCuPelY % 32) / 16 * 2;
+		else if (width == 32)
+			offsIdx = 20;
+	}
+	else
+	{
+		if (width == 8)
+			offsIdx = (nCuPelX % 16) / 8 + (nCuPelY % 16) / 8 * 2;
+		else if (width == 16)
+			offsIdx = 4;
+	}
+	return offsIdx;
+}
+void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, bool isFirst)
+{
+	memset(isValid, 1, 36); //36个位置全赋值为true
+	TComMvField tmpMvField;
+	if (64 == g_maxCUWidth)
+	{
+		/*当前ctu的的16个tmvp*/
+		CTU->getTMVP(tmpMv[0], 0, 16);
+		CTU->getTMVP(tmpMv[1], 64, 16);
+		CTU->getTMVP(tmpMv[3], 128, 16);
+		CTU->getTMVP(tmpMv[4], 192, 16);
+		CTU->getTMVP(tmpMv[6], 16, 16);
+		CTU->getTMVP(tmpMv[7], 80, 16);
+		CTU->getTMVP(tmpMv[9], 144, 16);
+		CTU->getTMVP(tmpMv[10], 208, 16);
+		CTU->getTMVP(tmpMv[12], 32, 16);
+		CTU->getTMVP(tmpMv[13], 96, 16);
+		CTU->getTMVP(tmpMv[15], 160, 16);
+		CTU->getTMVP(tmpMv[16], 224, 16);
+		CTU->getTMVP(tmpMv[18], 48, 16);
+		CTU->getTMVP(tmpMv[19], 112, 16);
+		CTU->getTMVP(tmpMv[21], 176, 16);
+		CTU->getTMVP(tmpMv[22], 240, 16);
+		/*当前ctu的的16个tmvp*/
+
+		/*当前ctu左边ctu的4个tmvp*/
+		if (CTU->getCULeft())
+		{
+			CTU->getCULeft()->getTMVP(tmpMv[33], 80, 16);
+			CTU->getCULeft()->getTMVP(tmpMv[29], 112, 16);
+			CTU->getCULeft()->getTMVP(tmpMv[31], 208, 16);
+			CTU->getCULeft()->getTMVP(tmpMv[27], 240, 16);
+			/*粗搜索得到的左侧ctu的pmv*/
+			if (isFirst)
+			{
+				tmpMv[26].x = g_leftPMV.x; tmpMv[26].y = g_leftPMV.y;
+			}
+			else
+			{
+				tmpMv[26].x = g_leftPmv.x; tmpMv[26].y = g_leftPmv.y;
+			}
+			/*粗搜索得到的左侧ctu的pmv*/
+		}
+		else
+		{
+			isValid[33] = false;
+			isValid[29] = false;
+			isValid[31] = false;
+			isValid[27] = false;
+			isValid[26] = false;
+		}
+		/*当前ctu左边ctu的4个tmvp*/
+
+		/*当前ctu上方ctu的4个tmvp和8个空间mv*/
+		if (CTU->getCUAbove())
+		{
+			CTU->getCUAbove()->getTMVP(tmpMv[34], 160, 16);
+			CTU->getCUAbove()->getTMVP(tmpMv[30], 176, 16);
+			CTU->getCUAbove()->getTMVP(tmpMv[32], 224, 16);
+			CTU->getCUAbove()->getTMVP(tmpMv[28], 240, 16);
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 168, list, tmpMvField); tmpMv[24] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 172, list, tmpMvField); tmpMv[17] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 184, list, tmpMvField); tmpMv[23] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 188, list, tmpMvField); tmpMv[5] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 232, list, tmpMvField); tmpMv[25] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 236, list, tmpMvField); tmpMv[14] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 248, list, tmpMvField); tmpMv[20] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 252, list, tmpMvField); tmpMv[2] = tmpMvField.mv;
+		}
+		else
+		{
+			isValid[34] = false; isValid[30] = false; isValid[32] = false; isValid[28] = false; isValid[24] = false;
+			isValid[17] = false; isValid[23] = false; isValid[5] = false;  isValid[25] = false; isValid[14] = false;
+			isValid[20] = false; isValid[2] = false;
+		}
+		/*当前ctu上方ctu的4个tmvp和8个空间mv*/
+
+		/*当前ctu左上方ctu的1个空间mv*/
+		if (CTU->getCUAboveLeft())
+		{
+			CTU->getCUAboveLeft()->getMvField(CTU->getCUAboveLeft(), 252, list, tmpMvField); tmpMv[11] = tmpMvField.mv;
+		}
+		else
+		{
+			isValid[11] = false;
+		}
+		/*当前ctu左上方ctu的1个空间mv*/
+
+		/*当前ctu右上方ctu的1个空间mv*/
+		if (CTU->getCUAboveRight()) //右上方CTU存在,找出其中的1个mv add by hdl
+		{
+			CTU->getCUAboveRight()->getMvField(CTU->getCUAboveRight(), 168, list, tmpMvField); tmpMv[8] = tmpMvField.mv;
+		}
+		else
+		{
+			isValid[8] = false;
+		}
+		/*当前ctu右上方ctu的1个空间mv*/
+
+		/*(0,0)点*/
+		tmpMv[35] = MV(0, 0);
+		/*(0,0)点*/
+
+		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+		for (int i = 0; i < 36; i++)
+		{
+			if (26 == i)
+				continue;
+			tmpMv[i].x /= 4;
+			tmpMv[i].y /= 4;
+		}
+		for (int i = 0; i < 36; i++)
+		{
+			tmpMv[i].x = tmpMv[i].x / 2 * 2; //取偶,为了取chroma的精搜索窗时正确性
+			tmpMv[i].y = tmpMv[i].y / 2 * 2;
+		}
+		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+	}
+	else if (32 == g_maxCUWidth)
+	{
+		/*当前ctu的的4个tmvp*/
+		CTU->getTMVP(tmpMv[0], 0, 16);
+		CTU->getTMVP(tmpMv[1], 48, 16);
+		CTU->getTMVP(tmpMv[3], 16, 16);
+		CTU->getTMVP(tmpMv[5], 32, 16);
+		/*当前ctu的的4个tmvp*/
+
+		/*当前ctu左边ctu的2个tmvp*/
+		if (CTU->getCULeft())
+		{
+			CTU->getCULeft()->getTMVP(tmpMv[13], 16, 16);
+			CTU->getCULeft()->getTMVP(tmpMv[11], 48, 16);
+			/*粗搜索得到的左侧ctu的pmv*/
+			if (isFirst)
+			{
+				tmpMv[14].x = g_leftPMV.x; tmpMv[14].y = g_leftPMV.y;
+			}
+			else
+			{
+				tmpMv[14].x = g_leftPmv.x; tmpMv[14].y = g_leftPmv.y;
+			}
+			/*粗搜索得到的左侧ctu的pmv*/
+		}
+		else
+		{
+			isValid[11] = false;
+			isValid[13] = false;
+			isValid[14] = false;
+		}
+		/*当前ctu左边ctu的2个tmvp*/
+
+		/*当前ctu上方ctu的2个tmvp和4个空间mv*/
+		if (CTU->getCUAbove())
+		{
+			CTU->getCUAbove()->getTMVP(tmpMv[10], 48, 16);
+			CTU->getCUAbove()->getTMVP(tmpMv[12], 32, 16);
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 40, list, tmpMvField); tmpMv[9] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 44, list, tmpMvField); tmpMv[4] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 56, list, tmpMvField); tmpMv[8] = tmpMvField.mv;
+			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 60, list, tmpMvField); tmpMv[2] = tmpMvField.mv;
+		}
+		else
+		{
+			isValid[2] = false; isValid[4] = false;   isValid[8] = false; 
+			isValid[9] = false; isValid[10] = false;	isValid[12] = false; 
+		}
+		/*当前ctu上方ctu的2个tmvp和4个空间mv*/
+
+		/*当前ctu左上方ctu的1个空间mv*/
+		if (CTU->getCUAboveLeft())
+		{
+			CTU->getCUAboveLeft()->getMvField(CTU->getCUAboveLeft(), 60, list, tmpMvField); tmpMv[7] = tmpMvField.mv;
+		}
+		else
+		{
+			isValid[7] = false;
+		}
+		/*当前ctu左上方ctu的1个空间mv*/
+
+		/*当前ctu右上方ctu的1个空间mv*/
+		if (CTU->getCUAboveRight()) //右上方CTU存在,找出其中的1个mv add by hdl
+		{
+			CTU->getCUAboveRight()->getMvField(CTU->getCUAboveRight(), 40, list, tmpMvField); tmpMv[6] = tmpMvField.mv;
+		}
+		else
+		{
+			isValid[6] = false;
+		}
+		/*当前ctu右上方ctu的1个空间mv*/
+
+		/*(0,0)点*/
+		tmpMv[15] = MV(0, 0);
+		/*(0,0)点*/
+		for (int i = 16; i < 36; i++)
+			isValid[i] = false;
+
+		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+		for (int i = 0; i < 36; i++)
+		{
+			if (14 == i)
+				continue;
+			tmpMv[i].x /= 4;
+			tmpMv[i].y /= 4;
+		}
+		for (int i = 0; i < 36; i++)
+		{
+			tmpMv[i].x = tmpMv[i].x / 2 * 2; //取偶,为了取chroma的精搜索窗时正确性
+			tmpMv[i].y = tmpMv[i].y / 2 * 2;
+		}
+		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+	}
+}
+#endif
 
 // AMVP
 void TEncSearch::xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list, int refIdx, MV& mvPred, uint32_t* distBiP)
@@ -4129,6 +4734,50 @@ void TEncSearch::xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list,
     mvPred = bestMv;
     cu->setMVPIdxSubParts(bestIdx, list, partAddr, partIdx, cu->getDepth(partAddr));
     cu->setMVPNumSubParts(amvpInfo->m_num, list, partAddr, partIdx, cu->getDepth(partAddr));
+}
+
+void TEncSearch::xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list, int refIdx, MV& mvPred, MV &mvInput)
+{
+	AMVPInfo* amvpInfo = cu->getCUMvField(list)->getAMVPInfo();
+
+	MV   bestMv;
+
+	int  bestIdx = 0;
+	uint32_t partAddr = 0;
+	uint32_t bestCost = MAX_INT;
+	int  roiWidth, roiHeight;
+	int  i;
+
+	cu->getPartIndexAndSize(partIdx, partAddr, roiWidth, roiHeight);
+
+	// Fill the MV Candidates
+	cu->fillMvpCand(partIdx, partAddr, list, refIdx, amvpInfo); //amvpInfo最多有两个candidate  add by hdl 
+
+	bestMv = amvpInfo->m_mvCand[0];
+	if (amvpInfo->m_num <= 1)
+	{
+		mvPred = bestMv;
+		cu->setMVPIdxSubParts(bestIdx, list, partAddr, partIdx, cu->getDepth(partAddr));
+		cu->setMVPNumSubParts(amvpInfo->m_num, list, partAddr, partIdx, cu->getDepth(partAddr));
+		return;
+	}
+	m_predTempYuv.clear();
+	//-- Check Minimum Cost.
+	for (i = 0; i < amvpInfo->m_num; i++)
+	{
+		uint32_t cost = abs(amvpInfo->m_mvCand[i].x - mvInput.x) + abs(amvpInfo->m_mvCand[i].y - mvInput.y);
+		if (bestCost > cost)
+		{
+			bestCost = cost;
+			bestMv = amvpInfo->m_mvCand[i];
+			bestIdx = i;
+		}
+	}
+	m_predTempYuv.clear();
+
+	mvPred = bestMv; // Setting Best MVP
+	cu->setMVPIdxSubParts(bestIdx, list, partAddr, partIdx, cu->getDepth(partAddr));
+	cu->setMVPNumSubParts(amvpInfo->m_num, list, partAddr, partIdx, cu->getDepth(partAddr));
 }
 
 uint32_t TEncSearch::xGetMvpIdxBits(int idx, int num)
@@ -4290,17 +4939,14 @@ void TEncSearch::xSetSearchRange(TComDataCU* cu, MV mvp, int merange, MV& mvmin,
 #if RK_INTER_METEST
 void TEncSearch::xSetSearchRange(TComDataCU* cu, MV mvp, int merange_x, int merange_y, MV& mvmin, MV& mvmax)
 {
-	int minusValue = 4;
-	int merangeX = merange_x - minusValue;
-	int merangeY = merange_y - minusValue;
-	cu->clipMv(mvp);
+	cu->clipMv(mvp, true);
 
-	MV dist(merangeX << 2, merangeY << 2);
+	MV dist(merange_x << 2, merange_y << 2);
 	mvmin = mvp - dist;
-	mvmax = mvp + dist - MV(1<<2, 1<<2); //去除最右边的点 add by hdl
+	mvmax = mvp + dist - MV(4,4); //去除最右边的点 add by hdl
 
-	cu->clipMv(mvmin);
-	cu->clipMv(mvmax);
+	cu->clipMv(mvmin, true);
+	cu->clipMv(mvmax, true);
 
 	mvmin >>= 2;
 	mvmax >>= 2;

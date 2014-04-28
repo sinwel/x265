@@ -204,9 +204,9 @@ public:
     uint8_t best_pos[4];                // 按照Z序记录当前层CU的个数
     uint8_t temp_pos[4];                // 按照Z序记录当前sub层CU的个数
 
-    class cuCost intra_temp_64;
-    class cuCost intra_temp_32[4];
-    class cuCost intra_temp_16[16];
+    class cuCost intra_temp_0;
+    class cuCost intra_temp_1[4];
+    class cuCost intra_temp_2[16];
 
     class cuData*** cu_ori_data;
     uint8_t ori_cu_split_flag[21];

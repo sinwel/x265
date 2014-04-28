@@ -63,11 +63,12 @@ public:
     // ------------------------------------------------------------------------------------------------
     //  YUV buffer
     // ------------------------------------------------------------------------------------------------
-
-    Pel*  m_picBufY;         ///< Buffer (including margin)
+	short*  m_picBufYDS;
+	Pel*  m_picBufY;         ///< Buffer (including margin)
     Pel*  m_picBufU;
     Pel*  m_picBufV;
 
+	short*  m_picOrgYDS;
     Pel*  m_picOrgY;          ///< m_apiPicBufY + m_iMarginLuma*getStride() + m_iMarginLuma
     Pel*  m_picOrgU;
     Pel*  m_picOrgV;

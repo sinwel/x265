@@ -522,7 +522,8 @@ void FrameEncoder::compressFrame()
                 w = slice->m_weightPredTable[l][ref];
                 slice->m_numWPRefs++;
             }
-            m_mref[l][ref].init(slice->getRefPic(l, ref)->getPicYuvRec(), w);
+            //m_mref[l][ref].init(slice->getRefPic(l, ref)->getPicYuvRec(), w);
+			m_mref[l][ref].init(slice->getRefPic(l, ref)->getPicYuvRec(), slice->getRefPic(l,ref)->getPicYuvOrg(), w); //add by hdl for CIME
         }
     }
 
