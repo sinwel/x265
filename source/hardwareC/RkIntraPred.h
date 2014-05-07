@@ -89,6 +89,7 @@ public:
 //4:   intra_4_sad.txt
     FILE* fp_intra_4x4[10];
     int     num_fp;
+	uint8_t             rk_LineBufAll[6][129];
 
     uint8_t             rk_LineBufTmp[129]; // 数据靠前存储 左下到左上到右上，corner点在中间
 

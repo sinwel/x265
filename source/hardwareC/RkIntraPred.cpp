@@ -2006,6 +2006,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	int32_t width 	= pInterface_Intra->size;
 	int32_t height	= pInterface_Intra->size;
 	uint8_t LineBuf[129];
+	uint8_t lu_cb_cr_idx[6] = {0, 2, 3, 5, 1, 4};
+	static int count = 0;	
 	// unitSize 只有4x4的时候是 4，其他case都是8
 	// x265中固定为 4
     int unitSize      = pInterface_Intra->cidx == 0 ? 4 : 2;
@@ -2021,7 +2023,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 16 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[0],"0x%02x  ",fenc[15 - i]);			    
+				FPRINT(fp_intra_4x4[0],"%02x",fenc[15 - i]);			    
 			}
 			FPRINT(fp_intra_4x4[0],"\n");			    
 		}
@@ -2050,9 +2052,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 17 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[3],"0x%02x  ",LineBuf[16 - i]);			    
+				 rk_LineBufAll[lu_cb_cr_idx[partOffset]][i] = LineBuf[i];			    
 			}
-			FPRINT(fp_intra_4x4[3],"\n");
 		}
 	#endif
 		
@@ -2165,11 +2166,19 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
 		{
-			for ( uint8_t  i = 0 ; i < 35 ; i++ )
+			
+			FPRINT(fp_intra_4x4[4],"%d %03x, ",0,costSad[0]);			    
+			FPRINT(fp_intra_4x4[4],"%d %03x, ",1,costSad[1]);	
+			  
+			for ( uint8_t  i = 2 ; i < 34 ; i+=2 )
 			{
-				FPRINT(fp_intra_4x4[4],"0x%-8x ",costSad[i]);			    
+				FPRINT(fp_intra_4x4[4],"%d %03x, ",i, costSad[i]);			    
 			}
-			FPRINT(fp_intra_4x4[4],"\n");			    
+			
+			FPRINT(fp_intra_4x4[4],"%d %03x",34,costSad[34]);	
+			
+			FPRINT(fp_intra_4x4[4],"\n");	
+			count++;
 		}
 	#endif
 
@@ -2238,7 +2247,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 16 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[1],"0x%02x  ",fenc[15 - i]);			    
+				FPRINT(fp_intra_4x4[1],"%02x",fenc[15 - i]);			    
 			}
 			FPRINT(fp_intra_4x4[1],"\n");			    
 		}
@@ -2259,6 +2268,17 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		RK_HEVC_FPRINT(g_fp_result_rk,"U:\n");
 		StoreLineBuf(g_fp_result_rk, LineBuf, 2*width + 2*height + 1);
 #endif
+
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 17 ; i++ )
+			{
+				 rk_LineBufAll[1][i] = LineBuf[i];			    
+			}
+		}
+	#endif
+
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
 		uint8_t 	refLeft[33 + 16 - 1];
@@ -2320,7 +2340,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 16 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[2],"0x%02x  ",fenc[15 - i]);			    
+				FPRINT(fp_intra_4x4[2],"%02x",fenc[15 - i]);			    
 			}
 			FPRINT(fp_intra_4x4[2],"\n");			    
 		}
@@ -2342,6 +2362,31 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		RK_HEVC_FPRINT(g_fp_result_rk,"V:\n");
 		StoreLineBuf(g_fp_result_rk, LineBuf, 2*width + 2*height + 1);
 #endif
+
+	#if OUTPUT_4X4_DATA
+		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		{
+			for ( uint8_t  i = 0 ; i < 17 ; i++ )
+			{
+				rk_LineBufAll[4][i] = LineBuf[i];			    
+			}
+
+			// write to file
+			for ( uint8_t  k = 0 ; k < 6 ; k++ )
+			{
+				for ( uint8_t  i = 0 ; i < 17 ; i++ )
+				{
+					if (( k != 1 )&&( k != 4 ))// only luma
+					{
+						FPRINT(fp_intra_4x4[3],"%02x",rk_LineBufAll[k][16 - i]);			    
+					}
+				}
+				if (( k != 1 )&&( k != 4 )) 
+					FPRINT(fp_intra_4x4[3],"\n");
+			}
+		}
+	#endif
+
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
 		uint8_t 	refLeft[33 + 16 - 1];
