@@ -57,7 +57,7 @@ struct CTU_CMD
 	#define FILE_PATH "/home2/zxy/log_files/"
 	#define PATH_NAME(name) (FILE_PATH name)
     #define CFG_FILE "/home2/zxy/hevc/svn_x265/cfg/"
-    #define CFG_FILE_NAME(name) ( CFG_FILE name)    
+    #define CFG_FILE_NAME(name) ( CFG_FILE name)
 #endif
 
 

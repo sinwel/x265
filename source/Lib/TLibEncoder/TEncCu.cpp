@@ -429,7 +429,7 @@ void TEncCu::RimeAndFmeVerification(TComDataCU* cu)
 			cu->getSlice()->getRefPic(0,0)->getPicYuvRec()->getCbAddr(0,0),
 			cu->getSlice()->getRefPic(0,0)->getPicYuvRec()->getCStride(),
 			cu->getSlice()->getPic()->getPicYuvOrg()->getCrAddr(0, 0),
-			cu->getSlice()->getRefPic(0, 0)->getPicYuvRec()->getCrAddr(0, 0), 
+			cu->getSlice()->getRefPic(0, 0)->getPicYuvRec()->getCrAddr(0, 0),
 			cu->getSlice()->getRefPic(0, 0)->getPicYuvRec()->getCStride());
 	}
 
@@ -530,7 +530,7 @@ void TEncCu::RimeAndFmeVerification(TComDataCU* cu)
 		Rime.getPmv(tmpMv[0], 1); Rime.getPmv(tmpMv[1], 2);
 		Merge.setNeighPmv(tmpMv);
 		Merge.Create();
-		
+
 		if (Rime.PrefetchCuInfo())
 		{
 			Rime.RimeAndFme(mvNeigh);
@@ -1413,10 +1413,10 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 
         #if !RK_CTU_CALC_PROC_ENABLE
         // Early CU determination
-        if (outBestCU->isSkipped(0))
-            bSubBranch = false;
-        else
-            bSubBranch = true;
+        //if (outBestCU->isSkipped(0))
+        //    bSubBranch = false;
+        //else
+        //    bSubBranch = true;
         #endif
     }
     else if (!(bSliceEnd && bInsidePicture))
@@ -2107,8 +2107,6 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
                 if (outTempCU->m_totalCost < outBestCU->m_totalCost)
                     pHardWare->ctu_calc.ori_cu_split_flag[pHardWare->ctu_calc.best_pos[2] - 1 + 5] = 1;
                 break;
-            case 3:
-                break;
             default:
                 break;
         }
@@ -2374,7 +2372,7 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
     }
     else
     {
-        iteration = 2;
+        iteration = 1; //modify for no calc residual equal = 0
     }
 
     for (uint32_t noResidual = 0; noResidual < iteration; ++noResidual)

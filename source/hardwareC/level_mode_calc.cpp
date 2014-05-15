@@ -163,6 +163,15 @@ void CU_LEVEL_CALC::deinit()
     free(cost_intra.resi_y);
     free(cost_intra.resi_u);
     free(cost_intra.resi_v);
+
+    free(cost_temp.recon_y);
+    free(cost_temp.recon_u);
+    free(cost_temp.recon_v);
+
+    free(cost_temp.resi_y);
+    free(cost_temp.resi_u);
+    free(cost_temp.resi_v);
+
 	for(i=0; i<((cu_w == 64)? 1 : 4); i++)
         cu_matrix_data[i].deinit();
 	free(cu_matrix_data);
