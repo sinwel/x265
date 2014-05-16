@@ -39,7 +39,9 @@
 #include "TComDataCU.h"
 #include "TComPic.h"
 #include "mv.h"
-
+#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
+#define max(a,b) (a) > (b) ? (a) : (b)
+#endif
 using namespace x265;
 
 static MV scaleMv(MV mv, int scale)
@@ -3137,5 +3139,8 @@ void TComDataCU::getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width)
 		//}
 	}
 }
+#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
+#undef max 
+#endif
 
 //! \}

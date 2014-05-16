@@ -3,6 +3,9 @@
 #include "stdio.h"
 #include "string.h"
 #include "assert.h"
+#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
+#include <stdlib.h>
+#endif
 
 Mv g_leftPMV;
 Mv g_leftPmv;
