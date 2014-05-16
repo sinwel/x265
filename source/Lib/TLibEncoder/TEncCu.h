@@ -141,6 +141,11 @@ public:
 #endif
     TEncCu();
 
+#if RK_INTER_ME_TEST
+	void CimeVerification(TComDataCU* cu);
+	void RimeAndFmeVerification(TComDataCU* cu);
+#endif
+
     void init(Encoder* top);
     void create(UChar totalDepth, uint32_t maxWidth);
     void destroy();
@@ -166,10 +171,10 @@ protected:
     void finishCU(TComDataCU* cu, uint32_t absPartIdx, uint32_t depth);
     void xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, PartSize parentSize = SIZE_NONE);
 #if RK_INTER_CALC_RDO_TWICE
-	void xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTempCU, TComYuv*& outBestPredYuv, TComYuv*& rpcYuvReconBest);
+	void xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTempCU);
 	void xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU, PartSize partSize, bool isCalcRDOTwice, bool bUseMRG);
 	void xCheckBestMode(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, bool isCalcRDOTwice);
-	void xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, bool isCalcRDOTwice, PartSize parentSize = SIZE_NONE);
+	void xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, bool isCalcRDOTwice);
 #endif
     void xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth);
     void xCompressInterCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, TComDataCU*& cu, uint32_t depth, uint32_t partitionIndex, UChar minDepth);

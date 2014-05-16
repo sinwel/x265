@@ -39,7 +39,9 @@
 #include "TComDataCU.h"
 #include "TComPic.h"
 #include "mv.h"
-
+#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
+#define max(a,b) (a) > (b) ? (a) : (b)
+#endif
 using namespace x265;
 
 static MV scaleMv(MV mv, int scale)
@@ -2568,7 +2570,11 @@ bool TComDataCU::isBipredRestriction(uint32_t puIdx)
 void TComDataCU::clipMv(MV& outMV)
 {
     int mvshift = 2;
-    int offset = 8;
+#if RK_INTER_ME_TEST
+	int offset = max(g_nSearchRangeHeight, g_nSearchRangeWidth) + 5 + 1; //plus 5 is for RIME, plus 1 is for holding ME
+#else
+	int offset = 12; //add by hdl for ME
+#endif
     int xmax = (m_slice->getSPS()->getPicWidthInLumaSamples() + offset - m_cuPelX - 1) << mvshift;
     int xmin = (-(int)g_maxCUWidth - offset - (int)m_cuPelX + 1) << mvshift;
 
@@ -2582,14 +2588,21 @@ void TComDataCU::clipMv(MV& outMV)
 void TComDataCU::clipMv(MV& outMV, bool isTest)
 {
 	int mvshift = 2;
+#if RK_INTER_ME_TEST
+	int offset = max(g_nSearchRangeHeight, g_nSearchRangeWidth);
+#else
 	int offset = 8;
+#endif
 	int xmax, xmin, ymax, ymin;
 	if (isTest)
 	{
-		xmax = (m_slice->getSPS()->getPicWidthInLumaSamples() + offset - 1) << mvshift;
-		xmin = (-(int)g_maxCUWidth - offset + 1) << mvshift;
-		ymax = (m_slice->getSPS()->getPicHeightInLumaSamples() + offset - 1) << mvshift;
-		ymin = (-(int)g_maxCUHeight - offset + 1) << mvshift;
+#if !RK_INTER_ME_TEST
+		offset -= 4;
+#endif
+		xmax = (m_slice->getSPS()->getPicWidthInLumaSamples() + offset - m_cuPelX) << mvshift;
+		xmin = (-(int)g_maxCUWidth - offset - (int)m_cuPelX) << mvshift;
+		ymax = (m_slice->getSPS()->getPicHeightInLumaSamples() + offset - m_cuPelY) << mvshift;
+		ymin = (-(int)g_maxCUHeight - offset - (int)m_cuPelY) << mvshift;
 	}
 	else
 	{
@@ -3048,5 +3061,86 @@ uint32_t TComDataCU::getSCUAddr()
 {
     return (m_cuAddr) * (1 << (m_slice->getSPS()->getMaxCUDepth() << 1)) + m_absIdxInLCU;
 }
+
+void TComDataCU::getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width)
+{
+	uint32_t absPartAddr = 0;
+	if (getSlice()->getEnableTMVPFlag())
+	{
+		//>> MTK colocated-RightBottom
+		uint32_t partIdxRB;
+		int lcuIdx = getAddr();
+
+		partIdxRB = g_rasterToZscan[g_zscanToRaster[absIdxInLCU] + (((width / m_pic->getMinCUHeight()) >> 1) - 1) *
+			m_pic->getNumPartInWidth() + width / m_pic->getMinCUWidth() - 1];
+		partIdxRB += (width / 4 * width / 4) >> 1;
+		//deriveRightBottomIdx(0, partIdxRB);
+
+		uint32_t uiAbsPartIdxTmp = g_zscanToRaster[partIdxRB];
+		uint32_t numPartInCUWidth = m_pic->getNumPartInWidth();
+
+		MV colmv;
+		int refIdx;
+
+		if ((m_pic->getCU(m_cuAddr)->getCUPelX() + g_rasterToPelX[uiAbsPartIdxTmp] + m_pic->getMinCUWidth()) >= m_slice->getSPS()->getPicWidthInLumaSamples())  // image boundary check
+		{
+			lcuIdx = -1;
+		}
+		else if ((m_pic->getCU(m_cuAddr)->getCUPelY() + g_rasterToPelY[uiAbsPartIdxTmp] + m_pic->getMinCUHeight()) >= m_slice->getSPS()->getPicHeightInLumaSamples())
+		{
+			lcuIdx = -1;
+		}
+		else
+		{
+			if ((uiAbsPartIdxTmp % numPartInCUWidth < numPartInCUWidth - 1) &&        // is not at the last column of LCU
+				(uiAbsPartIdxTmp / numPartInCUWidth < m_pic->getNumPartInHeight() - 1)) // is not at the last row    of LCU
+			{
+				absPartAddr = g_rasterToZscan[uiAbsPartIdxTmp + numPartInCUWidth + 1];
+				lcuIdx = getAddr();
+			}
+			else if (uiAbsPartIdxTmp % numPartInCUWidth < numPartInCUWidth - 1)       // is not at the last column of LCU But is last row of LCU
+			{
+				absPartAddr = g_rasterToZscan[(uiAbsPartIdxTmp + numPartInCUWidth + 1) % m_pic->getNumPartInCU()];
+				lcuIdx = -1;
+			}
+			else if (uiAbsPartIdxTmp / numPartInCUWidth < m_pic->getNumPartInHeight() - 1) // is not at the last row of LCU But is last column of LCU
+			{
+				absPartAddr = g_rasterToZscan[uiAbsPartIdxTmp + 1];
+				lcuIdx = getAddr() + 1;
+			}
+			else //is the right bottom corner of LCU
+			{
+				absPartAddr = 0;
+				lcuIdx = -1;
+			}
+		}
+
+		refIdx = 0;
+		bool bExistMV = false;
+		uint32_t partIdxCenter = absIdxInLCU;
+		uint32_t curLCUIdx = getAddr();
+		partIdxCenter = g_rasterToZscan[g_zscanToRaster[partIdxCenter]
+			+ (width / m_pic->getMinCUHeight()) / 2 * m_pic->getNumPartInWidth()
+			+ (width / m_pic->getMinCUWidth()) / 2];
+		//xDeriveCenterIdx(0, partIdxCenter);
+
+		bExistMV = lcuIdx >= 0 && xGetColMVP(REF_PIC_LIST_0, lcuIdx, absPartAddr, colmv, refIdx);
+		if (bExistMV == false)
+			bExistMV = xGetColMVP(REF_PIC_LIST_0, curLCUIdx, partIdxCenter, colmv, refIdx);
+		if (bExistMV)
+			tmvp = colmv;
+		//if (getSlice()->isInterB())
+		//{
+		//	bExistMV = lcuIdx >= 0 && xGetColMVP(REF_PIC_LIST_1, lcuIdx, absPartAddr, colmv, refIdx);
+		//	if (bExistMV == false)
+		//		bExistMV = xGetColMVP(REF_PIC_LIST_1, curLCUIdx, partIdxCenter, colmv, refIdx);
+		//	if (bExistMV)
+		//		tmvp[1] = colmv;
+		//}
+	}
+}
+#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
+#undef max 
+#endif
 
 //! \}

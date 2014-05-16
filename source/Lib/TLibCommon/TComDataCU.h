@@ -44,7 +44,7 @@
 #include "TComSlice.h"
 #include "TComRdCost.h"
 #include "TComPattern.h"
-
+#include "inter.h"
 #include <assert.h>
 
 namespace x265 {
@@ -495,6 +495,8 @@ public:
     int           getHorzChromaShift()  { return m_hChromaShift; }
 
     int           getVertChromaShift()  { return m_vChromaShift; }
+
+	void        getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width);
 };
 
 namespace RasterAddress {

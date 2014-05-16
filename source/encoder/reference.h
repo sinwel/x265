@@ -42,9 +42,13 @@ public:
     MotionReference();
     ~MotionReference();
     int  init(TComPicYuv*, wpScalingParam* w = NULL);
+	int  init(TComPicYuv* reconPic, TComPicYuv* origPic, wpScalingParam *w); //add by hdl for CIME
+	void extendEdge(short *pic, int nMarginY, int nMarginX, int stride, int picWidth, int picHeight);
+	void downSampleAndSum(pixel *src, int width, int height, int src_stride, short *dst, int dst_stride, int sampDist = 4);
     void applyWeight(int rows, int numRows);
 
     TComPicYuv      *m_reconPic;
+	TComPicYuv      *m_origPic; //add by hdl for CIME
     pixel           *m_weightBuffer;
     int              m_numWeightedRows;
 

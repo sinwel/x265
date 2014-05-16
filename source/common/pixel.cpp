@@ -450,7 +450,7 @@ void getResidual(pixel *fenc, pixel *pred, int16_t *residual, intptr_t stride)
     {
         for (int uiX = 0; uiX < blockSize; uiX++)
         {
-            residual[uiX] = (int16_t)(fenc[uiX]) - (int16_t)(pred[uiX]);
+            residual[uiX] = static_cast<int16_t>(fenc[uiX]) - static_cast<int16_t>(pred[uiX]);
         }
 
         fenc += stride;

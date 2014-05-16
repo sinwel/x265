@@ -127,7 +127,17 @@ void MotionEstimate::setSourcePU(int offset, int width, int height)
     blockOffset = offset;
 
     /* copy PU block into cache */
+#if !RK_INTER_ME_TEST
     primitives.luma_copy_pp[partEnum](fenc, FENC_STRIDE, fencplane + offset, fencLumaStride);
+#else
+	for (int i = 0; i < FENC_STRIDE; i ++)
+	{
+		for (int j = 0; j < FENC_STRIDE; j ++)
+		{
+			fenc[j + i*FENC_STRIDE] = *(fencplane + offset + j + i*fencLumaStride);
+		}
+	}
+#endif
 }
 
 /* radius 2 hexagon. repeated entries are to avoid having to compute mod6 every time. */
@@ -1206,293 +1216,480 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
     outQMv = bmv;
     return bcost;
 }
-int MotionEstimate::SAD(pixel *src_1, pixel *src_2, int width, int height, int stride)
-{
-	int SadValue = 0;
-	for (int i = 0; i < width; i ++)
+int MotionEstimate::SAD(short *src_1, short *src_2, int width, int height, int stride)
+{//src_1: down sample CIME search window  src_2 down sample CTU
+	int sum = 0;
+	for (int i = 0; i < height; i ++)
 	{
-		for (int j = 0; j < height; j ++)
+		for (int j = 0; j < width; j ++)
 		{
-			SadValue += abs(src_1[j + i * stride] - src_2[j + i * stride]);
+			sum += abs(src_1[j + i*stride] - src_2[j + i*width]);
 		}
 	}
-	return SadValue;
+	return sum;
 }
-int MotionEstimate::SAD(pixel *src_1, pixel *src_2, int width, int height, int stride_1, int stride_2, char SampDist)
+void MotionEstimate::DownSample(short *dst, pixel *src, int src_stride, int nCtuSize_ds)
 {
-	int SadValue = 0;
-	for (int i = 0; i < height; i+=SampDist)
+	for (int i = 0; i < nCtuSize_ds; i++)
 	{
-		for (int j = 0; j < width; j+=SampDist)
+		for (int j = 0; j < nCtuSize_ds; j++)
 		{
-			int sum_1 = 0;
-			int sum_2 = 0;
-			for (int x = 0; x < SampDist; x ++)
+			short sum = 0;
+			for (int m = 0; m < 4; m++)
 			{
-				for (int y = 0; y < SampDist; y ++)
+				for (int n = 0; n < 4; n++)
 				{
-					sum_1 += src_1[(j + y) + (i + x)*stride_1];
-					sum_2 += src_2[(j + y) + (i + x)*stride_2];
+					sum += src[(j * 4 + n) + (i * 4 + m)*src_stride];
 				}
 			}
-			SadValue += abs(sum_1 - sum_2);
+			dst[j + i*nCtuSize_ds] = sum;
 		}
 	}
-	return SadValue;
-}
-void MotionEstimate::Avg(pixel *src, pixel *dst, int width, int height, size_t stride)
-{
-	int count = 0;
-	short tmp = 0;
-	for (int i = 0; i < height; i += 2)
-	{
-		for (int j = 0; j < width; j += 2)
-		{
-			tmp = (src[j + i*stride] + src[j + (i + 1)*stride] + src[(j + 1) + i*stride] + src[(j + 1) + (i + 1)*stride]);
-			dst[j / 2 + i / 2 * LOW_DEFINITION_CTU_SIZE] = (tmp + 2) >> 2;
-		}
-	}
-}
-void MotionEstimate::motionEstimate(ReferencePlanes *ref,
-	MV                    mvmin,
-	MV                    mvmax,
-	MV &                outQMv,
-	bool                   isImeAveragePixel)
-{
-	if (!isImeAveragePixel)
-		assert(false);
-	
-	size_t stride = ref->lumaStride;
-	pixel *fref = ref->fpelPlane + blockOffset;
-
-	Avg(fref, pixRefBuf, blockwidth, blockheight, stride);
-	Avg(fenc, pixCurrBuf, blockwidth, blockheight, MAX_CU_SIZE);
-
-	//FILE *fp = fopen("e:\\new_fenc.txt", "wb");
-	//for (int i = 0; i < blockheight/2; i++)
-	//{
-	//	for (int j = 0; j < blockwidth/2; j++)
-	//	{
-	//		fprintf(fp, "%4d,", pixCurrBuf[j + i * 32]);
-	//	}
-	//	fprintf(fp, "\n");
-	//}
-	//fclose(fp);
-	//fp = fopen("e:\\new_fref.txt", "wb");
-	//for (int i = 0; i < blockheight/2; i++)
-	//{
-	//	for (int j = 0; j < blockwidth/2; j++)
-	//	{
-	//		fprintf(fp, "%4d,", pixRefBuf[j + i * 32]);
-	//	}
-	//	fprintf(fp, "\n");
-	//}
-	//fclose(fp);
-
-	MV bmv = MV(0, 0);
-	int bcost = SAD(pixRefBuf, pixCurrBuf, blockwidth / 2, blockheight / 2, LOW_DEFINITION_CTU_SIZE);
-
-	MV tmv;
-	MV mvMax; mvMax.x = mvmax.x / 2; mvMax.y = mvmax.y/2;
-	MV mvMin; mvMin.x = mvmin.x/2; mvMin.y = mvmin.y/2;
-	//mvmax >>= 1; mvmin >>= 1;
-	for (tmv.y = mvMin.y; tmv.y <= mvMax.y; tmv.y++)
-	{
-		for (tmv.x = mvMin.x; tmv.x <= mvMax.x; tmv.x++)
-		{
-			Avg(fref + tmv.x*2 + tmv.y*2 * stride, pixRefBuf, blockwidth, blockheight, stride);
-			int cost = SAD(pixRefBuf, pixCurrBuf, blockwidth / 2, blockheight / 2, LOW_DEFINITION_CTU_SIZE);
-			COPY2_IF_LT(bcost, cost, bmv, MV(tmv.x*2, tmv.y*2));
-		}
-	}
-	outQMv = bmv;
 }
 int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	const MV &       mvmin,
 	const MV &       mvmax,
 	MV &                outQMv,
-	bool                   isSave,
+	MV *                  mvNeighBor,
+	int                      nMvNeighBor,
+	bool                   isHaveMvd,
+	bool                   isSavePmv,
 	uint32_t             offsIdx,
-	pixel                   *&pSearchRange,
-	int                      merangex,
-	int                      merangey,
-	pixel                   *&pCurrCtu)
+	uint32_t             depth,
+	intptr_t              blockOffset_ds,
+	int                     stride_ds,
+	int                     nValidCtuWidth,
+	int                     nValidCtuHeight)
 {
 	size_t stride = ref->lumaStride;
 	pixel *fref = ref->fpelPlane + blockOffset;
+	MV bmv;
+	static MV Pmv[nNeightMv + 1];
+	int bcost = MAX_INT, tmpCost;
 	
-	if (isSave)
-	{		
-		int count = 0;
-		pixel *pRef = fref + (mvmin.x - 4) + (mvmin.y - 4)*stride;
-		for (int i = 0; i < merangey; i ++)
-		{
-			for (int j = 0; j < merangex; j ++)
-			{
-				pSearchRange[count] = pRef[j + i*stride];
-				count++;
-			}		
-		}	
-		count = 0;
-		pixel *pFenc = fencplane + blockOffset;
-		for (int i = 0; i < nCtuSize; i ++)
-		{
-			for (int j = 0; j < nCtuSize; j++)
-			{
-				pCurrCtu[count] = pFenc[j + i * fencLumaStride];
-				count ++;
-			}
-		}		
-	}	
-#if INTER_IME_TEST
-	MV bmv = MV(0, 0);
-	int bcost = SAD(fenc, fref + bmv.x + bmv.y * stride, blockwidth, blockheight, FENC_STRIDE, stride, nSampDist);
-	MV tmv;
-	for (tmv.y = mvmin.y; tmv.y <= mvmax.y; tmv.y++)
+	if (isSavePmv)
 	{
-		for (tmv.x = mvmin.x; tmv.x <= mvmax.x; tmv.x++)
-		{
-			int cost = SAD(fenc, fref + tmv.x + tmv.y * stride, blockwidth, blockheight, FENC_STRIDE, stride, nSampDist);
-			COPY2_IF_LT(bcost, cost, bmv, MV(tmv.x, tmv.y));
-		}
-	}
-	/* 保存信息用来测试对比*/
-	imeoutput.ImeMvX[offsIdx] = bmv.x;
-	imeoutput.ImeMvY[offsIdx] = bmv.y;
-	imeoutput.nSadCost[offsIdx] = bcost;
-	/* 保存信息用来测试对比*/
-#else
-	MV bmv = MV(0, 0);
-	int bcost = sad(fenc, FENC_STRIDE, fref + bmv.x + bmv.y * stride, stride);
+		int nCtuSize_ds = g_maxCUWidth/4;
+		short *pCurrCtuDS = new short[nCtuSize_ds * nCtuSize_ds];
+		DownSample(pCurrCtuDS, fenc, FENC_STRIDE, nCtuSize_ds);
+		short *pRefPicDS = ref->fpelPlaneOrigDS + blockOffset_ds;
 
-	MV tmv;
-	for (tmv.y = mvmin.y; tmv.y <= mvmax.y; tmv.y++)
-	{
-		for (tmv.x = mvmin.x; tmv.x <= mvmax.x; tmv.x++)
+		MV tmv;
+		for (tmv.y = mvmin.y / 4; tmv.y <= mvmax.y / 4; tmv.y++)
 		{
-			int cost = sad(fenc, FENC_STRIDE, fref + tmv.x +  tmv.y * stride, stride);
-			COPY2_IF_LT(bcost, cost, bmv, MV(tmv.x, tmv.y));
+			for (tmv.x = mvmin.x / 4; tmv.x <= mvmax.x / 4; tmv.x ++)
+			{
+				tmpCost = MAX_INT;
+				for (int idx = 0; idx < 3; idx++)
+				{
+					setMVP(mvNeighBor[7 + idx]);
+					if (tmpCost > mvcost(tmv))
+						tmpCost = mvcost(tmv);
+				}
+				if (!isHaveMvd)
+					tmpCost = 0;
+				int cost = SAD(pRefPicDS + tmv.x + tmv.y*stride_ds, pCurrCtuDS, nValidCtuWidth / 4, nValidCtuHeight / 4, stride_ds);
+				cost += tmpCost;
+				COPY2_IF_LT(bcost, cost, bmv, tmv);
+			}
+		}
+		bmv.x *= 4; bmv.y *= 4;
+		delete[] pCurrCtuDS;
+		g_leftPmv.x = g_leftPMV.x; g_leftPmv.y = g_leftPMV.y; g_leftPmv.nSadCost = g_leftPMV.nSadCost; //add for test;
+		Pmv[0] = bmv;
+		g_leftPMV.x = Pmv[0].x;  g_leftPMV.y = Pmv[0].y; g_leftPMV.nSadCost = bcost;
+	}
+
+	for (int idx = 0; idx < nMvNeighBor; idx++)
+	{
+		Pmv[idx + 1] = mvNeighBor[idx];
+	}
+
+	short Width = static_cast<short>(nRimeWidth);
+	short Height = static_cast<short>(nRimeHeight);
+	short offsX = OffsFromCtu64[offsIdx][0];
+	short offsY = OffsFromCtu64[offsIdx][1];
+	short width = 0, height = 0;
+	switch (depth)
+	{
+	case 0: width = 64; height = 64; break;
+	case 1: width = 32; height = 32; break;
+	case 2: width = 16; height = 16; break;
+	case 3: width = 8;   height = 8;   break;
+	default: assert(false);
+	}
+
+	if (32 == g_maxCUWidth)
+	{
+		switch (depth)
+		{
+		case 0: width = 32; height = 32; break;
+		case 1: width = 16; height = 16; break;
+		case 2: width = 8;   height = 8;   break;
+		default: assert(false);
+		}
+		offsX = OffsFromCtu32[offsIdx][0];
+		offsY = OffsFromCtu32[offsIdx][1];
+	}
+
+	if (nNeightMv == nMvNeighBor)
+	{
+		for (int idx = 0; idx <= nNeightMv; idx++)
+		{
+			g_Mvmin[idx].x = Pmv[idx].x - offsX - Width;
+			g_Mvmin[idx].y = Pmv[idx].y - offsY - Height;
+			g_Mvmax[idx].x = Pmv[idx].x + static_cast<short>(g_maxCUWidth) + Width - offsX - width;
+			g_Mvmax[idx].y = Pmv[idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
 		}
 	}
-#endif
+	else
+	{
+		for (int idx = 0; idx <= nMvNeighBor; idx++)
+		{
+			g_Mvmin[idx].x = Pmv[idx].x - offsX - Width;
+			g_Mvmin[idx].y = Pmv[idx].y - offsY - Height;
+			g_Mvmax[idx].x = Pmv[idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
+			g_Mvmax[idx].y = Pmv[idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
+		}
+		for (int idx = nMvNeighBor + 1; idx <= nNeightMv; idx++)
+		{
+			g_Mvmin[idx].x = Pmv[1].x - offsX - Width;
+			g_Mvmin[idx].y = Pmv[1].y - offsY - Height;
+			g_Mvmax[idx].x = Pmv[1].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
+			g_Mvmax[idx].y = Pmv[1].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
+		}
+	}
+
+	if (nMvNeighBor < nNeightMv)
+	{
+		Pmv[2] = Pmv[1];
+	}
+
+	//int nRSWidth = g_maxCUWidth + 2 * (nRimeWidth + 4);
+	//int nRSHeight = g_maxCUWidth + 2 * (nRimeHeight + 4);
+	//if (isSavePmv)
+	//{
+	//	for (int idxPmv = 0; idxPmv < 3; idxPmv++)
+	//	{
+	//		pixel *pRefPic = fref + Pmv[idxPmv].x - 4 - nRimeWidth + (Pmv[idxPmv].y - 4 - nRimeHeight)*stride;
+	//		//pixel *pRefPic_tmp = ref->fpelPlane - 176 - 176 * stride;
+
+	//		//pixel *pRefPic = ref->fpelPlane - 176 - 176 * stride;
+	//		FILE *fp = fopen("e:\\orig.txt", "ab");
+	//		for (int i = 0; i < nRSHeight; i++)
+	//		{
+	//			for (int j = 0; j < nRSWidth; j++)
+	//			{
+	//				//assert((&pRefPic[j + i*stride]) >= pRefPic_tmp && (&pRefPic[j + i*stride]) < (pRefPic_tmp+832*stride));
+	//				fprintf(fp, "%4d", pRefPic[j + i*stride]);
+	//			}
+	//			fprintf(fp, "\n");
+	//		}
+	//		fclose(fp);
+	//	}
+	//}
+
+	/*7x7块的每个点都算  add by hdl*/
+	bcost = MAX_INT;
+	for (int idxPmv = 0; idxPmv <= nNeightMv; idxPmv++)
+	{
+		MV tmv;
+		for (short i = -nRimeHeight; i <= nRimeHeight; i++) //7x7块的每个点都算  add by hdl
+		{
+			for (short j = -nRimeWidth; j <= nRimeWidth; j++)
+			{
+				tmv = Pmv[idxPmv] + MV(j, i);
+				int cost;
+				tmpCost = MAX_INT;
+				for (int idx = 0; idx < 3; idx++)
+				{
+					setMVP(mvNeighBor[7 + idx]);
+					if (tmpCost > mvcost(tmv))
+						tmpCost = mvcost(tmv);
+				}
+				if (!isHaveMvd)
+					tmpCost = 0;
+				cost = sad(fenc, FENC_STRIDE, fref + tmv.x + tmv.y * stride, stride) + tmpCost;
+				COPY2_IF_LT(bcost, cost, bmv, tmv);
+			}
+		}
+	}
+	g_RimeMv[offsIdx].x = bmv.x; g_RimeMv[offsIdx].y = bmv.y; g_RimeMv[offsIdx].nSadCost = bcost;
+	/*7x7块的每个点都算  add by hdl*/
+	
 	bmv = bmv.toQPel(); // promote search bmv to qpel
-	SubpelWorkload& wl = workload[this->subpelRefine];
-
-	if (bcost)
+	MV BMV = bmv;
+	bcost = MAX_INT;
+	int shift = 0;
+	pixel *pfenc = new pixel[blockwidth*blockheight];
+	pixel *pfref = new pixel[(blockwidth + 8)*(blockheight + 8)];
+	for (int i = 0; i < blockheight; i++)
 	{
-		pixelcmp_t hpelcomp;
-
-		if (wl.hpel_satd)
+		for (int j = 0; j < blockwidth; j++)
 		{
-			bcost = subpelCompare(ref, bmv, satd);
-			hpelcomp = satd;
+			pfenc[j + i * blockwidth] = (fenc[j + i * FENC_STRIDE] >> shift) << shift;
 		}
-		else
-			hpelcomp = sad;
-#if INTER_FME_TEST_1 //FME做18个点  1/2像素9个点， 1/4像素9个点
-		unsigned char *pTemp = new unsigned char[72 * 72];
-		memset(pTemp, 0, sizeof(72 * 72));
-		for (int iter = 0; iter < wl.hpel_iters; iter++)
-		{
-			int bdir = 0, cost;
-			for (int i = 1; i <= wl.hpel_dirs; i++)
-			{
-				MV qmv = bmv + square1[i] * 2;
-				unsigned char *ptmp = fref + (qmv.x>>2) - 4 + ((qmv.y>>2) - 4)*stride;
-				for (int i = 0; i < 72; i ++)
-				{
-					for (int j = 0; j < 72; j ++)
-					{
-						pTemp[j + i * 72] = ptmp[j + i*stride];
-					}
-				}
-				Mv tmpMv; tmpMv.x = qmv.x; tmpMv.y = qmv.y;
-				int Cost = FractMotionEstimate(pTemp+4+4*72, 72, fenc, 64, tmpMv, blockwidth, blockheight);
-				cost = subpelCompare(ref, qmv, hpelcomp);
-				assert(cost == Cost);
-				COPY2_IF_LT(bcost, cost, bdir, i);
-			}
-			bmv += square1[bdir] * 2;
-		}
-		
-		/* if HPEL search used SAD, remeasure with SATD before QPEL */
-		if (!wl.hpel_satd)
-			bcost = subpelCompare(ref, bmv, satd);
-
-		for (int iter = 0; iter < wl.qpel_iters; iter++)
-		{
-			int bdir = 0, cost;
-			for (int i = 1; i <= wl.qpel_dirs; i++)
-			{
-				MV qmv = bmv + square1[i];
-				unsigned char *ptmp = fref + (qmv.x >> 2) - 4 + ((qmv.y >> 2) - 4)*stride;
-				for (int i = 0; i < 72; i++)
-				{
-					for (int j = 0; j < 72; j++)
-					{
-						pTemp[j + i * 72] = ptmp[j + i*stride];
-					}
-				}
-				Mv tmpMv; tmpMv.x = qmv.x; tmpMv.y = qmv.y;
-				int Cost = FractMotionEstimate(pTemp + 4 + 4 * 72, 72, fenc, 64, tmpMv, blockwidth, blockheight);
-				cost = subpelCompare(ref, qmv, hpelcomp);
-				assert(cost == Cost);
-				COPY2_IF_LT(bcost, cost, bdir, i);
-			}
-			bmv += square1[bdir];
-		}
-	delete[] pTemp;
-#endif
-
-#if INTER_FME_TEST_2 //FME做49个点，所有1/4像素插值得出后再用sad方式得到最优解
-	MV BMV = bmv; bcost = MAX_INT;
-	for (short i = -3; i <= 3; i++)
-	{//7x7个分数像素插值
+	}
+	for (short i = -3; i <= 3; i ++)
+	{
 		for (short j = -3; j <= 3; j++)
 		{
 			MV qmv = BMV + MV(i, j);
-			int cost = subpelCompare(ref, qmv, hpelcomp);
+			pixel *pRef = ref->fpelPlane + blockOffset + (qmv.x >> 2) - 4 + ((qmv.y >> 2) - 4) * ref->lumaStride;
+			for (int m = 0; m < blockheight + 8; m++)
+			{
+				for (int n = 0; n < blockwidth + 8; n++)
+				{
+					pfref[n + m * (blockwidth + 8)] = (pRef[n + m*ref->lumaStride] >> shift) << shift;
+				}
+			}
+			int cost = subpelCompare(pfref, (blockwidth + 8), pfenc, blockwidth, qmv);
 			COPY2_IF_LT(bcost, cost, bmv, qmv);
 		}
 	}
-	fmeoutput.FmeMvX[offsIdx] = bmv.x;
-	fmeoutput.FmeMvY[offsIdx] = bmv.y;
-	fmeoutput.nSatdFme[offsIdx] = bcost;
-#endif
+	g_FmeMv[offsIdx].x = bmv.x; g_FmeMv[offsIdx].y = bmv.y; g_FmeMv[offsIdx].nSadCost = bcost;
 
-#if !(INTER_FME_TEST_1 || INTER_FME_TEST_2)  //原始没有做任何修改的FME
-	for (int iter = 0; iter < wl.hpel_iters; iter++)
-	{
-		int bdir = 0, cost;
-		for (int i = 1; i <= wl.hpel_dirs; i++)
-		{
-			MV qmv = bmv + square1[i] * 2;
-			cost = subpelCompare(ref, qmv, hpelcomp);
-			COPY2_IF_LT(bcost, cost, bdir, i);
-		}
-		bmv += square1[bdir] * 2;
-	}
-
-	/* if HPEL search used SAD, remeasure with SATD before QPEL */
-	if (!wl.hpel_satd)
-		bcost = subpelCompare(ref, bmv, satd);
-
-	for (int iter = 0; iter < wl.qpel_iters; iter++)
-	{
-		int bdir = 0, cost;
-		for (int i = 1; i <= wl.qpel_dirs; i++)
-		{
-			MV qmv = bmv + square1[i];
-			cost = subpelCompare(ref, qmv, hpelcomp);
-			COPY2_IF_LT(bcost, cost, bdir, i);
-		}
-		bmv += square1[bdir];
-	}
-#endif
-	}
 	x265_emms();
 	outQMv = bmv;
 	return bcost;
+}
+int MotionEstimate::sad_ud(pixel *pix1, intptr_t stride_pix1, pixel *pix2, intptr_t stride_pix2, char BitWidth, char sampDist, bool isDirectSamp, int lx, int ly)
+{
+	assert((2 == sampDist) || (4 == sampDist) || (1 == sampDist));
+	int sum = 0;
+	if (isDirectSamp)
+	{
+		for (int y = 0; y < ly; y += sampDist)
+		{
+			for (int x = 0; x < lx; x += sampDist)
+			{
+				sum += abs(((pix1[x] >> (8 - BitWidth)) << (8 - BitWidth)) - ((pix2[x] >> (8 - BitWidth)) << (8 - BitWidth)));
+			}
+			pix1 += sampDist*stride_pix1;
+			pix2 += sampDist*stride_pix2;
+		}
+	}
+	else
+	{
+		for (int y = 0; y < ly; y += sampDist)
+		{
+			for (int x = 0; x < lx; x += sampDist)
+			{
+				int tmpSum = 0;
+				int sum_1 = 0;
+				int sum_2 = 0;
+				for (int j = 0; j < sampDist; j++)
+				{
+					for (int i = 0; i < sampDist; i++)
+					{
+						tmpSum += ((pix1[stride_pix1*j + i + x] >> (8 - BitWidth)) << (8 - BitWidth)) - ((pix2[stride_pix2*j + i + x] >> (8 - BitWidth)) << (8 - BitWidth));
+						sum_1 += pix1[stride_pix1*j + i + x];
+						sum_2 += pix2[stride_pix2*j + i + x];
+					}
+				}
+				sum += abs(tmpSum);
+			}
+			pix1 += sampDist*stride_pix1;
+			pix2 += sampDist*stride_pix2;
+		}
+	}
+	return sum;
+}
+int MotionEstimate::subpelCompare(pixel *pfref, int stride_1, pixel *pfenc, int stride_2, const MV& qmv)
+{
+	int xFrac = qmv.x & 0x3;
+	int yFrac = qmv.y & 0x3;
+	int N = 4;
+	int multi = 1;
+	if (4 == N)
+		multi = 2;
+	else
+		multi = 1;
+
+	if ((yFrac | xFrac) == 0)
+	{//还开在原来的整数位置搜索  add by hdl
+		return satd(pfenc, stride_2, pfref + 4 + 4 * stride_1, stride_1);
+	}
+	else
+	{//加权之后再处理  add by hdl
+		ALIGN_VAR_32(pixel, subpelbuf[64 * 64]);
+		if (yFrac == 0)
+		{
+			InterpHoriz(pfref + 4 + 4 * stride_1, stride_1, subpelbuf, FENC_STRIDE, xFrac*multi, N, blockwidth, blockheight);
+		}
+		else if (xFrac == 0)
+		{
+			InterpVert(pfref + 4 + 4 * stride_1, stride_1, subpelbuf, FENC_STRIDE, yFrac*multi, N, blockwidth, blockheight);
+		}
+		else
+		{
+			ALIGN_VAR_32(int16_t, immedVal[64 * (64 + 8)]);
+			int filterSize = N;
+			int halfFilterSize = (filterSize >> 1);
+			const int16_t *pFilter;
+			if (4 == N)
+				pFilter = g_chromaFilter[xFrac*multi];
+			else
+				pFilter = g_lumaFilter[xFrac];
+			FilterHorizontal(pfref + 4 + 4 * stride_1 - (halfFilterSize - 1) * stride_1, stride_1, immedVal, blockwidth, blockwidth, blockheight + filterSize - 1, pFilter, N);
+			FilterVertical(immedVal + (halfFilterSize - 1) * blockwidth, blockwidth, subpelbuf, FENC_STRIDE, yFrac*multi, N, blockwidth, blockheight);
+		}
+		return satd(pfenc, stride_2, subpelbuf, FENC_STRIDE);
+	}
+}
+void MotionEstimate::InterpHoriz(pixel *src, intptr_t srcStride, pixel *dst, intptr_t dstStride, int coeffIdx, int N, int width, int height)
+{
+	int16_t const * coeff = (N == 4) ? g_chromaFilter[coeffIdx] : g_lumaFilter[coeffIdx];
+	int headRoom = IF_FILTER_PREC;
+	int offset = (1 << (headRoom - 1));
+	uint16_t maxVal = (1 << X265_DEPTH) - 1;
+	int cStride = 1;
+
+	src -= (N / 2 - 1) * cStride;
+
+	int row, col;
+	for (row = 0; row < height; row++)
+	{
+		for (col = 0; col < width; col++)
+		{
+			int sum;
+
+			sum = src[col + 0 * cStride] * coeff[0];
+			sum += src[col + 1 * cStride] * coeff[1];
+			sum += src[col + 2 * cStride] * coeff[2];
+			sum += src[col + 3 * cStride] * coeff[3];
+			if (N == 8)
+			{
+				sum += src[col + 4 * cStride] * coeff[4];
+				sum += src[col + 5 * cStride] * coeff[5];
+				sum += src[col + 6 * cStride] * coeff[6];
+				sum += src[col + 7 * cStride] * coeff[7];
+			}
+			int16_t val = (int16_t)((sum + offset) >> headRoom);
+
+			if (val < 0) val = 0;
+			if (val > maxVal) val = maxVal;
+			dst[col] = (pixel)val;
+		}
+
+		src += srcStride;
+		dst += dstStride;
+	}
+}
+void MotionEstimate::InterpVert(pixel *src, intptr_t srcStride, pixel *dst, intptr_t dstStride, int coeffIdx, int N, int width, int height)
+{
+	int16_t const * c = (N == 4) ? g_chromaFilter[coeffIdx] : g_lumaFilter[coeffIdx];
+	int shift = IF_FILTER_PREC;
+	int offset = 1 << (shift - 1);
+	uint16_t maxVal = (1 << X265_DEPTH) - 1;
+
+	src -= (N / 2 - 1) * srcStride;
+
+	int row, col;
+	for (row = 0; row < height; row++)
+	{
+		for (col = 0; col < width; col++)
+		{
+			int sum;
+
+			sum = src[col + 0 * srcStride] * c[0];
+			sum += src[col + 1 * srcStride] * c[1];
+			sum += src[col + 2 * srcStride] * c[2];
+			sum += src[col + 3 * srcStride] * c[3];
+			if (N == 8)
+			{
+				sum += src[col + 4 * srcStride] * c[4];
+				sum += src[col + 5 * srcStride] * c[5];
+				sum += src[col + 6 * srcStride] * c[6];
+				sum += src[col + 7 * srcStride] * c[7];
+			}
+
+			int16_t val = (int16_t)((sum + offset) >> shift);
+			val = (val < 0) ? 0 : val;
+			val = (val > maxVal) ? maxVal : val;
+
+			dst[col] = (pixel)val;
+		}
+
+		src += srcStride;
+		dst += dstStride;
+	}
+}
+void MotionEstimate::FilterHorizontal(pixel *src, intptr_t srcStride, int16_t *dst, intptr_t dstStride, int width, int height, int16_t const *coeff, int N)
+{
+	int headRoom = IF_INTERNAL_PREC - X265_DEPTH;
+	int shift = IF_FILTER_PREC - headRoom;
+	int offset = -IF_INTERNAL_OFFS << shift;
+
+	src -= N / 2 - 1;
+
+	int row, col;
+	for (row = 0; row < height; row++)
+	{
+		for (col = 0; col < width; col++)
+		{
+			int sum;
+
+			sum = src[col + 0] * coeff[0];
+			sum += src[col + 1] * coeff[1];
+			sum += src[col + 2] * coeff[2];
+			sum += src[col + 3] * coeff[3];
+			if (N == 8)
+			{
+				sum += src[col + 4] * coeff[4];
+				sum += src[col + 5] * coeff[5];
+				sum += src[col + 6] * coeff[6];
+				sum += src[col + 7] * coeff[7];
+			}
+
+			int16_t val = (int16_t)((sum + offset) >> shift);
+			dst[col] = val;
+		}
+
+		src += srcStride;
+		dst += dstStride;
+	}
+}
+void MotionEstimate::FilterVertical(int16_t *src, intptr_t srcStride, pixel *dst, intptr_t dstStride, int coeffIdx, int N, int width, int height)
+{
+	int headRoom = IF_INTERNAL_PREC - X265_DEPTH;
+	int shift = IF_FILTER_PREC + headRoom;
+	int offset = (1 << (shift - 1)) + (IF_INTERNAL_OFFS << IF_FILTER_PREC);
+	uint16_t maxVal = (1 << X265_DEPTH) - 1;
+	const int16_t *coeff = (N == 8 ? g_lumaFilter[coeffIdx] : g_chromaFilter[coeffIdx]);
+
+	src -= (N / 2 - 1) * srcStride;
+
+	int row, col;
+	for (row = 0; row < height; row++)
+	{
+		for (col = 0; col < width; col++)
+		{
+			int sum;
+
+			sum = src[col + 0 * srcStride] * coeff[0];
+			sum += src[col + 1 * srcStride] * coeff[1];
+			sum += src[col + 2 * srcStride] * coeff[2];
+			sum += src[col + 3 * srcStride] * coeff[3];
+			if (N == 8)
+			{
+				sum += src[col + 4 * srcStride] * coeff[4];
+				sum += src[col + 5 * srcStride] * coeff[5];
+				sum += src[col + 6 * srcStride] * coeff[6];
+				sum += src[col + 7 * srcStride] * coeff[7];
+			}
+
+			int16_t val = (int16_t)((sum + offset) >> shift);
+
+			val = (val < 0) ? 0 : val;
+			val = (val > maxVal) ? maxVal : val;
+
+			dst[col] = (pixel)val;
+		}
+
+		src += srcStride;
+		dst += dstStride;
+	}
 }
 #endif
 

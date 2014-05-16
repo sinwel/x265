@@ -201,8 +201,9 @@ public:
     // -------------------------------------------------------------------------------------------------------------------
     // compute symbol bits
     // -------------------------------------------------------------------------------------------------------------------
-
+	void getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, bool isFirst = true);
     uint32_t xSymbolBitsInter(TComDataCU* cu);
+	unsigned int getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, unsigned int width);
 #if RK_INTER_CALC_RDO_TWICE
 	uint32_t xSymbolBitsInter(TComDataCU* cu, bool isCalcRDOTwice);
 #endif
@@ -249,7 +250,7 @@ protected:
 
     void xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int picList, int refIdx,
                              MV& mvPred, uint32_t* distBiP = NULL);
-
+	void xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list, int refIdx, MV& mvPred, MV &mvInput);
     void xCheckBestMVP(TComDataCU* cu, int picList, MV cMv, MV& mvPred, int& mvpIdx,
                        uint32_t& outBits, uint32_t& outCost);
 

@@ -42,6 +42,7 @@
 #include <assert.h>
 #include <memory.h>
 #include <stdint.h>
+#include "inter.h"
 
 using namespace x265;
 
@@ -50,10 +51,12 @@ using namespace x265;
 
 TComPicYuv::TComPicYuv()
 {
+	m_picBufYDS = NULL; //down sample buff
     m_picBufY = NULL; // Buffer (including margin)
     m_picBufU = NULL;
     m_picBufV = NULL;
 
+	m_picOrgYDS = NULL; //down sample buff
     m_picOrgY = NULL;  // m_apiPicBufY + m_iMarginLuma*getStride() + m_iMarginLuma
     m_picOrgU = NULL;
     m_picOrgV = NULL;
@@ -78,8 +81,13 @@ void TComPicYuv::create(int picWidth, int picHeight, int picCsp, uint32_t maxCUW
     m_numCuInWidth = (m_picWidth + m_cuWidth - 1)  / m_cuWidth;
     m_numCuInHeight = (m_picHeight + m_cuHeight - 1) / m_cuHeight;
 
+#if RK_INTER_ME_TEST
+	m_lumaMarginX = g_maxCUWidth + g_nSearchRangeWidth + 4 + 12; //4 is for fraction interpolation,12 is for 16 Byte alignment
+	m_lumaMarginY = g_maxCUWidth + g_nSearchRangeHeight + 4 + 12; //128 is mv positive and negative range
+#else
     m_lumaMarginX = g_maxCUWidth  + 32; // search margin and 8-tap filter half-length, padded for 32-byte alignment
     m_lumaMarginY = g_maxCUHeight + 16; // margin for 8-tap filter and infinite padding
+#endif
     m_stride = (m_numCuInWidth * g_maxCUWidth) + (m_lumaMarginX << 1);
 
     m_chromaMarginX = m_lumaMarginX;    // keep 16-byte alignment for chroma CTUs
@@ -88,10 +96,12 @@ void TComPicYuv::create(int picWidth, int picHeight, int picCsp, uint32_t maxCUW
     m_strideC = ((m_numCuInWidth * g_maxCUWidth) >> m_hChromaShift) + (m_chromaMarginX * 2);
     int maxHeight = m_numCuInHeight * g_maxCUHeight;
 
+	m_picBufYDS = new short[(picWidth + m_lumaMarginX * 2)*(picHeight + m_lumaMarginY * 2)/16];
     m_picBufY = (Pel*)X265_MALLOC(Pel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
     m_picBufU = (Pel*)X265_MALLOC(Pel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
     m_picBufV = (Pel*)X265_MALLOC(Pel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
 
+	m_picOrgYDS = m_picBufYDS + m_lumaMarginY/4   * getStride()/4 + m_lumaMarginX/4;
     m_picOrgY = m_picBufY + m_lumaMarginY   * getStride()  + m_lumaMarginX;
     m_picOrgU = m_picBufU + m_chromaMarginY * getCStride() + m_chromaMarginX;
     m_picOrgV = m_picBufV + m_chromaMarginY * getCStride() + m_chromaMarginX;
@@ -129,7 +139,10 @@ void TComPicYuv::destroy()
     delete[] m_cuOffsetC;
     delete[] m_buOffsetY;
     delete[] m_buOffsetC;
+	delete[] m_picBufYDS;
 
+	m_picBufYDS = NULL;
+	m_picOrgYDS = NULL;
     m_picOrgY = NULL;
     m_picOrgU = NULL;
     m_picOrgV = NULL;
