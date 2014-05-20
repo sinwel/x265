@@ -678,6 +678,7 @@ void CU_LEVEL_CALC::intra_proc()
 		/*
 		** use 8x8 info to derivate 4x4 info
 		*/
+		uint8_t lu_cb_cr_order[6] = {0, 4, 1, 2, 5, 3};// y cb y y cr y
 		uint8_t predModeLocal4x4[4] = {35,35,35,35};
 		choose4x4split = false; // default: not split to 4x4
 	    // TODO TU_SIZE == 4
@@ -903,6 +904,18 @@ void CU_LEVEL_CALC::intra_proc()
 
 	#endif
 
+	#if 1
+		for ( uint8_t  i = 0 ; i < 6 ; i++ )
+		{
+			for ( uint8_t  j = 0 ; j < inf_tq.Size*inf_tq.Size ; j++ )
+			{
+				FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"%04x",(uint16_t)resi4x4[lu_cb_cr_order[i]][inf_tq.Size*inf_tq.Size - 1 - j]);			    
+				FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"%02x",recon4x4[lu_cb_cr_order[i]][inf_tq.Size*inf_tq.Size - 1 - j]);			    
+			}
+			FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"\n");			    
+			FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"\n");			    
+		}
+	#endif
 
     }
 }

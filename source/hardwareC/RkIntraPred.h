@@ -77,19 +77,41 @@ typedef struct RkIntraPred_35
     uint8_t rk_predSampleCr[16*16];
 } RkIntraPred_35;
 
+typedef enum IntraHardwareFile
+{
+    INTRA_4_ORI_PIXEL         , //按照y cb y y cr y的顺序打印
+    INTRA_4_REF_PIXEL         , //按照y cb y y cr y的顺序进行打印
+    INTRA_4_SAD               , //按照y y y y的顺序进行打印 
+    INTRA_4_CABAC_MODE_BIT    , //按照y y y y的顺序进行打印 
+    INTRA_4_ORI_PIXEL_CU_LU   , // 8x8 CU 按照64个像素一行的顺序打印，打印顺序p[63]p[62]p[61]...p[1]p[0]
+    INTRA_4_ORI_PIXEL_CU_CB   , // 8x8 CU 按照16个像素一行的顺序打印，打印顺序p[15]p[14]p[13]...p[1]p[0]
+    INTRA_4_ORI_PIXEL_CU_CR   , // 8x8 CU 按照16个像素一行的顺序打印，打印顺序p[15]p[14]p[13]...p[1]p[0]
+    INTRA_4_REF_PIXEL_CU_LU   , //8x8 CU的ref pixel lu像素 33个像素一行 打印顺序p[32]p[31]p[23]...p[1]p[0]
+    INTRA_4_REF_PIXEL_CU_CB   , //8x8 CU的ref pixel cb像素 17个像素一行 打印顺序p[16]p[15]p[14]...p[1]p[0]
+    INTRA_4_REF_PIXEL_CU_CR   , //8x8 CU的ref pixel cr像素 17个像素一行 打印顺序p[16]p[15]p[14]...p[1]p[0]
+    INTRA_4_REF_CU_VALID      , //8x8 CU的ref cu valid信号 按照5bit一行的顺序打印[4][3][2][1][0]
+    INTRA_4_RESI_BEFORE       , //按照16个像素一行的顺序打印，每个像素位宽为16bit，打印顺序p[15]p[14]p[13]...p[1]p[0];按照y cb y y cr y的顺序打印
+    INTRA_4_RESI_AFTER        ,
+    INTRA_4_PRED              ,
+    INTRA_4_RECON             ,
+    INTRA_4_BEST_MODE         ,
+    INTRA_4_FILE_NUM
+} IntraHardwareFile;
 
 class Rk_IntraPred
 {
 public:
     FILE *rk_logIntraPred[20];
-//0: intra_4_ori_pixel_lu.txt
-//1: intra_4_ori_pixel_cb.txt
-//2: intra_4_ori_pixel_cr.txt
-//3: intra_4_ref_pixel.txt
-//4:   intra_4_sad.txt
-    FILE* fp_intra_4x4[10];
+    FILE* fp_intra_4x4[INTRA_4_FILE_NUM];
     int     num_fp;
+
+	uint8_t             rk_OrgBufAll[6][129];
 	uint8_t             rk_LineBufAll[6][129];
+	int16_t             rk_resiAll[6][32*32]; 
+	uint8_t             rk_predAll[6][32*32]; 
+	int16_t             rk_resiOutAll[6][32*32]; 
+	uint8_t             rk_reconAll[6][32*32]; 
+
 
     uint8_t             rk_LineBufTmp[129]; // 数据靠前存储 左下到左上到右上，corner点在中间
 

@@ -163,7 +163,7 @@ void hardwareC::ConfigFiles(FILE *fp)
 				strcat( namebuff, cmdbuff);
 			
 				/*open output file */
-				ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[num] = fopen(namebuff, "w+");
+				ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[num] = fopen(namebuff, "w");
 				num++;
 
                 break;
