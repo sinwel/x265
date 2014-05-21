@@ -4,20 +4,22 @@ config for preprocess        :
 ;intra_cmd_file = intra_recon_cu_cmd.txt
 
 config for intra        :
-intra_4_ori_pixel_lu.txt
-intra_4_ori_pixel_cb.txt
-intra_4_ori_pixel_cr.txt
+intra_4_ori_pixel.txt
 intra_4_ref_pixel.txt
-intra_4_ref_pixel_cu_lu.txt
-intra_4_ref_pixel_cu_cb.txt
-intra_4_ref_pixel_cu_cr.txt	
-intra_4_ref_cu_valid.txt
 intra_4_sad.txt
 intra_4_cabac_mode_bit.txt
+intra_4_ori_pixel_cu_lu.txt
+intra_4_ori_pixel_cu_cb.txt
+intra_4_ori_pixel_cu_cr.txt
+intra_4_ref_pixel_cu_lu.txt
+intra_4_ref_pixel_cu_cb.txt
+intra_4_ref_pixel_cu_cr.txt
+intra_4_ref_cu_valid.txt
 intra_4_resi_before.txt
 intra_4_resi_after.txt
 intra_4_pred.txt
-intra_4_recon.txt	
+intra_4_recon.txt
+intra_4_best_mode.txt
 
 
 ;intra_cmd_file = intra_recon_cu_cmd.txt

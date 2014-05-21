@@ -915,6 +915,15 @@ void CU_LEVEL_CALC::intra_proc()
 			FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"\n");			    
 			FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"\n");			    
 		}
+
+		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_BITS],"%08x",totalBits4x4);	
+		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_BITS],"\n");	
+		
+		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_DISTORTION],"%08x",totalDist4x4);	
+		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_DISTORTION],"\n");	
+		
+		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_COST],"%08x",totalCost4x4);			    
+		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_COST],"\n");			    
 	#endif
 
     }

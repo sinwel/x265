@@ -1581,11 +1581,14 @@ void RK_CheckSad(uint64_t* cost1, uint64_t* cost2)
 
 	for ( i = 0 ; i < 35 ; i++ )
 	{
+	  if (INTRA_REDUCE_DIR(i))
+	  {
 	    if(cost1[i] != cost2[i])
 		{
 			RK_HEVC_PRINT("%s: check failed\n",__FUNCTION__);
 			assert(0);
 		}
+	  }
 	}
 }
 
@@ -2136,7 +2139,11 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		uint64_t 	costTotal[35];
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
-	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
+		  // only do 0, 1, 2, 4, 6, ..., 34
+		  if (INTRA_REDUCE_DIR(dirMode))
+		  { 
+		  	//RK_HEVC_PRINT("%d\n", dirMode);
+		   	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 
 			uint8_t* refAboveDecide = refAbove + width - 1;
@@ -2185,6 +2192,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			//setLambda(30, 2);
 			bits_luma_dir[dirMode] = bits;
 			costTotal[dirMode] =  costSad[dirMode] + ((bits * m_rklambdaMotionSAD + 32768) >> 16);
+		  }
 		}
 
 #ifdef INTRA_RESULT_STORE_FILE
@@ -2691,6 +2699,10 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 		uint64_t costTotal[35];
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
+		  // only do 0, 1, 2, 4, 6, ..., 34
+ 	      if (INTRA_REDUCE_DIR(dirMode))
+ 	      {
+	     	//RK_HEVC_PRINT("dirMode = %d\n", dirMode);
 	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 
@@ -2741,6 +2753,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 			}
 			assert(g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode] == rk_bits[partOffset][dirMode]);
 		#endif
+		  }
 		}
 
 		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect);

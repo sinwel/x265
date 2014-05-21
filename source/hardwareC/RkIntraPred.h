@@ -95,6 +95,11 @@ typedef enum IntraHardwareFile
     INTRA_4_PRED              ,
     INTRA_4_RECON             ,
     INTRA_4_BEST_MODE         ,
+    INTRA_4_TU_CABAC_BITS   	,
+    INTRA_4_TU_PRED_MODE_BITS   ,
+    INTRA_4_CU_TOTAL_BITS       ,
+    INTRA_4_CU_TOTAL_DISTORTION ,
+    INTRA_4_CU_TOTAL_COST       ,
     INTRA_4_FILE_NUM
 } IntraHardwareFile;
 

@@ -1,8 +1,9 @@
 *.hg*
 .svn/
-cfg/
+
 build/
 doc/
 readme/
 
 COPYING
+*.txt

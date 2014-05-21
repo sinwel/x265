@@ -101,6 +101,7 @@ typedef enum X265_AND_RKs   // Routines can be indexed using log2n(width)
     X265_AND_RK
 } X265_AND_RKs;
 
-
+// add by zxy for reduce half direction for intra.
+#define INTRA_REDUCE_DIR(dirMode) (( dirMode % 2 == 0 )||( dirMode == 1))  
 
 #endif
