@@ -2011,6 +2011,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	uint8_t LineBuf[129];
 	uint8_t lu_cb_cr_idx[6] = {0, 2, 3, 5, 1, 4};// y cb y y cr y
 	static int count = 0;	
+	static int static_bestMode4x4 = 35;
 	// x265中 unitSize 只有4x4的时候是 2，其他case都是4
     int unitSize      = pInterface_Intra->cidx == 0 ? 4 : 2;
     int numUnitsInCU  = width / unitSize;
@@ -2072,7 +2073,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 33 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_LU],"%02x",LineBuf[i]);			    
+				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_LU],"%02x",LineBuf[32 - i]);			    
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_LU],"\n");
 		}
@@ -2245,7 +2246,17 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
 		{
-			FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",bestMode);			    
+			FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",bestMode);	
+			// store partOffset = 0 bestMode for Cb & Cr
+			if ( partOffset == 0 )
+			{
+			    FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",bestMode); // Cb
+			    static_bestMode4x4 = bestMode;
+			}
+			else if ( partOffset == 2 )
+			{
+			    FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",static_bestMode4x4); // Cr
+			}
 		}
 	#endif
 
@@ -2349,7 +2360,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 17 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CB],"%02x",LineBuf[i]);			    
+				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CB],"%02x",LineBuf[16 - i]);			    
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CB],"\n");
 		}
@@ -2461,7 +2472,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	
 			for ( uint8_t  i = 0 ; i < 17 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CR],"%02x",LineBuf[i]);			    
+				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CR],"%02x",LineBuf[16 - i]);			    
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CR],"\n");
 		}

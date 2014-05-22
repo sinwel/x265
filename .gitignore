@@ -1,6 +1,6 @@
 *.hg*
 .svn/
-
+cfg/
 build/
 doc/
 readme/
