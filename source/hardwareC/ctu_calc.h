@@ -87,11 +87,11 @@ public:
 	uint8_t  slice_type; //0: B, 1: P, 2: I
 
 	/*ime input*/
-	uint16_t      ImeSearchRangeWidth; //IME搜索宽度
+	uint16_t      ImeSearchRangeWidth;  //IME搜索宽度
 	uint16_t      ImeSearchRangeHeight; //IME搜索高度
 	bool           isValidCu[85];
-	uint8_t       *pImeSearchRange; //IME搜索窗
-	uint8_t       *pCurrCtu; //当前CTU的y分量
+	uint8_t       *pImeSearchRange;     //IME搜索窗
+	uint8_t       *pCurrCtu;            //当前CTU的y分量
 	/*ime input*/
 
 	/*ime output*/

@@ -208,7 +208,11 @@ struct INTERFACE_CTU_CALC
 
 struct INTERFACE_DBLK
 {
-
+    MV_INFO mv_info[64];
+    uint8_t intra_bs_flag[256];
+    uint8_t recon_y[64*64];
+    uint8_t recon_u[32*32];
+    uint8_t recon_v[32*32];
 };
 
 struct INTERFACE_SAO_CALC

@@ -225,8 +225,8 @@ void x265_param_default(x265_param *param)
     param->rc.rateTolerance = 1.0;
     param->rc.qCompress = 0.6;
     // default set I/P/B same qp
-    param->rc.ipFactor = 1.0f;                      // 1.4f
-    param->rc.pbFactor = 1.0f;                      // 1.3f
+    param->rc.ipFactor = 1.4f;                      // 1.4f
+    param->rc.pbFactor = 1.3f;                      // 1.3f
     param->rc.qpStep = 4;
     param->rc.rateControlMode = X265_RC_CRF;
     param->rc.qp = 32;
@@ -766,8 +766,8 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("weightp") p->bEnableWeightedPred = bvalue;
     OPT("cbqpoffs") p->cbQpOffset = atoi(value);
     OPT("crqpoffs") p->crQpOffset = atoi(value);
-    OPT("rd") p->rdLevel = atoi(value);
-    OPT("signhide") p->bEnableSignHiding = bvalue;
+    OPT("rd") p->rdLevel = 6;//atoi(value); default 6
+    OPT("signhide") p->bEnableSignHiding = 0;//bvalue; default 0
     OPT("lft") p->bEnableLoopFilter = bvalue;
     OPT("sao") p->bEnableSAO = bvalue;
     OPT("sao-lcu-bounds") p->saoLcuBoundary = atoi(value);

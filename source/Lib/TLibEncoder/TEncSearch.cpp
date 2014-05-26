@@ -2671,6 +2671,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
             // Find N least cost modes. N = numModesForFullRD
             for (uint32_t mode = 0; mode < numModesAvailable; mode++)
             {
+              // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+		      if (INTRA_REDUCE_DIR(mode, width))
+		      {
 #ifdef RK_INTRA_SAD_REPALCE_SATD
 				uint32_t sad = modeCosts_SAD[mode];
 #else
@@ -2710,6 +2713,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 #else
                 candNum += xUpdateCandList(mode, cost, numModesForFullRD, rdModeList, candCostList);
 #endif
+		      }
             }
 
             int preds[3] = { -1, -1, -1 };

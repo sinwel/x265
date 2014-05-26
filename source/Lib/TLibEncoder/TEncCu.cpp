@@ -2415,7 +2415,7 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 
                     outTempCU->setSkipFlagSubParts(outTempCU->getQtRootCbf(0) == 0, 0, depth);
                     int origQP = outTempCU->getQP(0);
-                    xCheckDQP(outTempCU);
+                    //xCheckDQP(outTempCU);
                     if (outTempCU->m_totalCost < outBestCU->m_totalCost)
                     {
                         TComDataCU* tmp = outTempCU;
@@ -2489,7 +2489,7 @@ void TEncCu::xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
     m_search->predInterSearch(outTempCU, m_tmpPredYuv[depth], bUseMRG);
     m_search->encodeResAndCalcRdInterCU(outTempCU, m_origYuv[depth], m_tmpPredYuv[depth], m_tmpResiYuv[depth], m_bestResiYuv[depth], m_tmpRecoYuv[depth], false);
 
-    xCheckDQP(outTempCU);
+    //xCheckDQP(outTempCU);
 
     xCheckBestMode(outBestCU, outTempCU, depth);
 }
@@ -2549,7 +2549,7 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 	#endif
 	}
 #endif
-    xCheckDQP(outTempCU);
+    //xCheckDQP(outTempCU);
     xCheckBestMode(outBestCU, outTempCU, depth);
 #ifdef X265_INTRA_DEBUG
 	if ( depth == 3 )
@@ -2634,7 +2634,7 @@ void TEncCu::xCheckRDCostIntraInInter(TComDataCU*& outBestCU, TComDataCU*& outTe
     outTempCU->m_totalBits = m_entropyCoder->getNumberOfWrittenBits();
     outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
 
-    xCheckDQP(outTempCU);
+    //xCheckDQP(outTempCU);
     xCheckBestMode(outBestCU, outTempCU, depth);
 }
 
@@ -2678,7 +2678,7 @@ void TEncCu::xCheckIntraPCM(TComDataCU*& outBestCU, TComDataCU*& outTempCU)
     outTempCU->m_totalBits = m_entropyCoder->getNumberOfWrittenBits();
     outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
 
-    xCheckDQP(outTempCU);
+    //xCheckDQP(outTempCU);
     xCheckBestMode(outBestCU, outTempCU, depth);
 }
 
