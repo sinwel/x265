@@ -413,7 +413,7 @@ void FrameEncoder::compressFrame()
     }
 
 	/* add by zsq */
-    G_hardwareC.hw_cfg.slice_type = slice->getSliceType();
+    G_hardwareC.hw_cfg.slice_type = static_cast<uint8_t>(slice->getSliceType());
     G_hardwareC.hw_cfg.CbDistWeight = (uint32_t)floor(cbWeight * 256.0);
     G_hardwareC.hw_cfg.CrDistWeight = (uint32_t)floor(crWeight * 256.0);
 
@@ -1121,7 +1121,14 @@ void FrameEncoder::processRowEncoder(int row)
         if (m_cfg->param.rc.aqMode)
         {
             int qp = calcQpForCu(m_pic, cuAddr);
-            setLambda(qp, row);
+#if 1 //add by HDL, i think it is a bug
+			if (m_cfg->param.bEnableWavefront)
+				setLambda(qp, row);
+			else
+				setLambda(qp, 0);
+#else
+			setLambda(qp,row);
+#endif
             if (qp > MAX_QP)
                 qp = MAX_QP;
             cu->setQP(0, (char)qp);
@@ -1208,7 +1215,11 @@ int FrameEncoder::calcQpForCu(TComPic *pic, uint32_t cuAddr)
         qp_offset /= cnt;
         qp += qp_offset;
     }
-    return Clip3(MIN_QP, MAX_MAX_QP, (int)(qp + 0.5));
+#if 1 //add by HDL for fixing a bug
+	return Clip3(MIN_QP, MAX_QP, (int)(qp + 0.5));
+#else
+	return Clip3(MIN_QP, MAX_MAX_QP, (int)(qp + 0.5));
+#endif
 }
 
 TComPic *FrameEncoder::getEncodedPicture(NALUnitEBSP **nalunits)

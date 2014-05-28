@@ -63,7 +63,7 @@ namespace x265 {
 // private namespace
 
 // add by zxy 
-#define RK_INTRA_SAD_REPALCE_SATD   
+//#define RK_INTRA_SAD_REPALCE_SATD   
 
 
 class TEncCu;
@@ -201,9 +201,10 @@ public:
     // -------------------------------------------------------------------------------------------------------------------
     // compute symbol bits
     // -------------------------------------------------------------------------------------------------------------------
-	void getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, bool isFirst = true);
+	void getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, int nRefPicIdx, bool isFirst = true);
     uint32_t xSymbolBitsInter(TComDataCU* cu);
 	unsigned int getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, unsigned int width);
+	bool checkSavePmv(unsigned int nCtuSize, unsigned int nCuSize, unsigned int offsIdx, unsigned int nPicWidth, unsigned int nPicHeight, unsigned int nCtuAddr);
 #if RK_INTER_CALC_RDO_TWICE
 	uint32_t xSymbolBitsInter(TComDataCU* cu, bool isCalcRDOTwice);
 #endif

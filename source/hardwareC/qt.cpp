@@ -1296,27 +1296,22 @@ void hevcQT::getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t 
 	m_infoForQT->sliceType = sliceType; //I
 }
 
-void hevcQT::getFromInter(INTERFACE_ME* inf_me, uint8_t textType)
+void hevcQT::getFromInter(INTERFACE_ME* inf_me, uint8_t textType, uint8_t qp, uint8_t sliceType)
 {
-#if 0
 	for (int k = 0; k < inf_me->size; k++)
 	{
-		memcpy(&m_infoForQT->inResi[k*CTU_SIZE], &inf_intra->resi[k*inf_intra->size], inf_intra->size*sizeof(int16_t));
+		memcpy(&m_infoForQT->inResi[k*CTU_SIZE], &inf_me->resi[k*inf_me->size], inf_me->size*sizeof(int16_t));
 	}
 
-	m_infoForQT->size = inf_intra->size;
-	assert(m_infoForQT->size <= 32);
-	m_infoForQT->predMode = 0; //intra
-	m_infoForQT->sliceType = 2; //I
+	m_infoForQT->size = inf_me->size;
+	//assert(m_infoForQT->size <= 32);
+	m_infoForQT->predMode = 1; //inter
+	m_infoForQT->sliceType = sliceType; //I
 	m_infoForQT->textType = textType;
-	m_infoForQT->qp = 30;
-	m_infoForQT->transformSkip = 0;
-	m_infoForQT->qpBdOffset = 0;
-	m_infoForQT->chromaQPOffset = 0;
-#endif
+	m_infoForQT->qp = qp;
 }
 
-
+// for Intra
 void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra)
 {
 
@@ -1342,12 +1337,35 @@ void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra)
 	inf_tq->sliceType = m_infoForQT->sliceType; //I
 	inf_tq->textType = m_infoForQT->textType;
 	inf_tq->QP = m_infoForQT->qp;
-	//inf_tq->qpBdOffset = m_infoForQT->qpBdOffset;
-	//inf_tq->chromaQpOffset = m_infoForQT->chromaQPOffset;
-
 }
 
+// for ME
+void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me)
+{
 
+	// output
+	uint8_t	 size = m_infoForQT->size;
+	inf_tq->absSum = m_infoForQT->absSum;
+	inf_tq->lastPosX = m_infoForQT->lastPos % size;
+	inf_tq->lastPosY = m_infoForQT->lastPos / size;
+	for (uint8_t k = 0; k < size; k++)
+	{
+		memcpy(&inf_tq->outResi[k*size], &m_infoForQT->outResi[k*CTU_SIZE], size*sizeof(int16_t));
+		for (uint8_t j = 0; j < size; j++)
+		{
+			inf_tq->oriResi[k*size + j] = (int16_t)m_infoForQT->coeffTQ[k*size + j];
+		}
+	}
+
+
+	// input
+	inf_tq->resi = inf_me->resi; // NOTE: pointer assignment, not memcpy
+	inf_tq->Size = m_infoForQT->size;
+	inf_tq->predMode = m_infoForQT->predMode; //intra
+	inf_tq->sliceType = m_infoForQT->sliceType; //I
+	inf_tq->textType = m_infoForQT->textType;
+	inf_tq->QP = m_infoForQT->qp;
+}
 void hevcQT::set2Cabac(InfoQTandCabac* infoQTandCabac)
 {
 	uint32_t size = m_infoForQT->size;
@@ -1389,21 +1407,21 @@ void hevcQT::set2Recon(INTERFACE_RECON* inf_recon)
 void hevcQT::printInputLog(FILE* fp)
 {
 	if (//m_infoForQT->size == 4 ||
-		m_infoForQT->ctuWidth == 64
-		//|| m_infoForQT->textType != 0
+		//m_infoForQT->ctuWidth == 64
+		 m_infoForQT->textType != 0
 		)
 	{
 		return;
 	}
 	fprintf(fp, "==================== TQ input ====================\n");
 	fprintf(fp, "---------------- TU begin ----------------\n");
-	fprintf(fp, "sliceType = %d,  predMode = %d,  textType = %d,  size = %d\n",
+	fprintf(fp, "sliceType = %d,  predMode = %d,  textType = %d,  size = %d,  qp=%2d\n",
 		m_infoForQT->sliceType, m_infoForQT->predMode,
-		m_infoForQT->textType, m_infoForQT->size);
+		m_infoForQT->textType, m_infoForQT->size, m_infoForQT->qp);
 
-	fprintf(fp, "qp = %d,  qpBdOffset = %d,  chromaQPOffset = %d,  transformSkip = %d\n\n",
-		m_infoForQT->qp, m_infoForQT->qpBdOffset,
-		m_infoForQT->chromaQPOffset, m_infoForQT->transformSkip);
+	//fprintf(fp, "qp = %d,  qpBdOffset = %d,  chromaQPOffset = %d,  transformSkip = %d\n\n",
+	//	m_infoForQT->qp, m_infoForQT->qpBdOffset,
+	//	m_infoForQT->chromaQPOffset, m_infoForQT->transformSkip);
 
 	// if print resi only, start here
 	fprintf(fp, "Resi:\n");
@@ -1423,8 +1441,8 @@ void hevcQT::printOutputLog(FILE* fp)
 {
 	uint8_t size = m_infoForQT->size;
 	if (//size == 4 || 
-		m_infoForQT->ctuWidth == 64 
-		//|| m_infoForQT->textType != 0
+		 //m_infoForQT->ctuWidth == 64 
+		 m_infoForQT->textType != 0
 		)
 	{
 		return;
@@ -1585,10 +1603,12 @@ void hevcQT::proc(int predMode)
 
 	// print output
 #if TQ_LOG_IN_X265_INTRA	
-	printOutputLog(m_fp_TQ_LOG_X265_INTRA);
+	if(predMode==0) // Intra
+		printOutputLog(m_fp_TQ_LOG_X265_INTRA);
 #endif
 #if TQ_LOG_IN_X265_ME
-	printOutputLog(m_fp_TQ_LOG_X265_ME);
+	if(predMode==1) // Inter
+		printOutputLog(m_fp_TQ_LOG_X265_ME);
 #endif
 
 	// compare results
@@ -1621,10 +1641,10 @@ void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t text
 }
 
 // for inter
-void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType)
+void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType, uint8_t qp, uint8_t sliceType)
 {
 	//get from intra
-	getFromInter(inf_me, textType);
+	getFromInter(inf_me, textType, qp, sliceType);
 
 #if TQ_LOG_IN_HWC_ME
 	//print input
@@ -1642,7 +1662,7 @@ void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType)
 #endif
 
 	//set info
-	//setForHWC(inf_tq, inf_intra);
+	setForHWC(inf_tq, inf_me);
 }
 
 

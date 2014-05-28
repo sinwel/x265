@@ -67,6 +67,10 @@ private:
     TComPicYuv*           m_origPicYuv;
     TComPicYuv*           m_reconPicYuv;
 
+	/*add by hdl for mvp candidates info*/
+	TEMPORAL_MV*           m_pTemporalMv;
+	/*add by hdl for mvp candidates info*/
+
     Window                m_conformanceWindow;
     Window                m_defaultDisplayWindow;
 
@@ -105,6 +109,10 @@ public:
     void          create(TEncCfg* cfg);
 
     virtual void  destroy(int bframes);
+
+	/*add by hdl for mvp candidates info*/
+	TEMPORAL_MV* getTemporalMv(){ return m_pTemporalMv; }
+	/*add by hdl for mvp candidates info*/
 
     bool          getUsedByCurr()           { return m_bUsedByCurr; }
 

@@ -6,6 +6,7 @@
 
 #include "rk_define.h"
 #include "level_mode_calc.h"
+#include "inter.h"
 
 
 class hardwareC;
@@ -86,17 +87,6 @@ public:
     uint8_t  QP_cr;
 	uint8_t  slice_type; //0: B, 1: P, 2: I
 
-	/*ime input*/
-	uint16_t      ImeSearchRangeWidth;  //IME搜索宽度
-	uint16_t      ImeSearchRangeHeight; //IME搜索高度
-	bool           isValidCu[85];
-	uint8_t       *pImeSearchRange;     //IME搜索窗
-	uint8_t       *pCurrCtu;            //当前CTU的y分量
-	/*ime input*/
-
-	/*ime output*/
-    struct IME_MV  ***ime_mv;
-
     /* output */
     uint8_t *output_recon_y;            //64*64
     uint8_t *output_recon_u;            //32*32
@@ -166,6 +156,7 @@ public:
 
     uint8_t inter_cbf[32+1];                    //相邻L型buf，用于存储相邻inter pu块的残差是否为0
 
+
     //TODO
     uint8_t  bs_tu_cbf_flag[256];
     uint8_t  bs_cu_type[64];
@@ -226,18 +217,11 @@ public:
     void compare();
     void cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint8_t depth);
 	void model_cfg(char *cmd);
-	void Create();
-    void Destory();
     void LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos);
 	void LogFile(INTERFACE_TQ* inf_tq);
     void convert8x8HWCtoX265Luma(int16_t* coeff);
     void compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level);
     void compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4split);
-	void Ime();
-	void ImePrefetch(int EdgeMinusPelNum, int *pImeSR, int width, int height);
-	void ImeProc(int *pImeSR, int *pCurrCtu, int merangex, int merangey);
-	void IntMotionEstimate(int *pImeSearchRange, int *pCurrCtu, int nCuSize, int merangex, int merangey, int offsIdx);
-
     void ctu_status_calc();
 };
 

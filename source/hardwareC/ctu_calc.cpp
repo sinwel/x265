@@ -125,8 +125,6 @@ void CTU_CALC::init()
     cu_level_calc[1].pHardWare = pHardWare;
     cu_level_calc[2].pHardWare = pHardWare;
     cu_level_calc[3].pHardWare = pHardWare;
-
-    ime_mv = pHardWare->ime_mv;
 }
 
 
@@ -251,8 +249,6 @@ void CTU_CALC::end()
         L_intra_buf_u[i] = L_intra_buf_u[32 + i];
         L_intra_buf_v[i] = L_intra_buf_v[32 + i];
     }
-
-
 
 	/* inter */
     pos = ctu_x * ctu_w;
@@ -680,19 +676,6 @@ void CTU_CALC::LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_
 		LogFenc2File(fp_rk_intra_params, inf_intra_proc, inf_intra_proc.fencV, 2);
 
  	}
-}
-
-void CTU_CALC::Create()
-{
-	assert(ctu_w == 64 || ctu_w == 32 || ctu_w == 16);
-	pCurrCtu = new uint8_t[ctu_w*ctu_w];
-	pImeSearchRange = new uint8_t[ImeSearchRangeHeight*ImeSearchRangeWidth];
-}
-
-void CTU_CALC::Destory()
-{
-	delete[] pCurrCtu;
-	delete[] pImeSearchRange;
 }
 
 void CTU_CALC::proc()

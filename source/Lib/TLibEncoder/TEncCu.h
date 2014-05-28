@@ -142,8 +142,11 @@ public:
     TEncCu();
 
 #if RK_INTER_ME_TEST
-	void CimeVerification(TComDataCU* cu);
-	void RimeAndFmeVerification(TComDataCU* cu);
+	void CimePrepare(TComDataCU* cu, int nQp);
+	void RimeAndFmePrepare(TComDataCU* cu, int nQp);
+	bool isOutPic(int);
+	void SaveTemporalMv(TComDataCU* cu);
+	void setMvpCandInfoForCtu(TComDataCU* cu);
 #endif
 
     void init(Encoder* top);

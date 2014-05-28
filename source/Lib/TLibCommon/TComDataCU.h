@@ -449,7 +449,10 @@ public:
 
     bool          hasEqualMotion(uint32_t absPartIdx, TComDataCU* candCU, uint32_t candAbsPartIdx);
     void          getInterMergeCandidates(uint32_t absPartIdx, uint32_t puIdx, TComMvField* mFieldNeighbours, UChar* interDirNeighbours, int& numValidMergeCand, int mrgCandIdx = -1);
-    void          deriveLeftRightTopIdxGeneral(uint32_t absPartIdx, uint32_t partIdx, uint32_t& partIdxLT, uint32_t& partIdxRT);
+	void          PrefetchMergeCandidatesInfo(unsigned int);
+	void          PrefetchAmvpInfo(unsigned int, int);
+	void          UpdateMvpInfo(unsigned int);
+	void          deriveLeftRightTopIdxGeneral(uint32_t absPartIdx, uint32_t partIdx, uint32_t& partIdxLT, uint32_t& partIdxRT);
     void          deriveLeftBottomIdxGeneral(uint32_t absPartIdx, uint32_t partIdx, uint32_t& partIdxLB);
 
     // -------------------------------------------------------------------------------------------------------------------
@@ -496,7 +499,7 @@ public:
 
     int           getVertChromaShift()  { return m_vChromaShift; }
 
-	void        getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width);
+	void        getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width, int list = REF_PIC_LIST_0);
 };
 
 namespace RasterAddress {

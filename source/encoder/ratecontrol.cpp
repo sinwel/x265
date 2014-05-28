@@ -332,14 +332,23 @@ RateControl::RateControl(TEncCfg * _cfg)
     {
         lastQScaleFor[i] = qp2qScale(cfg->param.rc.rateControlMode == X265_RC_CRF ? ABR_INIT_QP : ABR_INIT_QP_MIN);
         lmin[i] = qp2qScale(MIN_QP);
-        lmax[i] = qp2qScale(MAX_MAX_QP);
+#if 1 //add by HDL
+		lmax[i] = qp2qScale(MAX_QP);
+#else
+		lmax[i] = qp2qScale(MAX_MAX_QP);
+#endif
     }
 
     if (cfg->param.rc.rateControlMode == X265_RC_CQP)
     {
         qpConstant[P_SLICE] = baseQp;
-        qpConstant[I_SLICE] = Clip3(0, MAX_MAX_QP, (int)(baseQp - ipOffset + 0.5));
-        qpConstant[B_SLICE] = Clip3(0, MAX_MAX_QP, (int)(baseQp + pbOffset + 0.5));
+#if 1 //add by HDL
+        qpConstant[I_SLICE] = Clip3(0, MAX_QP, (int)(baseQp - ipOffset + 0.5));
+        qpConstant[B_SLICE] = Clip3(0, MAX_QP, (int)(baseQp + pbOffset + 0.5));
+#else 
+		qpConstant[I_SLICE] = Clip3(0, MAX_MAX_QP, (int)(baseQp - ipOffset + 0.5));
+		qpConstant[B_SLICE] = Clip3(0, MAX_MAX_QP, (int)(baseQp + pbOffset + 0.5));
+#endif
     }
 
     /* qstep - value set as encoder specific */

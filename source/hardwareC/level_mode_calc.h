@@ -7,6 +7,7 @@
 
 #include "RkIntraPred.h"
 #include "qt.h"
+#include "inter.h"
 //using namespace RK_HEVC;
 //#include "hardwareC.h"
 
@@ -43,14 +44,20 @@ class CU_LEVEL_CALC
 public:
     Rk_IntraPred*    m_rkIntraPred;
 #endif
-#if TQ_RUN_IN_HWC_INTRA
+#if TQ_RUN_IN_HWC_INTRA || TQ_RUN_IN_HWC_ME
 public:
 	hevcQT*			 m_hevcQT;
 #endif
+
 public:
 
+	/*inter FME MERGE input and output add by HDL*/
+	class FractionMotionEstimation Fme;
+	class MergeProc Merge;
+
     struct INTERFACE_INTRA_PROC inf_intra_proc;
-    struct INTERFACE_INTER_PROC inf_inter_proc;
+    struct INTERFACE_INTER_FME_PROC     inf_inter_fme_proc;
+    struct INTERFACE_INTER_MERGE_PROC   inf_inter_merge_proc;
     struct INTERFACE_TQ     inf_tq;
     struct INTERFACE_INTRA  inf_intra;
     struct INTERFACE_INTRA  inf_intra4x4; // only used when m_size = 8, add by zxy
@@ -67,6 +74,15 @@ public:
  	uint8_t*                recon4x4[6]; //reon, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks
     bool                    choose4x4split; // flag, only used when size==8, 1: choose 4x4 split, added by lks
 
+    // for copy resi/recon in ME, in case cu_w==64, added by lks
+    int16_t                 resiCU64Y[64*64];
+    int16_t                 resiCU64U[32*32];    
+       
+    int16_t                 resiCU64V[32*32];    
+    uint8_t                 reconCU64Y[64*64];   
+    uint8_t                 reconCU64U[32*32];    
+    uint8_t                 reconCU64V[32*32];
+    
 	hardwareC *pHardWare;
     uint32_t TotalCost;
 
@@ -118,30 +134,6 @@ public:
     unsigned int cu_pos;
     unsigned int temp_pos;
 
-	/*ime output*/
-	struct IME_MV  ***ime_mv;
-	/*ime output*/
-
-	/*fme input  如果fme的输入跟ime中有重复的,就直接用ime的输入和输出*/
-	short                     MergeMvX[85][2][3]; //merge按选项表的顺序填写3个candidate的mv, x分量, 2表示B帧的前后向
-	short                     MergeMvY[85][2][3]; //merge按选项表的顺序填写3个candidate的mv, y分量, 2表示B帧的前后向
-	short                     FmeMvX[85][2][2]; //amvp按选项表的顺序填写2个candidate的mv, x分量, 2表示B帧的前后向
-	short                     FmeMvY[85][2][2]; //amvp按选项表的顺序填写2个candidate的mv, y分量, 2表示B帧的前后向
-	unsigned short      FmeSearchRangeWidth; //FME搜索宽度
-	unsigned short      FmeSearchRangeHeight; //FME搜索高度
-	bool                      isValidCu[85];
-	unsigned char       *pFmeSearchRange; //FME的搜索窗 跟ime是一样的
-	/*fme input 如果fme的输入跟ime中有重复的,就直接用ime的输入和输出*/
-
-	/*fme output*/
-	short                     OutFmeMvX[85]; //经过fme的输出mv, x分量
-	short                     OutFmeMvY[85]; //经过fme的输出mv, y分量
-	unsigned int          nSatdFme[85]; //经过fme输出的satd代价值
-	unsigned int          nSatdMerge[85];
-	unsigned int          nMergeIdx[85];
-	unsigned char       *pResidual; //FME最终输出的残差
-	/*fme output*/
-
 public:
 	unsigned int proc(unsigned int level, unsigned int pos_x, unsigned int pos_y);
 
@@ -152,11 +144,8 @@ public:
     void deinit();
     void intra_proc();
     void intra_4_proc();
-    void inter_proc();
-	void FmeProc();
-	void FmePrefetch(unsigned char *pFmeInputBuff, int BuffWidth, int BuffHeight, int offsIdx, int nCuSize, int nCtuSize);
-	void MergeProc();
-	void MergePrefetch(unsigned char *pFmeInputBuff, int BuffWidth, int BuffHeight, int offsIdx, int nCuSize, int nCtuSize, Mv mv);
+    void inter_qt(uint8_t nPart, uint8_t mode, uint8_t textType); // textType: Y(0), U(1), V(2); mode: fme(0), merge(1). added by lks
+    void inter_proc(int offsIdx);
     uint32_t RdoDistCalc(uint32_t SSE, uint8_t yCbCr);
     uint32_t RdoCostCalc(uint32_t dist, uint32_t bits, int qp);
     void RDOCompare();

@@ -737,7 +737,7 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("threads") p->poolNumThreads = atoi(value);
     OPT("frame-threads") p->frameNumThreads = atoi(value);
     OPT("log") p->logLevel = atoi(value);
-    OPT("wpp") p->bEnableWavefront = 0;//bvalue; default 0
+    OPT("wpp") p->bEnableWavefront = bvalue;
     OPT("ctu") p->maxCUSize = (uint32_t)atoi(value);
     OPT("tu-intra-depth") p->tuQTMaxIntraDepth = (uint32_t)atoi(value);
     OPT("tu-inter-depth") p->tuQTMaxInterDepth = (uint32_t)atoi(value);
@@ -745,13 +745,13 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("merange") p->searchRange = atoi(value);
 	OPT("merangex") p->meRangeX = atoi(value);
 	OPT("merangey") p->meRangeY = atoi(value);
-    OPT("rect") p->bEnableRectInter = 0; //bvalue; default 0
-    OPT("amp") p->bEnableAMP = 0;        //bvalue; default 0
+    OPT("rect") p->bEnableRectInter = bvalue;
+    OPT("amp") p->bEnableAMP = bvalue;
     OPT("max-merge") p->maxNumMergeCand = (uint32_t)atoi(value);
-    OPT("early-skip") p->bEnableEarlySkip = 0;//bvalue; default 0
+    OPT("early-skip") p->bEnableEarlySkip = bvalue;
     OPT("fast-cbf") p->bEnableCbfFastMode = bvalue;
     OPT("rdpenalty") p->rdPenalty = atoi(value);
-    OPT("tskip") p->bEnableTransformSkip = 0 ;// bvalue; default 0
+    OPT("tskip") p->bEnableTransformSkip = bvalue;
     OPT("no-tskip-fast") p->bEnableTSkipFast = bvalue;
     OPT("tskip-fast") p->bEnableTSkipFast = bvalue;
     OPT("strong-intra-smoothing") p->bEnableStrongIntraSmoothing = bvalue;
@@ -766,8 +766,8 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("weightp") p->bEnableWeightedPred = bvalue;
     OPT("cbqpoffs") p->cbQpOffset = atoi(value);
     OPT("crqpoffs") p->crQpOffset = atoi(value);
-    OPT("rd") p->rdLevel = 6;//atoi(value); default 6
-    OPT("signhide") p->bEnableSignHiding = 0;//bvalue; default 0
+    OPT("rd") p->rdLevel = atoi(value); 
+    OPT("signhide") p->bEnableSignHiding = bvalue;
     OPT("lft") p->bEnableLoopFilter = bvalue;
     OPT("sao") p->bEnableSAO = bvalue;
     OPT("sao-lcu-bounds") p->saoLcuBoundary = atoi(value);
@@ -776,7 +776,7 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("psnr") p->bEnablePsnr = bvalue;
     OPT("hash") p->decodedPictureHashSEI = atoi(value);
     OPT("b-pyramid") p->bBPyramid = bvalue;
-    OPT("aq-mode") p->rc.aqMode = 1;//atoi(value); default 1
+    OPT("aq-mode") p->rc.aqMode = atoi(value);
     OPT("aq-strength") p->rc.aqStrength = atof(value);
     OPT("vbv-maxrate") p->rc.vbvMaxBitrate = atoi(value);
     OPT("vbv-bufsize") p->rc.vbvBufferSize = atoi(value);

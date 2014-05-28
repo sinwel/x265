@@ -458,7 +458,7 @@ void TEncCu::xCompressInterCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, TC
                         m_search->motionCompensation(m_bestMergeCU[depth], m_modePredYuv[3][depth], REF_PIC_LIST_X, partIdx, false, true);
                     }
 
-                    //xCheckDQP(m_bestMergeCU[depth]);
+                    xCheckDQP(m_bestMergeCU[depth]);
                     earlyskip = true;
                 }
             }
@@ -630,7 +630,7 @@ void TEncCu::xCompressInterCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, TC
             }
 
             if (m_cfg->param.rdLevel > 0) //checkDQP can be done only after residual encoding is done
-                //xCheckDQP(outBestCU);
+                xCheckDQP(outBestCU);
             /* Disable recursive analysis for whole CUs temporarily */
             if ((outBestCU != 0) && (outBestCU->isSkipped(0)))
                 bSubBranch = false;
@@ -912,7 +912,7 @@ void TEncCu::encodeResidue(TComDataCU* lcu, TComDataCU* cu, uint32_t absPartIdx,
 
             //Residual encoding
             m_search->residualTransformQuantInter(cu, 0, 0, m_tmpResiYuv[depth], cu->getDepth(0), true);
-            //xCheckDQP(cu);
+            xCheckDQP(cu);
 
             if (lcu->getMergeFlag(absPartIdx) && cu->getPartitionSize(0) == SIZE_2Nx2N && !cu->getQtRootCbf(0))
             {
@@ -972,7 +972,7 @@ void TEncCu::encodeResidue(TComDataCU* lcu, TComDataCU* cu, uint32_t absPartIdx,
     {
         m_origYuv[0]->copyPartToYuv(m_origYuv[depth], absPartIdx);
         m_search->generateCoeffRecon(cu, m_origYuv[depth], m_modePredYuv[5][depth], m_tmpResiYuv[depth],  m_tmpRecoYuv[depth], false);
-        //xCheckDQP(cu);
+        xCheckDQP(cu);
         m_tmpRecoYuv[depth]->copyToPicYuv(cu->getPic()->getPicYuvRec(), lcu->getAddr(), absPartIdx);
         cu->copyCodedToPic(depth);
     }

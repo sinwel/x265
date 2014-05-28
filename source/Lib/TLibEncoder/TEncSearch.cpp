@@ -2675,9 +2675,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 		      if (INTRA_REDUCE_DIR(mode, width))
 		      {
 #ifdef RK_INTRA_SAD_REPALCE_SATD
-				uint32_t sad = modeCosts_SAD[mode];
+				uint32_t nSad = modeCosts_SAD[mode];
 #else
-                uint32_t sad = modeCosts[mode];
+				  uint32_t nSad = modeCosts[mode];
 #endif
                 uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
 #ifdef RK_CABAC
@@ -2699,7 +2699,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
                         bits = 6;
                 #endif
 
-                uint64_t cost = m_rdCost->calcRdSADCost(sad, bits);
+					uint64_t cost = m_rdCost->calcRdSADCost(nSad, bits);
 #ifdef X265_INTRA_DEBUG
 				// 存储所有的bits
 				m_rkIntraPred->rk_bits[partOffset][mode] = bits;
@@ -4003,9 +4003,6 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 	int numPredDir = cu->getSlice()->isInterP() ? 1 : 2;
 
 	TComPicYuv *fenc = cu->getSlice()->getPic()->getPicYuvOrg();
-	TComMvField mvFieldNeighbours[MRG_MAX_NUM_CANDS << 1]; // double length for mv of both lists
-	UChar interDirNeighbours[MRG_MAX_NUM_CANDS];
-	int numValidMergeCand = 0;
 
 	int totalmebits = 0;
 
@@ -4031,16 +4028,11 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 
 		/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
 		const int nAllNeighMv = 36;
-		static MV tmpMv[nAllNeighMv]; //保存当前CTU周围的18个mv add by hdl
-		static MV TenMv[10];
+		MV tmpMv[nAllNeighMv]; //保存当前CTU周围的18个mv add by hdl
+		static MV TenMv[nMaxRefPic][10];
+		static int nCand[nMaxRefPic] = {0};
 		TComDataCU *CTU = cu->getPic()->getCU(cu->getAddr());//当前CU/PU所处的CTU add by hdl;
 		/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
-		char ImeParam[4] = { 0 }; //bitwidth, sampdist, isdirect, ImeSamp flag   add by hdl
-
-		ImeParam[0] = 8; //8 bit
-		ImeParam[1] = 4; //行列都是1/4采样
-		ImeParam[2] = 1; //0:直接求SAD, 1:临近样本求和再求SAD
-		ImeParam[3] = 2; 
 
 		cu->getMvPredLeft(m_mvPredictors[0]);
 		cu->getMvPredAbove(m_mvPredictors[1]);
@@ -4073,24 +4065,38 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 					short merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 2;
 					bool isHaveMvd = true;
 
+					int nIdx = idx;
+					if (list)
+						nIdx = nMaxRefPic - 1;
+					MV *pTenMv = TenMv[nIdx];
+					uint32_t nCtuAddr = cu->getAddr();
+					uint32_t numCtuInWidth = cu->getPic()->getFrameWidthInCU();
+					uint32_t numCtuInHeight = cu->getPic()->getFrameHeightInCU();
+					int nCtuPosWidth = nCtuAddr%numCtuInWidth;
+					int nCtuPosHeight = nCtuAddr / numCtuInWidth;
+					uint32_t nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
+					uint32_t nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
 					uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
-					bool isSavePmv = false;
-					static uint32_t prevAddr = MAX_INT;
-					uint32_t currAddr = cu->getAddr();
+					intptr_t blockOffset_ds = 0;
+					int stride = 0;
+					int nValidCtuWidth = g_maxCUWidth;
+					int nValidCtuHeight = g_maxCUWidth;
+					bool isSavePmv = checkSavePmv(g_maxCUWidth, cu->getWidth(0), offsIdx, nPicWidth, nPicHeight, nCtuAddr);
 					static MV Mvmin, Mvmax;
-					isSavePmv = false;
-					static int cand = 0;
-					if (currAddr != prevAddr)
+					if (isSavePmv)
 					{
-						isSavePmv = true;
-						prevAddr = currAddr;
+						for (int idxTenMv = 0; idxTenMv < 10; idxTenMv++)
+						{
+							pTenMv[idxTenMv].x = 32767;
+							pTenMv[idxTenMv].y = 32767;
+						}
 						bool isValid[nAllNeighMv];
 						for (int i = 0; i < nAllNeighMv; i ++)
 						{
 							tmpMv[i].x = 0; 
 							tmpMv[i].y = 0;
 						}
-						getNeighMvs(CTU, tmpMv, list, isValid, true);
+						getNeighMvs(CTU, tmpMv, list, isValid, nIdx, true);
 						/*从36个mv中选择2个用于确定精搜索位置*/
 						int idxFirst = MAX_INT;
 						for (int idy = 0; idy < nAllNeighMv; idy++)
@@ -4106,65 +4112,52 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 						{
 							if (!isValid[idy])
 								continue;
-							for (int idx = idy + 1; idx < nAllNeighMv; idx++)
+							for (int Idx = idy + 1; Idx < nAllNeighMv; Idx++)
 							{
 								//if (tmpMv[idx].word == tmpMv[idy].word)
-								if (abs(tmpMv[idx].x - tmpMv[idy].x) <= nRectSize && abs(tmpMv[idx].y - tmpMv[idy].y) <= nRectSize)
+								if (abs(tmpMv[Idx].x - tmpMv[idy].x) <= nRectSize && abs(tmpMv[Idx].y - tmpMv[idy].y) <= nRectSize)
 								{//这里8个修改对应到motion.cpp文件里的rectsize的修改
-									isValid[idx] = false;
+									isValid[Idx] = false;
 								}
 							}
 						}
 
-						cand = 0; //TenMv后三个存放mvp的替代
+						nCand[nIdx] = 0; //TenMv后三个存放mvp的替代
 						int tmpCand = 0;
 						for (int i = 0; i < nAllNeighMv; i++)
 						{
-							if (isValid[i] && cand < nNeightMv)
+							if (isValid[i] && nCand[nIdx] < nNeightMv)
 							{
-								TenMv[cand++] = tmpMv[i];
+								pTenMv[nCand[nIdx]++] = tmpMv[i];
 							}
 							if (isValid[i] && tmpCand < 3) //replace real mvp
 							{
-								TenMv[7 + tmpCand++] = tmpMv[i];
+								pTenMv[7 + tmpCand++] = tmpMv[i];
 							}
 						}
 						if (tmpCand < 3)
 						{
 							for (int i = tmpCand; i < 3; i++) //如果没满3个就设置为跟第一个一样
-								TenMv[7 + i] = TenMv[7];
+								pTenMv[7 + i] = pTenMv[7];
 						}
 						/*从36个mv中选择2个用于确定精搜索位置*/
-					}
-					xSetSearchRange(cu, MV(0, 0), merangeX, merangeY, mvmin, mvmax);
 
-					intptr_t blockOffset_ds = 0;
-					int stride = 0;
-					int nValidCtuWidth = g_maxCUWidth;
-					int nValidCtuHeight = g_maxCUWidth;
-					if (isSavePmv)
-					{
 						int MarginX = g_maxCUWidth + g_nSearchRangeWidth + 4 + 12;
-						stride = cu->getSlice()->getSPS()->getPicWidthInLumaSamples() / 4 + MarginX/2;
-						uint32_t nCtuAddr = cu->getAddr();
-						uint32_t numCtuInWidth = cu->getPic()->getFrameWidthInCU();
-						uint32_t numCtuInHeight = cu->getPic()->getFrameHeightInCU();
-						int nCtuPosWidth = nCtuAddr%numCtuInWidth;
-						int nCtuPosHeight = nCtuAddr / numCtuInWidth;
-						blockOffset_ds = nCtuPosWidth * g_maxCUWidth/4 + nCtuPosHeight * g_maxCUWidth/4 * stride;
-						uint32_t nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
-						uint32_t nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
+						stride = cu->getSlice()->getSPS()->getPicWidthInLumaSamples() / 4 + MarginX / 2;
+						blockOffset_ds = nCtuPosWidth * g_maxCUWidth / 4 + nCtuPosHeight * g_maxCUWidth / 4 * stride;
 						if (nPicHeight / g_maxCUWidth < numCtuInHeight && nCtuPosHeight == numCtuInHeight - 1)
 						{
 							nValidCtuHeight = nPicHeight - nPicHeight / g_maxCUWidth*g_maxCUWidth;
 						}
-						if (nPicWidth / g_maxCUWidth<numCtuInWidth && nCtuPosWidth == numCtuInWidth - 1)
+						if (nPicWidth / g_maxCUWidth < numCtuInWidth && nCtuPosWidth == numCtuInWidth - 1)
 						{
 							nValidCtuWidth = nPicWidth - nPicWidth / g_maxCUWidth*g_maxCUWidth;
 						}
 					}
-					int satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv, TenMv, cand, isHaveMvd,
-						isSavePmv, offsIdx, cu->getDepth(0), blockOffset_ds, stride, nValidCtuWidth, nValidCtuHeight);
+					xSetSearchRange(cu, MV(0, 0), merangeX, merangeY, mvmin, mvmax);
+
+					int satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv, pTenMv, nCand[nIdx], isHaveMvd,
+						isSavePmv, offsIdx, cu->getDepth(0), blockOffset_ds, stride, nValidCtuWidth, nValidCtuHeight, nIdx);
 
 					xEstimateMvPredAMVP(cu, partIdx, list, idx, mvPred[list][idx], outmv);
 					mvpIdx[list][idx] = cu->getMVPIdx(list, partAddr);
@@ -4174,14 +4167,12 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 					/* Get total cost of partition, but only include MV bit cost once */
 					bitsTemp += m_me.bitcost(outmv); //这两步计算的开mvd的代价  add by hdl
 					costTemp = satdCost + m_rdCost->getCost(bitsTemp);
-
 					xCopyAMVPInfo(cu->getCUMvField(list)->getAMVPInfo(), &amvpInfo[list][idx]); // must always be done ( also when AMVP_MODE = AM_NONE )
-					//xCheckBestMVP(cu, list, mvTemp[list][idx], mvPred[list][idx], mvpIdx[list][idx], bitsTemp, costTemp);
 #if RK_INTER_ME_TEST
-					g_mvAmvp[offsIdx][0].x = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[0].x;
-					g_mvAmvp[offsIdx][0].y = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[0].y;
-					g_mvAmvp[offsIdx][1].x = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[1].x;
-					g_mvAmvp[offsIdx][1].y = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[1].y;
+					g_mvAmvp[nIdx][offsIdx][0].x = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[0].x;
+					g_mvAmvp[nIdx][offsIdx][0].y = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[0].y;
+					g_mvAmvp[nIdx][offsIdx][1].x = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[1].x;
+					g_mvAmvp[nIdx][offsIdx][1].y = cu->getCUMvField(list)->getAMVPInfo()->m_mvCand[1].y;
 #endif
 
 					if (costTemp < listCost[list])
@@ -4232,49 +4223,6 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 				x265_emms();
 				bits[2] = bits[0] + bits[1] - mbBits[0] - mbBits[1] + mbBits[2];
 				costbi = satdCost + m_rdCost->getCost(bits[2]);
-
-				if (mv[0].notZero() || mv[1].notZero())
-				{
-					ref0 = m_mref[0][refIdx[0]]->fpelPlane + (pu - fenc->getLumaAddr());  //MV(0,0) of ref0
-					ref1 = m_mref[1][refIdx[1]]->fpelPlane + (pu - fenc->getLumaAddr());  //MV(0,0) of ref1
-					intptr_t refStride = m_mref[0][refIdx[0]]->lumaStride;
-
-					primitives.pixelavg_pp[partEnum](avg, roiWidth, ref0, refStride, ref1, refStride, 32);
-					satdCost = primitives.satd[partEnum](pu, fenc->getStride(), avg, roiWidth);
-					x265_emms();
-
-					unsigned int bitsZero0, bitsZero1;
-					m_me.setMVP(mvPredBi[0][refIdxBidir[0]]);
-					bitsZero0 = bits[0] - m_me.bitcost(mv[0]) + m_me.bitcost(mvzero);
-
-					m_me.setMVP(mvPredBi[1][refIdxBidir[1]]);
-					bitsZero1 = bits[1] - m_me.bitcost(mv[1]) + m_me.bitcost(mvzero);
-
-					uint32_t costZero = satdCost + m_rdCost->getCost(bitsZero0) + m_rdCost->getCost(bitsZero1);
-
-					MV mvpZero[2];
-					int mvpidxZero[2];
-					mvpZero[0] = mvPredBi[0][refIdxBidir[0]];
-					mvpidxZero[0] = mvpIdxBi[0][refIdxBidir[0]];
-					xCopyAMVPInfo(&amvpInfo[0][refIdxBidir[0]], cu->getCUMvField(REF_PIC_LIST_0)->getAMVPInfo());
-					xCheckBestMVP(cu, REF_PIC_LIST_0, mvzero, mvpZero[0], mvpidxZero[0], bitsZero0, costZero);
-					mvpZero[1] = mvPredBi[1][refIdxBidir[1]];
-					mvpidxZero[1] = mvpIdxBi[1][refIdxBidir[1]];
-					xCopyAMVPInfo(&amvpInfo[1][refIdxBidir[1]], cu->getCUMvField(REF_PIC_LIST_1)->getAMVPInfo());
-					xCheckBestMVP(cu, REF_PIC_LIST_1, mvzero, mvpZero[1], mvpidxZero[1], bitsZero1, costZero);
-
-					if (costZero < costbi)
-					{
-						costbi = costZero;
-						mvBidir[0].x = mvBidir[0].y = 0;
-						mvBidir[1].x = mvBidir[1].y = 0;
-						mvPredBi[0][refIdxBidir[0]] = mvpZero[0];
-						mvPredBi[1][refIdxBidir[1]] = mvpZero[1];
-						mvpIdxBi[0][refIdxBidir[0]] = mvpidxZero[0];
-						mvpIdxBi[1][refIdxBidir[1]] = mvpidxZero[1];
-						bits[2] = bitsZero0 + bitsZero1 - mbBits[0] - mbBits[1] + mbBits[2];
-					}
-				}
 			} // if (B_SLICE)
 		} //end if bTestNormalMC
 
@@ -4357,81 +4305,9 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 
 				mebits = bits[1];
 			}
-#if CU_STAT_LOGFILE
-			meCost += listCost[0];
-#endif
 		} // end if bTestNormalMC
 
-		if (cu->getPartitionSize(partAddr) != SIZE_2Nx2N)
-		{
-			uint32_t mrgInterDir = 0;
-			TComMvField mrgMvField[2];
-			uint32_t mrgIndex = 0;
-
-			uint32_t meInterDir = 0;
-			TComMvField meMvField[2];
-
-			// calculate ME cost
-			uint32_t meError = MAX_UINT;
-			uint32_t meCost = MAX_UINT;
-
-			if (bTestNormalMC)
-			{
-				meError = xGetInterPredictionError(cu, partIdx);
-				meCost = meError + m_rdCost->getCost(mebits);
-			}
-
-			// save ME result.
-			meInterDir = cu->getInterDir(partAddr);
-			cu->getMvField(cu, partAddr, REF_PIC_LIST_0, meMvField[0]);
-			cu->getMvField(cu, partAddr, REF_PIC_LIST_1, meMvField[1]);
-
-			// find Merge result
-			uint32_t mrgCost = MAX_UINT;
-			uint32_t mrgBits = 0;
-			xMergeEstimation(cu, partIdx, mrgInterDir, mrgMvField, mrgIndex, mrgCost, mrgBits, mvFieldNeighbours, interDirNeighbours, numValidMergeCand);
-			if (mrgCost < meCost)
-			{
-				// set Merge result
-				cu->setMergeFlagSubParts(true, partAddr, partIdx, cu->getDepth(partAddr));
-				cu->setMergeIndexSubParts(mrgIndex, partAddr, partIdx, cu->getDepth(partAddr));
-				cu->setInterDirSubParts(mrgInterDir, partAddr, partIdx, cu->getDepth(partAddr));
-				{
-					cu->getCUMvField(REF_PIC_LIST_0)->setAllMvField(mrgMvField[0], partSize, partAddr, 0, partIdx);
-					cu->getCUMvField(REF_PIC_LIST_1)->setAllMvField(mrgMvField[1], partSize, partAddr, 0, partIdx);
-				}
-
-				cu->getCUMvField(REF_PIC_LIST_0)->setAllMvd(mvzero, partSize, partAddr, 0, partIdx);//merge的情况mvd为0  add by hdl
-				cu->getCUMvField(REF_PIC_LIST_1)->setAllMvd(mvzero, partSize, partAddr, 0, partIdx);
-
-				cu->setMVPIdxSubParts(-1, REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
-				cu->setMVPNumSubParts(-1, REF_PIC_LIST_0, partAddr, partIdx, cu->getDepth(partAddr));
-				cu->setMVPIdxSubParts(-1, REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
-				cu->setMVPNumSubParts(-1, REF_PIC_LIST_1, partAddr, partIdx, cu->getDepth(partAddr));
-#if CU_STAT_LOGFILE
-				meCost += mrgCost;
-#endif
-				totalmebits += mrgBits;
-			}
-			else
-			{
-				// set ME result
-				cu->setMergeFlagSubParts(false, partAddr, partIdx, cu->getDepth(partAddr));
-				cu->setInterDirSubParts(meInterDir, partAddr, partIdx, cu->getDepth(partAddr));
-				{
-					cu->getCUMvField(REF_PIC_LIST_0)->setAllMvField(meMvField[0], partSize, partAddr, 0, partIdx);
-					cu->getCUMvField(REF_PIC_LIST_1)->setAllMvField(meMvField[1], partSize, partAddr, 0, partIdx);
-				}
-#if CU_STAT_LOGFILE
-				meCost += meCost;
-#endif
-				totalmebits += mebits;
-			}
-		}
-		else
-		{
-			totalmebits += mebits;
-		}
+		totalmebits += mebits;
 		motionCompensation(cu, predYuv, REF_PIC_LIST_X, partIdx, bLuma, bChroma);
 	}
 
@@ -4439,10 +4315,10 @@ void TEncSearch::predInterSearch(TComDataCU* cu, TComYuv* predYuv, bool bUseMRG,
 
 	setWpScalingDistParam(cu, -1, REF_PIC_LIST_X);
 }
-unsigned int TEncSearch::getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, unsigned int width)
+unsigned int TEncSearch::getOffsetIdx(int nCtu, int nCuPelX, int nCuPelY, unsigned int width)
 {
 	unsigned int offsIdx = 0;
-	if (64 == nCtuSize)
+	if (64 == nCtu)
 	{
 		if (width == 8)
 			offsIdx = (nCuPelX % 64) / 8 + (nCuPelY % 64) / 8 * 8;
@@ -4453,7 +4329,7 @@ unsigned int TEncSearch::getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, un
 		else
 			offsIdx = 84;
 	}
-	else if (32 == nCtuSize)
+	else if (32 == nCtu)
 	{
 		if (width == 8)
 			offsIdx = (nCuPelX % 32) / 8 + (nCuPelY % 32) / 8 * 4;
@@ -4471,7 +4347,62 @@ unsigned int TEncSearch::getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, un
 	}
 	return offsIdx;
 }
-void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, bool isFirst)
+bool TEncSearch::checkSavePmv(unsigned int nCtu, unsigned int nCuSize, unsigned int offsIdx, unsigned int nPicWidth, unsigned int nPicHeight, unsigned int nCtuAddr)
+{
+	if (!(0 == offsIdx || 64 == offsIdx || 80 == offsIdx || 84 == offsIdx))
+		return false;
+	if (nCuSize == nCtu)
+		return true;
+
+	bool PicWidthNotDivCtu = nPicWidth / nCtu*nCtu < nPicWidth;
+	bool PicHeightNotDivCtu = nPicHeight / nCtu*nCtu < nPicHeight;
+	int numCtuInPicWidth = nPicWidth / nCtu + (PicWidthNotDivCtu ? 1 : 0);
+	int numCtuInPicHeight = nPicHeight / nCtu + (PicHeightNotDivCtu ? 1 : 0);
+	int nCtuPosWidth = nCtuAddr % numCtuInPicWidth;
+	int nCtuPosHeight = nCtuAddr / numCtuInPicWidth;
+	int nValidCtuHeight = nCtu;
+	int nValidCtuWidth = nCtu;
+	if (nPicHeight / nCtu < numCtuInPicHeight && nCtuPosHeight == numCtuInPicHeight - 1)
+	{
+		nValidCtuHeight = nPicHeight - nPicHeight / nCtu*nCtu;
+	}
+	if (nPicWidth / nCtu < numCtuInPicWidth && nCtuPosWidth == numCtuInPicWidth - 1)
+	{
+		nValidCtuWidth = nPicWidth - nPicWidth / nCtu*nCtu;
+	}
+	int size = X265_MIN(nValidCtuWidth, nValidCtuHeight);
+	if (size >= 64)
+	{
+		if (84 == offsIdx)
+			return true;
+		else
+			return false;
+	}
+	else if (size >= 32)
+	{
+		if (80 == offsIdx)
+			return true;
+		else
+			return false;
+	}
+	else if (size >= 16)
+	{
+		if (64 == offsIdx)
+			return true;
+		else
+			return false;
+	}
+	else if (size >= 8)
+	{
+		if (0 == offsIdx)
+			return true;
+		else
+			return false;
+	}
+	
+	return false;
+}
+void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, int nRefPicIdx, bool isFirst)
 {
 	memset(isValid, 1, 36); //36个位置全赋值为true
 	TComMvField tmpMvField;
@@ -4506,11 +4437,11 @@ void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid
 			/*粗搜索得到的左侧ctu的pmv*/
 			if (isFirst)
 			{
-				tmpMv[26].x = g_leftPMV.x; tmpMv[26].y = g_leftPMV.y;
+				tmpMv[26].x = g_leftPMV[nRefPicIdx].x; tmpMv[26].y = g_leftPMV[nRefPicIdx].y;
 			}
 			else
 			{
-				tmpMv[26].x = g_leftPmv.x; tmpMv[26].y = g_leftPmv.y;
+				tmpMv[26].x = g_leftPmv[nRefPicIdx].x; tmpMv[26].y = g_leftPmv[nRefPicIdx].y;
 			}
 			/*粗搜索得到的左侧ctu的pmv*/
 		}
@@ -4606,11 +4537,11 @@ void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid
 			/*粗搜索得到的左侧ctu的pmv*/
 			if (isFirst)
 			{
-				tmpMv[14].x = g_leftPMV.x; tmpMv[14].y = g_leftPMV.y;
+				tmpMv[14].x = g_leftPMV[list].x; tmpMv[14].y = g_leftPMV[list].y;
 			}
 			else
 			{
-				tmpMv[14].x = g_leftPmv.x; tmpMv[14].y = g_leftPmv.y;
+				tmpMv[14].x = g_leftPmv[list].x; tmpMv[14].y = g_leftPmv[list].y;
 			}
 			/*粗搜索得到的左侧ctu的pmv*/
 		}
@@ -4755,7 +4686,16 @@ void TEncSearch::xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list,
 	cu->getPartIndexAndSize(partIdx, partAddr, roiWidth, roiHeight);
 
 	// Fill the MV Candidates
+	uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
+	AmvpInfo amvpMine;
 	cu->fillMvpCand(partIdx, partAddr, list, refIdx, amvpInfo); //amvpInfo最多有两个candidate  add by hdl 
+	cu->PrefetchAmvpInfo(offsIdx, refIdx);
+	Amvp.fillMvpCand(list, refIdx, &amvpMine);
+	for (i = 0; i < amvpMine.m_num; i++)
+	{
+		assert(amvpMine.m_mvCand[i].x == amvpInfo->m_mvCand[i].x);
+		assert(amvpMine.m_mvCand[i].y == amvpInfo->m_mvCand[i].y);
+	}
 
 	bestMv = amvpInfo->m_mvCand[0];
 	if (amvpInfo->m_num <= 1)
@@ -5079,9 +5019,14 @@ void TEncSearch::encodeResAndCalcRdInterCU(TComDataCU* cu, TComYuv* fencYuv, TCo
 
     m_entropyCoder->resetBits();
     m_entropyCoder->encodeQtRootCbfZero(cu);
-    uint32_t zeroResiBits = m_entropyCoder->getNumberOfWrittenBits();
-
+    
+#if RK_CHOOSE
+	uint64_t zeroCost = MAX_INT64;
+#else
+	uint32_t zeroResiBits = m_entropyCoder->getNumberOfWrittenBits();
     uint64_t zeroCost = m_rdCost->calcRdCost(zeroDistortion, zeroResiBits);
+#endif
+
     if (cu->isLosslessCoded(0))
     {
         zeroCost = cost + 1;
@@ -5426,6 +5371,32 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 
         int trWidth = 0, trHeight = 0, trWidthC = 0, trHeightC = 0;
         uint32_t absTUPartIdxC = absPartIdx;
+		
+#if TQ_RUN_IN_HWC_ME
+		uint32_t ctuSize = cu->getSlice()->getSPS()->getMaxCUWidth();	
+		int tuPos = 0, tuPosC = 0, cuPelX = 0, cuPelY = 0;
+		uint32_t tmpDepth = 0, tmpAbsSumY = 0, tmpAbsSumU = 0, tmpAbsSumV = 0;
+		if(cu->getDepth(0)==0) // cuWidth = 64
+		{
+			switch(absTUPartIdx)
+			{
+				case 0: 	tuPos=0;			tuPosC=0;	 		break;
+				case 64:	tuPos=32;			tuPosC=16;	 		break;
+				case 128:	tuPos=32*64;		tuPosC=16*32; 		break;
+				case 192:	tuPos=32*64+32;		tuPosC=16*32+16;	break;
+				default: 	assert(0);								break;
+			}		
+		}
+		else // cuWidth<64
+		{
+			cuPelX = cu->getCUPelX() - cu->getCUPelX()/ctuSize*ctuSize; // CU in CTU x coordinate
+			cuPelY = cu->getCUPelY() - cu->getCUPelY()/ctuSize*ctuSize;
+			tuPos = ctuSize*cuPelY + cuPelX; // TU is CU 
+			tuPosC = ctuSize/2 * cuPelY/2 + cuPelX/2;
+		}
+		tmpDepth = cu->getDepth(0);
+		assert(tmpDepth>=0 || tmpDepth<4);
+#endif 
 
         trWidth  = trHeight  = 1 << trSizeLog2;
         trWidthC = trHeightC = 1 << trSizeCLog2;
@@ -5485,6 +5456,33 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 		m_trQuant->m1_hevcQT->m_infoFromX265->absSum = absSumY;
 		m_trQuant->m1_hevcQT->m_infoFromX265->lastPos = lastPosY;
 #endif
+
+#if TQ_RUN_IN_HWC_ME // Y coeff	
+		if(g_fme)	
+		{
+			for(int i = 0; i<trHeight; i++)				
+			{
+				for(int j=0; j<trWidth; j++)
+				{					
+					assert(tuPos+i*64>=0 && tuPos+i*64<64*64);
+					g_fmeCoeffY[tmpDepth][tuPos+i*64+j] = (int16_t)coeffCurY[i*trWidth+j];
+				}
+			}	
+    	}
+		if(g_merge)
+		{
+			for(int i = 0; i<trHeight; i++)				
+			{
+				for(int j=0; j<trWidth; j++)
+				{
+					
+					assert(tuPos+i*64>=0 && tuPos+i*64<64*64);
+					g_mergeCoeffY[tmpDepth][tuPos+i*64+j] = (int16_t)coeffCurY[i*trWidth+j];
+				}
+			}		
+    	}
+		tmpAbsSumY = absSumY;
+#endif
         cu->setCbfSubParts(absSumY ? setCbf : 0, TEXT_LUMA, absPartIdx, depth);
 
         if (bCodeChroma)
@@ -5531,6 +5529,33 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 			m_trQuant->m2_hevcQT->m_infoFromX265->absSum = absSumU;
 			m_trQuant->m2_hevcQT->m_infoFromX265->lastPos = lastPosU;
 #endif
+
+#if TQ_RUN_IN_HWC_ME // U coeff	
+			if(g_fme)
+			{
+				for(int i = 0; i<trHeightC; i++)				
+				{
+					for(int j=0; j<trWidthC; j++)
+					{
+						assert(tuPosC+i*32>=0 && tuPosC+i*32<32*32);				
+						g_fmeCoeffU[tmpDepth][tuPosC+i*32+j] = (int16_t)coeffCurU[i*trWidthC+j];
+					}
+				}			
+			}
+			
+			if(g_merge)
+			{
+				for(int i = 0; i<trHeightC; i++)				
+				{
+					for(int j=0; j<trWidthC; j++)
+					{
+						assert(tuPosC+i*32>=0 && tuPosC+i*32<32*32);				
+						g_mergeCoeffU[tmpDepth][tuPosC+i*32+j] = (int16_t)coeffCurU[i*trWidthC+j];
+					}
+				}			
+			}
+			tmpAbsSumU = absSumU;
+#endif
             curChromaQpOffset = cu->getSlice()->getPPS()->getChromaCrQpOffset() + cu->getSlice()->getSliceQpDeltaCr();
 #if TQ_RUN_IN_X265_ME // Cr
 			// get input
@@ -5564,6 +5589,33 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 			memcpy(m_trQuant->m3_hevcQT->m_infoFromX265->coeffTQ, coeffCurV, trWidthC*trHeightC*sizeof(int32_t));
 			m_trQuant->m3_hevcQT->m_infoFromX265->absSum = absSumV;
 			m_trQuant->m3_hevcQT->m_infoFromX265->lastPos = lastPosV;
+#endif
+
+#if TQ_RUN_IN_HWC_ME // V coeff	
+		if(g_fme)				
+		{
+			for(int i = 0; i<trHeightC; i++)				
+			{
+				for(int j=0; j<trWidthC; j++)
+				{
+					assert(tuPosC+i*32>=0 && tuPosC+i*32<32*32);
+					g_fmeCoeffV[tmpDepth][tuPosC+i*32+j] = (int16_t)coeffCurV[i*trWidthC+j];
+				}
+			}	
+		}
+		
+		if(g_merge)				
+		{
+			for(int i = 0; i<trHeightC; i++)				
+			{
+				for(int j=0; j<trWidthC; j++)
+				{
+					assert(tuPosC+i*32>=0 && tuPosC+i*32<32*32);
+					g_mergeCoeffV[tmpDepth][tuPosC+i*32+j] = (int16_t)coeffCurV[i*trWidthC+j];
+				}
+			}	
+		}		
+		tmpAbsSumV = absSumV;
 #endif
             cu->setCbfSubParts(absSumU ? setCbf : 0, TEXT_CHROMA_U, absPartIdx, cu->getDepth(0) + trModeC);
             cu->setCbfSubParts(absSumV ? setCbf : 0, TEXT_CHROMA_V, absPartIdx, cu->getDepth(0) + trModeC);
@@ -5618,6 +5670,23 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 				memcpy(&(m_trQuant->m1_hevcQT->m_infoFromX265->outResi[k*CTU_SIZE]), &(curResiY[k*MAX_CU_SIZE]), trWidth*sizeof(int16_t));
 			}
 #endif
+
+#if TQ_RUN_IN_HWC_ME // Y resi, absSumY>0	
+			if(g_fme)	
+			{
+				for(int i = 0; i<trHeight; i++)				
+				{			
+					memcpy(g_fmeResiY[tmpDepth]+tuPos+i*64, curResiY+i*MAX_CU_SIZE, trWidth*sizeof(int16_t));
+				}	
+			}
+			if(g_merge)
+			{
+				for(int i = 0; i<trHeight; i++)				
+				{			
+					memcpy(g_mergeResiY[tmpDepth]+tuPos+i*64, curResiY+i*MAX_CU_SIZE, trWidth*sizeof(int16_t));
+				}				
+			}
+#endif
             const uint32_t nonZeroDistY = primitives.sse_ss[partSize](resiYuv->getLumaAddr(absTUPartIdx), resiYuv->m_width, m_qtTempTComYuv[qtlayer].getLumaAddr(absTUPartIdx), MAX_CU_SIZE);
             if (cu->isLosslessCoded(0))
             {
@@ -5628,8 +5697,13 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 const uint64_t singleCostY = m_rdCost->calcRdCost(nonZeroDistY, uiSingleBitsY);
                 m_entropyCoder->resetBits();
                 m_entropyCoder->encodeQtCbfZero(cu, TEXT_LUMA,     trMode); //只编码当前Cbf为0,不编码残差，用于对比。
-                const uint32_t nullBitsY = m_entropyCoder->getNumberOfWrittenBits();
-                const uint64_t nullCostY = m_rdCost->calcRdCost(distY, nullBitsY);
+#if RK_CHOOSE
+				const uint64_t nullCostY = MAX_INT64;
+#else
+				const uint32_t nullBitsY = m_entropyCoder->getNumberOfWrittenBits();
+				const uint64_t nullCostY = m_rdCost->calcRdCost(distY, nullBitsY);
+
+#endif
                 if (nullCostY < singleCostY)
                 {
                     absSumY = 0;
@@ -5667,6 +5741,26 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 		}
 
 		m_trQuant->m1_hevcQT->proc(1); // QT proc for inter in x265
+#endif
+
+#if TQ_RUN_IN_HWC_ME // Y resi, absSumY==0	
+		if(tmpAbsSumY==0)
+		{
+			if(g_fme)	
+			{
+				for(int i = 0; i<trHeight; i++)				
+				{
+					memset(g_fmeResiY[tmpDepth]+tuPos+i*64, 0, trWidth*sizeof(int16_t));
+				}					
+			}
+			if(g_merge)	
+			{
+				for(int i = 0; i<trHeight; i++)				
+				{
+					memset(g_mergeResiY[tmpDepth]+tuPos+i*64, 0, trWidth*sizeof(int16_t));
+				}					
+			}	
+		}
 #endif
         if (!absSumY)
         {
@@ -5710,7 +5804,22 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 					memcpy(&(m_trQuant->m2_hevcQT->m_infoFromX265->outResi[k*CTU_SIZE]), &(P[k*MAX_CU_SIZE / 2]), trWidthC*sizeof(int16_t));
 				}
 #endif
-
+#if TQ_RUN_IN_HWC_ME // U resi, absSumU>0	
+				if(g_fme)				
+				{
+					for(int i = 0; i<trHeightC; i++)				
+					{
+						memcpy(g_fmeResiU[tmpDepth]+tuPosC+i*32, pcResiCurrU+i*MAX_CU_SIZE/2, trWidthC*sizeof(int16_t));
+					}
+				}
+				if(g_merge)				
+				{
+					for(int i = 0; i<trHeightC; i++)				
+					{
+						memcpy(g_mergeResiU[tmpDepth]+tuPosC+i*32, pcResiCurrU+i*MAX_CU_SIZE/2, trWidthC*sizeof(int16_t));
+					}
+				}				
+#endif
                 uint32_t dist = primitives.sse_ss[partSizeC](resiYuv->getCbAddr(absTUPartIdxC), resiYuv->m_cwidth,
                                                              m_qtTempTComYuv[qtlayer].getCbAddr(absTUPartIdxC),
                                                              MAX_CU_SIZE / 2);
@@ -5724,9 +5833,13 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 {
                     const uint64_t singleCostU = m_rdCost->calcRdCost(nonZeroDistU, singleBitsU);
                     m_entropyCoder->resetBits();
-                    m_entropyCoder->encodeQtCbfZero(cu, TEXT_CHROMA_U, trMode);
-                    const uint32_t nullBitsU = m_entropyCoder->getNumberOfWrittenBits();
+                    m_entropyCoder->encodeQtCbfZero(cu, TEXT_CHROMA_U, trMode);                    
+#if RK_CHOOSE
+					const uint64_t nullCostU = MAX_INT64;
+#else					
+					const uint32_t nullBitsU = m_entropyCoder->getNumberOfWrittenBits();
                     const uint64_t nullCostU = m_rdCost->calcRdCost(distU, nullBitsU);
+#endif					
                     if (nullCostU < singleCostU)
                     {
                         absSumU = 0;
@@ -5773,6 +5886,26 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 
 			m_trQuant->m2_hevcQT->proc(1); // QT proc for inter in x265
 #endif
+
+#if TQ_RUN_IN_HWC_ME // U resi, absSumU==0	
+			if(tmpAbsSumU==0)
+			{
+				if(g_fme)				
+				{
+					for(int i = 0; i<trHeightC; i++)				
+					{
+						memset(g_fmeResiU[tmpDepth]+tuPosC+i*32, 0, trWidthC*sizeof(int16_t));
+					}					
+				}
+				if(g_merge)				
+				{
+					for(int i = 0; i<trHeightC; i++)				
+					{
+						memset(g_mergeResiU[tmpDepth]+tuPosC+i*32, 0, trWidthC*sizeof(int16_t));
+					}					
+				}				
+			}
+#endif
             distV = m_rdCost->scaleChromaDistCr(primitives.sse_sp[partSizeC](resiYuv->getCrAddr(absTUPartIdxC), resiYuv->m_cwidth, m_tempPel, trWidthC));
             if (outZeroDist)
             {
@@ -5797,6 +5930,22 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 					memcpy(&(m_trQuant->m3_hevcQT->m_infoFromX265->outResi[k*CTU_SIZE]), &(curResiV[k*MAX_CU_SIZE/2]), trWidthC*sizeof(int16_t));
 				}
 #endif
+#if TQ_RUN_IN_HWC_ME // V resi, absSumV>0	
+				if(g_fme)
+				{
+					for(int i = 0; i<trHeightC; i++)				
+					{
+						memcpy(g_fmeResiV[tmpDepth]+tuPosC+i*32, curResiV+i*MAX_CU_SIZE/2, trWidthC*sizeof(int16_t));
+					}	
+				}
+				if(g_merge)
+				{
+					for(int i = 0; i<trHeightC; i++)				
+					{
+						memcpy(g_mergeResiV[tmpDepth]+tuPosC+i*32, curResiV+i*MAX_CU_SIZE/2, trWidthC*sizeof(int16_t));
+					}	
+				}				
+#endif
                 uint32_t dist = primitives.sse_ss[partSizeC](resiYuv->getCrAddr(absTUPartIdxC), resiYuv->m_cwidth,
                                                              m_qtTempTComYuv[qtlayer].getCrAddr(absTUPartIdxC),
                                                              MAX_CU_SIZE / 2);
@@ -5810,9 +5959,13 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
                 {
                     const uint64_t singleCostV = m_rdCost->calcRdCost(nonZeroDistV, singleBitsV);
                     m_entropyCoder->resetBits();
-                    m_entropyCoder->encodeQtCbfZero(cu, TEXT_CHROMA_V, trMode);
-                    const uint32_t nullBitsV = m_entropyCoder->getNumberOfWrittenBits();
+                    m_entropyCoder->encodeQtCbfZero(cu, TEXT_CHROMA_V, trMode);                    
+#if RK_CHOOSE
+					const uint64_t nullCostV = MAX_INT64;
+#else					
+					const uint32_t nullBitsV = m_entropyCoder->getNumberOfWrittenBits();
                     const uint64_t nullCostV = m_rdCost->calcRdCost(distV, nullBitsV);
+#endif
                     if (nullCostV < singleCostV)
                     {
                         absSumV = 0;
@@ -5858,6 +6011,32 @@ void TEncSearch::xEstimateResidualQT(TComDataCU*    cu,
 		}
 
 		m_trQuant->m3_hevcQT->proc(1); // QT proc for inter in x265
+#endif
+
+#if TQ_RUN_IN_HWC_ME // V resi, absSumV==0	
+		if(tmpAbsSumV==0)
+		{
+			if(g_fme)
+			{
+				for(int i = 0; i<trHeightC; i++)				
+				{
+					memset(g_fmeResiV[tmpDepth]+tuPosC+i*32, 0, trWidthC*sizeof(int16_t));
+				}	
+			}
+			if(g_merge)
+			{
+				for(int i = 0; i<trHeightC; i++)				
+				{
+					memset(g_mergeResiV[tmpDepth]+tuPosC+i*32, 0, trWidthC*sizeof(int16_t));
+				}	
+			}			
+		}
+		
+		// update flags
+		if (g_fme && ((cu->getDepth(0) == 0 && absTUPartIdx == 192) || cu->getDepth(0) > 0))
+				g_fme = false;
+		if (g_merge && ((cu->getDepth(0) == 0 && absTUPartIdx == 192) || cu->getDepth(0) > 0))			
+				g_merge = false;
 #endif
         }
         cu->setCbfSubParts(absSumY ? setCbf : 0, TEXT_LUMA, absPartIdx, depth);

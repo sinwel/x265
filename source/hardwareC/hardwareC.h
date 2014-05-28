@@ -71,6 +71,10 @@ class hardwareC
     //class SAO sao;
     //class DBLK deblocking;
 
+	//add by HDL for CIME and RIME
+	class CoarseIntMotionEstimation Cime;
+	class RefineIntMotionEstimation Rime[85];
+
     INTERFACE_PREPROCESS  inf_pre;
     INTERFACE_IME         inf_ime;
     INTERFACE_CTU_CALC    inf_ctu_calc;
