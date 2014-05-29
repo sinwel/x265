@@ -15,16 +15,16 @@
 
 
 /* =========================== INTRA macros ============================== */
-#define RK_INTRA_PRED
-#define X265_INTRA_DEBUG
+//#define RK_INTRA_PRED
+//#define X265_INTRA_DEBUG
 //#define LOG_INTRA_PARAMS_2_FILE
 //#define INTRA_RESULT_STORE_FILE
-#define RK_CABAC
-#define INTRA_4x4_DEBUG
-#define RK_INTRA_4x4_PRED
+//#define RK_CABAC
+//#define INTRA_4x4_DEBUG
+//#define RK_INTRA_4x4_PRED
 //#define RK_INTRA_MODE_CHOOSE              // 快速模式判决，该方案不采取
 #define INTRA_REDUCE_DIR(dirMode, width) 	1 /*( ( (dirMode % 2 == 0) || (dirMode == 1)) || ((width != 4) && (width != 8)))*/
-#define DISABLE_64x64_CU
+//#define DISABLE_64x64_CU
 /* ======================================================================= */
 
 
