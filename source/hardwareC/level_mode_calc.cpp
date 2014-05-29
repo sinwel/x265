@@ -965,6 +965,7 @@ void CU_LEVEL_CALC::intra_proc()
 	uint8_t qpY = pHardWare->ctu_calc.QP_lu;
 	uint8_t qpU = pHardWare->ctu_calc.QP_cb;
 	uint8_t qpV = pHardWare->ctu_calc.QP_cr;
+	uint8_t sliceType = pHardWare->ctu_calc.slice_type;	
 	m_rkIntraPred->setLambda(qpY, sliceType);
 
 	// --- covert uint8_t to bool ---//
