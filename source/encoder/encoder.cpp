@@ -1305,7 +1305,7 @@ void Encoder::configure(x265_param *_param)
         break;
     }
 
-#if RK_CHOOSE
+#if 1 // RK_CHOOSE
 		// RDOQ closed
 		bEnableRDOQ = 0;
 #endif
