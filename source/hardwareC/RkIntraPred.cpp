@@ -135,7 +135,9 @@ Rk_IntraPred::Rk_IntraPred()
 	rk_bFlag16 = 1;
 	rk_bFlag8	= 1;
 	rk_bFlag4	= 1;
-	num_fp		= 0;
+	num_4x4fp		= 0;
+	num_8x8fp		= 0;
+
 	::memset(rk_verdeltaFract,0,sizeof(rk_verdeltaFract));
 	::memset(rk_hordeltaFract,0,sizeof(rk_hordeltaFract));
 
@@ -2005,6 +2007,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 									uint32_t cur_y_in_cu)
 {
 #define OUTPUT_4X4_DATA 1
+#define OUTPUT_8X8_DATA 1
 	uint8_t* fenc 	= pInterface_Intra->fenc;
 	int32_t width 	= pInterface_Intra->size;
 	int32_t height	= pInterface_Intra->size;
@@ -2030,14 +2033,14 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			{
 				FPRINT(fp_intra_4x4[INTRA_4_REF_CU_VALID],"%d",
 					pInterface_Intra->bNeighborFlags[ValidIdx8x8[i]] == true ? 1 : 0);			    
+
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_REF_CU_VALID],"\n");
-		
 			for ( uint8_t  i = 0 ; i < 64 ; i++ )
 			{
 				FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_LU],"%02x",fenc[63 - i]);			    
 			}
-			FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_LU],"\n");			    
+			FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_LU],"\n");	
 		}
 
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
@@ -2048,6 +2051,29 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			}
 		}
 	#endif
+
+	#if OUTPUT_8X8_DATA
+		if((width == 8) && (cur_depth == 3)) // 8x8 CU
+		{
+			// print CU valid flag.
+			uint8_t ValidIdx8x8[] = { 7, 5, 4, 2, 0 };// reverse
+			for ( uint8_t  i = 0 ; i < 5 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_REF_CU_VALID],"%d",
+					pInterface_Intra->bNeighborFlags[ValidIdx8x8[i]] == true ? 1 : 0);			    
+
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_REF_CU_VALID],"\n");
+			for ( uint8_t  i = 0 ; i < 64 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_LU],"%02x",fenc[63 - i]);			    
+
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_LU],"\n");			    
+		}
+		
+	#endif
+
 
 	
 		/* step 1 */
@@ -2087,7 +2113,21 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			}
 		}
 	#endif
+
+	#if OUTPUT_8X8_DATA
+
+		if((width == 8) && (cur_depth == 3)) // 8x8 CU
+		{
+			for ( uint8_t  i = 0 ; i < 33 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_LU],"%02x",LineBuf[32 - i]);			    
+
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_LU],"\n");
+		}
 		
+	#endif
+
 		// step 2 //
 
 		// smoothing
@@ -2203,7 +2243,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 	#if OUTPUT_4X4_DATA
 		
-		if((width == 4) && (cur_depth == 4)) // LEVEL 3
+		if((width == 4) && (cur_depth == 4)) // LEVEL 4
 		{
 			// INTRA_4_SAD
 			FPRINT(fp_intra_4x4[INTRA_4_SAD],"%d %03x, ",0,costSad[0]);			    
@@ -2217,6 +2257,22 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_4x4[INTRA_4_SAD],"%d %03x",34,costSad[34]);	
 			
 			FPRINT(fp_intra_4x4[INTRA_4_SAD],"\n");	
+
+			// INTRA_4_TU_COST_BITS
+			FPRINT(fp_intra_4x4[INTRA_4_TU_COST_BITS],"%d %03x, ",0,costTotal[0]);			    
+			FPRINT(fp_intra_4x4[INTRA_4_TU_COST_BITS],"%d %03x, ",1,costTotal[1]);	
+			  
+			for ( uint8_t  i = 2 ; i < 34 ; i+=2 )
+			{
+				FPRINT(fp_intra_4x4[INTRA_4_TU_COST_BITS],"%d %03x, ",i, costTotal[i]);			    
+			}
+			
+			FPRINT(fp_intra_4x4[INTRA_4_TU_COST_BITS],"%d %03x",34,costTotal[34]);	
+			
+			FPRINT(fp_intra_4x4[INTRA_4_TU_COST_BITS],"\n");				
+
+
+			
 			count++;
 
 
@@ -2228,6 +2284,53 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_4x4[INTRA_4_CABAC_MODE_BIT],"%02x",bits_luma_dir[1]);			    
 			FPRINT(fp_intra_4x4[INTRA_4_CABAC_MODE_BIT],"%02x",bits_luma_dir[0]);	
 			FPRINT(fp_intra_4x4[INTRA_4_CABAC_MODE_BIT],"\n");	
+			
+		}
+	#endif
+
+	#if OUTPUT_8X8_DATA
+		
+		if((width == 8) && (cur_depth == 3)) // LEVEL 3
+		{
+			// INTRA_8_SAD
+			FPRINT(fp_intra_8x8[INTRA_8_SAD],"%d %04x, ",0,costSad[0]);			    
+			FPRINT(fp_intra_8x8[INTRA_8_SAD],"%d %04x, ",1,costSad[1]);	
+			  
+			for ( uint8_t  i = 2 ; i < 34 ; i+=2 )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_SAD],"%d %04x, ",i, costSad[i]);			    
+			}
+			
+			FPRINT(fp_intra_8x8[INTRA_8_SAD],"%d %04x",34,costSad[34]);	
+			
+			FPRINT(fp_intra_8x8[INTRA_8_SAD],"\n");	
+
+
+			// INTRA_8_TU_COST_BITS
+			FPRINT(fp_intra_8x8[INTRA_8_TU_COST_BITS],"%d %04x, ",0,costTotal[0]);			    
+			FPRINT(fp_intra_8x8[INTRA_8_TU_COST_BITS],"%d %04x, ",1,costTotal[1]);	
+			  
+			for ( uint8_t  i = 2 ; i < 34 ; i+=2 )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_TU_COST_BITS],"%d %04x, ",i, costTotal[i]);			    
+			}
+			
+			FPRINT(fp_intra_8x8[INTRA_8_TU_COST_BITS],"%d %04x",34,costTotal[34]);	
+			
+			FPRINT(fp_intra_8x8[INTRA_8_TU_COST_BITS],"\n");				
+
+
+			count++;
+
+
+			// INTRA_8_CABAC_MODE_BIT	  
+			for ( uint8_t  i = 34 ; i > 1 ; i -=2 )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_CABAC_MODE_BIT],"%02x",bits_luma_dir[i]);			    
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_CABAC_MODE_BIT],"%02x",bits_luma_dir[1]);			    
+			FPRINT(fp_intra_8x8[INTRA_8_CABAC_MODE_BIT],"%02x",bits_luma_dir[0]);	
+			FPRINT(fp_intra_8x8[INTRA_8_CABAC_MODE_BIT],"\n");	
 			
 		}
 	#endif
@@ -2257,6 +2360,16 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			{
 			    FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",static_bestMode4x4); // Cr
 			}
+		}
+	#endif
+
+	#if OUTPUT_8X8_DATA
+		
+		if((width == 8) && (cur_depth == 3)) // LEVEL 3
+		{
+			FPRINT(fp_intra_8x8[INTRA_8_BEST_MODE],"%02x\n",bestMode);	// y
+			FPRINT(fp_intra_8x8[INTRA_8_BEST_MODE],"%02x\n",bestMode);	// cb
+			FPRINT(fp_intra_8x8[INTRA_8_BEST_MODE],"%02x\n",bestMode);	// cr
 		}
 	#endif
 
@@ -2301,6 +2414,23 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		StorePredSamples(g_fp_result_rk, rk_pred[RK_COMPENT], width, height);
 		StoreResidual(g_fp_result_rk, rk_residual[RK_COMPENT], puStride, width, height);
 #endif
+	#if OUTPUT_8X8_DATA
+		if((width == 8) && (cur_depth == 3))  
+		{
+			// y
+			for ( uint8_t  i = 0 ; i < (width*width) ; i++ )
+			{
+				{
+					FPRINT(fp_intra_8x8[INTRA_8_RESI_BEFORE],"%04x",(uint16_t)rk_residual[RK_COMPENT][(width*width - 1) - i]);			    
+					FPRINT(fp_intra_8x8[INTRA_8_PRED],"%02x",rk_pred[RK_COMPENT][(width*width - 1) - i]);			    
+				}
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_RESI_BEFORE],"\n");	
+			FPRINT(fp_intra_8x8[INTRA_8_PRED],"\n");
+		}
+		
+	#endif
+
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
 		{
@@ -2324,7 +2454,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 16 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_CB],"%02x",fenc[15 - i]);			    
+				FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_CB],"%02x",fenc[15 - i]);		
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_CB],"\n");
 		}
@@ -2337,6 +2467,19 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			}
 		}
 	#endif
+
+	#if OUTPUT_8X8_DATA
+		if((width == 4) && (cur_depth == 3)) // 8x8 CU, chroma size is half of CU.
+		{
+			for ( uint8_t  i = 0 ; i < 16 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_CB],"%02x",fenc[15 - i]);			    
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_CB],"\n");			
+		}
+		
+	#endif
+
 
 		// step 1 //
 		// fill
@@ -2360,7 +2503,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 17 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CB],"%02x",LineBuf[16 - i]);			    
+				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CB],"%02x",LineBuf[16 - i]);	
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CB],"\n");
 		}
@@ -2371,6 +2514,19 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			{
 				 rk_LineBufAll[1][i] = LineBuf[i];			    
 			}
+		}
+		
+	#endif
+
+	#if OUTPUT_8X8_DATA
+
+		if((width == 4) && (cur_depth == 3)) // 8x8 CU, chroma size is half of CU.
+		{
+			for ( uint8_t  i = 0 ; i < 17 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_CB],"%02x",LineBuf[16 - i]);			    
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_CB],"\n");
 		}
 		
 	#endif
@@ -2422,6 +2578,23 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		StoreResidual(g_fp_result_rk, rk_residualCb[RK_COMPENT], puStride, width, height);
 #endif
 
+	#if OUTPUT_8X8_DATA
+		if((width == 4) && (cur_depth == 3)) // 8x8 CU, chroma size is half of CU.
+		{
+			// cb
+			for ( uint8_t  i = 0 ; i < (width*width) ; i++ )
+			{
+				{
+					FPRINT(fp_intra_8x8[INTRA_8_RESI_BEFORE],"%04x",(uint16_t)rk_residualCb[RK_COMPENT][(width*width - 1) - i]);			    
+					FPRINT(fp_intra_8x8[INTRA_8_PRED],"%02x",rk_predCb[RK_COMPENT][(width*width - 1) - i]);			    
+				}
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_RESI_BEFORE],"\n");	
+			FPRINT(fp_intra_8x8[INTRA_8_PRED],"\n");
+		}
+		
+	#endif
+
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
 		{
@@ -2466,13 +2639,13 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			for ( uint8_t  i = 0 ; i < 16 ; i++ )
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_CR],"%02x",fenc[15 - i]);			    
+				FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_CR],"%02x",fenc[15 - i]);		
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL_CU_CR],"\n");
-	
 			for ( uint8_t  i = 0 ; i < 17 ; i++ )
 			{
 				FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CR],"%02x",LineBuf[16 - i]);			    
+
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL_CU_CR],"\n");
 		}
@@ -2525,7 +2698,22 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			
 		}
 	#endif
+	#if OUTPUT_8X8_DATA
 
+		if((width == 4) && (cur_depth == 3)) // 8x8 CU, chroma size is half of CU.
+		{
+			for ( uint8_t  i = 0 ; i < 16 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_CR],"%02x",fenc[15 - i]);			    
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_CR],"\n");
+			for ( uint8_t  i = 0 ; i < 17 ; i++ )
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_CR],"%02x",LineBuf[16 - i]);			    
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_CR],"\n");
+		}
+	#endif 
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
 		uint8_t 	refLeft[33 + 16 - 1];
@@ -2576,6 +2764,24 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		StoreResidual(g_fp_result_rk, rk_residualCr[RK_COMPENT], puStride, width, height);
 #endif
 
+	#if OUTPUT_8X8_DATA
+		if((width == 4) && (cur_depth == 3)) // 8x8 CU, chroma size is half of CU.
+		{
+			// cr
+			for ( uint8_t  i = 0 ; i < (width*width) ; i++ )
+			{
+				{
+					FPRINT(fp_intra_8x8[INTRA_8_RESI_BEFORE],"%04x",(uint16_t)rk_residualCr[RK_COMPENT][(width*width - 1) - i]);			    
+					FPRINT(fp_intra_8x8[INTRA_8_PRED],"%02x",rk_predCr[RK_COMPENT][(width*width - 1) - i]);			    
+				}
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_RESI_BEFORE],"\n");	
+			FPRINT(fp_intra_8x8[INTRA_8_PRED],"\n");
+		}
+		
+	#endif
+
+	
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
 		{

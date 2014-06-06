@@ -82,11 +82,11 @@ void hardwareC::ConfigFiles(FILE *fp)
     if(!fp)
       return;
     fseek(fp, 0, SEEK_SET);
-    while(fgets(cmdbuff, 512, fp))
+    while(fgets(cmdbuff, 1024, fp))
     {
         int i;
 
-        for(i=0; i<512; i++)
+        for(i=0; i<1024; i++)
         {
             if ((cmdbuff[i] == 0x0d)||(cmdbuff[i] == 0x0a)||(cmdbuff[i] == 0x00))
                 break;
@@ -163,7 +163,11 @@ void hardwareC::ConfigFiles(FILE *fp)
 				strcat( namebuff, cmdbuff);
 			
 				/*open output file */
-				ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[num] = fopen(namebuff, "w");
+				if ( num >= INTRA_4_FILE_NUM)
+					ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_8x8[num - INTRA_4_FILE_NUM] = fopen(namebuff, "w");
+				else if ( num < INTRA_4_FILE_NUM)
+					ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[num] = fopen(namebuff, "w");
+
 				num++;
 
                 break;
@@ -195,6 +199,5 @@ void hardwareC::ConfigFiles(FILE *fp)
 
 		
     }
-	ctu_calc.cu_level_calc[3].m_rkIntraPred->num_fp = num;
 #endif
 }

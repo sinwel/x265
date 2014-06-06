@@ -77,7 +77,7 @@ typedef struct RkIntraPred_35
     uint8_t rk_predSampleCr[16*16];
 } RkIntraPred_35;
 
-typedef enum IntraHardwareFile
+typedef enum Intra4HardwareFile
 {
     INTRA_4_ORI_PIXEL         , //按照y cb y y cr y的顺序打印
     INTRA_4_REF_PIXEL         , //按照y cb y y cr y的顺序进行打印
@@ -100,15 +100,46 @@ typedef enum IntraHardwareFile
     INTRA_4_CU_TOTAL_BITS       ,
     INTRA_4_CU_TOTAL_DISTORTION ,
     INTRA_4_CU_TOTAL_COST       ,
+    INTRA_4_TU_SPLIT_FLAG_BIT   ,
+    INTRA_4_TU_COST_BITS        ,
     INTRA_4_FILE_NUM
-} IntraHardwareFile;
+} Intra4HardwareFile;
+
+typedef enum Intra8HardwareFile
+{
+    INTRA_8_SAD               , //按照18个一行 y 的顺序进行打印 0 sad[0], 1 sad[1], 2 sad[2], 4 sad[4], ... 34 sad[34]
+    INTRA_8_CABAC_MODE_BIT    , //按照18个一行 y 的顺序进行打印 [bit34][bit32]...[bit2][bit1][bit0] 
+    INTRA_8_ORI_PIXEL_CU_LU   , // 8x8 CU 按照64个像素一行的顺序打印，打印顺序p[63]p[62]p[61]...p[1]p[0]
+    INTRA_8_ORI_PIXEL_CU_CB   , // 8x8 CU 按照16个像素一行的顺序打印，打印顺序p[15]p[14]p[13]...p[1]p[0]
+    INTRA_8_ORI_PIXEL_CU_CR   , // 8x8 CU 按照16个像素一行的顺序打印，打印顺序p[15]p[14]p[13]...p[1]p[0]
+    INTRA_8_REF_PIXEL_CU_LU   , //8x8 CU的ref pixel lu像素 33个像素一行 打印顺序p[32]p[31]p[23]...p[1]p[0]
+    INTRA_8_REF_PIXEL_CU_CB   , //8x8 CU的ref pixel cb像素 17个像素一行 打印顺序p[16]p[15]p[14]...p[1]p[0]
+    INTRA_8_REF_PIXEL_CU_CR   , //8x8 CU的ref pixel cr像素 17个像素一行 打印顺序p[16]p[15]p[14]...p[1]p[0]
+    INTRA_8_REF_CU_VALID      , //8x8 CU的ref cu valid信号 按照5bit一行的顺序打印[4][3][2][1][0]
+    INTRA_8_RESI_BEFORE       , //按照16个像素一行的顺序打印，每个像素位宽为16bit，打印顺序p[15]p[14]p[13]...p[1]p[0];按照 y cb cr 的顺序打印
+    INTRA_8_RESI_AFTER        , //按照16个像素一行的顺序打印，每个像素位宽为16bit，打印顺序p[15]p[14]p[13]...p[1]p[0];按照 y cb cr 的顺序打印 
+    INTRA_8_PRED              , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb cr的顺序打印 
+    INTRA_8_RECON             , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb cr的顺序打印 
+    INTRA_8_BEST_MODE         , //按照8bit一行进行打印;按照y cb cr的顺序打印 
+    INTRA_8_TU_CABAC_BITS   	, //按照一个tu 24bit一行的顺序进行打印;按照y cb cr 的顺序打印 
+    INTRA_8_TU_PRED_MODE_BITS   , //按照8bit一行的数据进行打印,按照y cb cr的顺序进行打印
+    INTRA_8_CU_TOTAL_BITS       , //按照24bit一行的顺序进行打印
+    INTRA_8_CU_TOTAL_DISTORTION , //按照32bit一行的顺序进行打印
+    INTRA_8_CU_TOTAL_COST       , //按照32bit一行的顺序进行打印
+    INTRA_8_TU_SPLIT_FLAG_BIT	, //按照8bit一行的顺序进行打印
+    INTRA_8_TU_COST_BITS		, //按照一个Y分量的TU的(sad + sad_lambda * bit)打印;顺序0 cost[0], 1 cost[1], 2 cost[2], 4 cost[4], ... 34 cost[34];cost按32bit打印
+    INTRA_8_FILE_NUM
+} Intra8HardwareFile;
 
 class Rk_IntraPred
 {
 public:
     FILE *rk_logIntraPred[20];
     FILE* fp_intra_4x4[INTRA_4_FILE_NUM];
-    int     num_fp;
+    FILE* fp_intra_8x8[INTRA_8_FILE_NUM];
+
+    int     num_4x4fp;
+    int     num_8x8fp;
 
 	uint8_t             rk_OrgBufAll[6][129];
 	uint8_t             rk_LineBufAll[6][129];
