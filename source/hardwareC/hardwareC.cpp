@@ -76,7 +76,7 @@ void hardwareC::ConfigFiles(FILE *fp)
     char  rc_cfg[]          = "config for rc";
     char  enc_ctrl_cfg[]    = "config for enc_ctrl";
 
-    char  cmdbuff[512];
+    char  cmdbuff[1024];
 	char  namebuff[512];
 	int   num = 0;
     if(!fp)
@@ -88,7 +88,7 @@ void hardwareC::ConfigFiles(FILE *fp)
 
         for(i=0; i<1024; i++)
         {
-            if ((cmdbuff[i] == 0x0d)||(cmdbuff[i] == 0x0a)||(cmdbuff[i] == 0x00))
+            if ((cmdbuff[i] == 0x0d)||(cmdbuff[i] == 0x0a)||(cmdbuff[i] == 0x00)) /* 换行 回车 空字符 */
                 break;
         }
         cmdbuff[i] = 0;
@@ -151,17 +151,27 @@ void hardwareC::ConfigFiles(FILE *fp)
 		    continue;
 		}
 
-
+		int idx = 0;
         switch (current_cfg)
         {
             case CFG_FOR_PREPROCESS:
                 break;
             case CFG_FOR_INTRA:										
+				/* 剔除名字尾部多余空格 */
 				
+				while (cmdbuff[idx])
+				{	
+					if (cmdbuff[idx] == 0x20)
+					{				
+						cmdbuff[idx] = 0; 
+						break;
+					}
+					idx++;
+				}
 				
 				strcpy( namebuff, CFG_FILE);
 				strcat( namebuff, cmdbuff);
-			
+				
 				/*open output file */
 				if ( num >= INTRA_4_FILE_NUM)
 					ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_8x8[num - INTRA_4_FILE_NUM] = fopen(namebuff, "w");
