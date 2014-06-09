@@ -1024,7 +1024,14 @@ void TEncCu::compressCU(TComDataCU* cu)
 		RimeAndFmePrepare(cu, nQp);
 		pHardWare->proc();
 	}
+#endif
+
+#if RK_CTU_CALC_PROC_ENABLE 
     this->pHardWare->ctu_calc.proc();
+#endif
+
+#if RK_CTU_CALC_PROC_ENABLE && RK_INTER_METEST
+
 	if (m_bestCU[0]->getSlice()->getSliceType() != I_SLICE)
 	{
 		if (cu->getAddr() == cu->getPic()->getFrameHeightInCU()*cu->getPic()->getFrameWidthInCU() - 1)

@@ -11,6 +11,7 @@
 #ifdef RK_INTRA_PRED
 extern FILE* g_fp_result_rk;
 extern FILE* g_fp_result_x265;
+extern FILE* g_fp_4x4_params_x265;
 #endif
 static char rk_g_convertToBit[RK_MAX_CU_SIZE + 1];
 
@@ -1574,17 +1575,21 @@ void RK_CheckPredSamples(uint8_t* pred1, uint8_t* pred2, uint32_t width, uint32_
 
 }
 
-void RK_CheckSad(uint64_t* cost1, uint64_t* cost2)
+void RK_CheckSad(uint64_t* cost1, uint64_t* cost2, int width)
 {
 	uint32_t i;
 
 	for ( i = 0 ; i < 35 ; i++ )
 	{
+ 	  // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+ 	  if (INTRA_REDUCE_DIR(i, width))
+ 	  {
 	    if(cost1[i] != cost2[i])
 		{
 			RK_HEVC_PRINT("%s: check failed\n",__FUNCTION__);
 			assert(0);
 		}
+ 	  }
 	}
 }
 
@@ -2081,6 +2086,9 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		uint64_t costTotal[35];
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
+   		  // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+   		  if (INTRA_REDUCE_DIR(dirMode, width))
+   		  {
 	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 
@@ -2129,6 +2137,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			//setLambda(30, 2);
 			costTotal[dirMode] =  costSad[dirMode] + ((bits * m_rklambdaMotionSAD + 32768) >> 16);
+	  	  }
+
 		}
 
 #ifdef INTRA_RESULT_STORE_FILE
@@ -2190,7 +2200,6 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 #endif
 		::memcpy(pInterface_Intra->pred, rk_pred[RK_COMPENT], width*height*sizeof(uint8_t) );
 		::memcpy(pInterface_Intra->resi, rk_residual[RK_COMPENT], width*height*sizeof(int16_t) );
-
 	}
 	else if ( pInterface_Intra->cidx == 1 )
 	{
@@ -2439,6 +2448,9 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 		uint64_t costTotal[35];
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
+		  // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+   		  if (INTRA_REDUCE_DIR(dirMode, width))
+   		  {
 	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 
@@ -2489,9 +2501,10 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 			}
 			assert(g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode] == rk_bits[partOffset][dirMode]);
 		#endif
+   		  }
 		}
 
-		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect);
+		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect, width);
 #ifdef INTRA_RESULT_STORE_FILE
 		StoreSad(g_fp_result_x265, costSad);
 		StoreCost(g_fp_result_x265, costTotal);

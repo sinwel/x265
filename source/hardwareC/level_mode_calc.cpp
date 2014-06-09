@@ -1529,7 +1529,9 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 			offsIdx = 64 + x_pos / 16 + y_pos / 16 * 4;
 		else if (3 == level)
 			offsIdx = x_pos / 8 + y_pos / 8 * 8;
+	#if RK_INTER_METEST
 		inter_proc(offsIdx);
+	#endif
 	}
     intra_proc();
 
