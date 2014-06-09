@@ -127,7 +127,7 @@ void CU_LEVEL_CALC::deinit()
 	X265_FREE(inf_intra4x4.resi);
 #endif
 #if TQ_RUN_IN_HWC_INTRA
-	delete m_hevcQT;
+	//delete m_hevcQT;
 #endif
 
 #if TQ_RUN_IN_HWC_INTRA //added by lks

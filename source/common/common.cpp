@@ -180,10 +180,8 @@ void x265_param_default(x265_param *param)
     // default FME mode 5
     param->subpelRefine = 5;                        // 5
     param->searchRange = 57;
-	param->meRangeX = 256;
-	param->meRangeY = 128;
-    // default use SATD for IME and FME
-	param->judgeStand = JUDGE_SATD;                 // JUDGE_SSE
+	param->meRangeX = 384;
+	param->meRangeY = 320;
     // default 3 candidate
     param->maxNumMergeCand = 3;                     // 2
     // default disable weighted prediction
@@ -487,10 +485,6 @@ int x265_check_params(x265_param *param)
 		"Search Range must be more than 0");
 	CHECK(param->meRangeY >= 32768,
 		"Search Range must be less than 32768");
-	CHECK(param->judgeStand < 0,
-		"Search Range must be more than 0");
-	CHECK(param->judgeStand >= 3,
-		"Search Range must be less than 3");
     CHECK(param->subpelRefine > X265_MAX_SUBPEL_LEVEL,
           "subme must be less than or equal to X265_MAX_SUBPEL_LEVEL (7)");
     CHECK(param->subpelRefine < 0,
@@ -800,15 +794,6 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("me")        p->searchMethod = parseName(value, x265_motion_est_names, berror);
     OPT("cutree")    p->rc.cuTree = bvalue;
     OPT("no-cutree") p->rc.cuTree = bvalue;
-    else if (!strcmp(name, "judgestand"))
-    {
-		if (0 == atoi(value))
-			p->judgeStand = JUDGE_SATD;
-		else if (1 == atoi(value))
-			p->judgeStand = JUDGE_SAD;
-		else
-			p->judgeStand = JUDGE_SSE;
-    }
 	else
         return X265_PARAM_BAD_NAME;
 #undef OPT
@@ -838,12 +823,6 @@ char *x265_param2string(x265_param *p)
     s += sprintf(s, " merange=%d", p->searchRange);
 	s += sprintf(s, " merangex=%d", p->meRangeX);
 	s += sprintf(s, " merangey=%d", p->meRangeY);
-	if (JUDGE_SATD == p->judgeStand)
-		s += sprintf(s, " judgestand=SATD");
-	else if (JUDGE_SAD == p->judgeStand)
-        s += sprintf(s, " judgestand=SAD");
-	else
-		s += sprintf(s, " judgestand=SSE");
 
     BOOL(p->bEnableRectInter, "rect");
     BOOL(p->bEnableAMP, "amp");

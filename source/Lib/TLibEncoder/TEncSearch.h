@@ -63,7 +63,7 @@ namespace x265 {
 // private namespace
 
 // add by zxy 
-//#define RK_INTRA_SAD_REPALCE_SATD   
+#define RK_INTRA_SAD_REPALCE_SATD   
 
 
 class TEncCu;
@@ -201,14 +201,16 @@ public:
     // -------------------------------------------------------------------------------------------------------------------
     // compute symbol bits
     // -------------------------------------------------------------------------------------------------------------------
+#if RK_INTER_METEST
+	void predInterSearch(TComYuv* predYuv, TComDataCU* cu);
+	uint32_t xSymbolBitsInter(TComDataCU* cu, bool isCalcRDOTwice);
 	void getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, int nRefPicIdx, bool isFirst = true);
-    uint32_t xSymbolBitsInter(TComDataCU* cu);
 	unsigned int getOffsetIdx(int nCtuSize, int nCuPelX, int nCuPelY, unsigned int width);
 	bool checkSavePmv(unsigned int nCtuSize, unsigned int nCuSize, unsigned int offsIdx, unsigned int nPicWidth, unsigned int nPicHeight, unsigned int nCtuAddr);
-#if RK_INTER_CALC_RDO_TWICE
-	uint32_t xSymbolBitsInter(TComDataCU* cu, bool isCalcRDOTwice);
+	void xSetSearchRange(TComDataCU* cu, MV mvp, int merange_x, int merange_y, MV& mvmin, MV& mvmax);
+	void xSetSearchRange(TComDataCU* cu, int merange_x, int merange_y, MV& mvmin, MV& mvmax);
 #endif
-
+	uint32_t xSymbolBitsInter(TComDataCU* cu);
 protected:
 
     // --------------------------------------------------------------------------------------------
@@ -274,10 +276,6 @@ protected:
     // -------------------------------------------------------------------------------------------------------------------
 
     void xSetSearchRange(TComDataCU* cu, MV mvp, int merange, MV& mvmin, MV& mvmax);
-#if RK_INTER_METEST
-    void xSetSearchRange(TComDataCU* cu, MV mvp, int merange_x, int merange_y, MV& mvmin, MV& mvmax);
-	void xSetSearchRange(TComDataCU* cu, int merange_x, int merange_y, MV& mvmin, MV& mvmax);
-#endif
     // -------------------------------------------------------------------------------------------------------------------
     // T & Q & Q-1 & T-1
     // -------------------------------------------------------------------------------------------------------------------

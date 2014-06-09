@@ -128,7 +128,7 @@ void MotionEstimate::setSourcePU(int offset, int width, int height)
     blockOffset = offset;
 
     /* copy PU block into cache */
-#if !RK_INTER_ME_TEST
+#if !RK_INTER_METEST
     primitives.luma_copy_pp[partEnum](fenc, FENC_STRIDE, fencplane + offset, fencLumaStride);
 #else
 	for (int i = 0; i < FENC_STRIDE; i ++)
@@ -1306,6 +1306,10 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	{
 		Pmv[nRefPicIdx][idx + 1] = mvNeighBor[idx];
 	}
+	if (nMvNeighBor < nNeightMv)
+	{
+		Pmv[nRefPicIdx][2] = Pmv[nRefPicIdx][1];
+	}
 
 	short Width = static_cast<short>(nRimeWidth);
 	short Height = static_cast<short>(nRimeHeight);
@@ -1362,11 +1366,6 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 		}
 	}
 
-	if (nMvNeighBor < nNeightMv)
-	{
-		Pmv[nRefPicIdx][2] = Pmv[nRefPicIdx][1];
-	}
-
 	/*7x7块的每个点都算  add by hdl*/
 	bcost = MAX_INT;
 	for (int idxPmv = 0; idxPmv <= nNeightMv; idxPmv++)
@@ -1421,7 +1420,16 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 					pfref[n + m * (blockwidth + 8)] = (pRef[n + m*ref->lumaStride] >> shift) << shift;
 				}
 			}
-			int cost = subpelCompare(pfref, (blockwidth + 8), pfenc, blockwidth, qmv);
+			tmpCost = MAX_INT;
+			for (int idx = 0; idx < 3; idx++)
+			{
+				setMVP(mvNeighBor[7 + idx]);
+				if (tmpCost > mvcost(qmv))
+					tmpCost = mvcost(qmv);
+			}
+			if (!isHaveMvd)
+				tmpCost = 0;
+			int cost = subpelCompare(pfref, (blockwidth + 8), pfenc, blockwidth, qmv) + tmpCost;
 			COPY2_IF_LT(bcost, cost, bmv, qmv);
 		}
 	}

@@ -332,7 +332,7 @@ RateControl::RateControl(TEncCfg * _cfg)
     {
         lastQScaleFor[i] = qp2qScale(cfg->param.rc.rateControlMode == X265_RC_CRF ? ABR_INIT_QP : ABR_INIT_QP_MIN);
         lmin[i] = qp2qScale(MIN_QP);
-#if 1 //add by HDL
+#if RK_CHANGE_MAX_QP //add by HDL
 		lmax[i] = qp2qScale(MAX_QP);
 #else
 		lmax[i] = qp2qScale(MAX_MAX_QP);
@@ -342,7 +342,7 @@ RateControl::RateControl(TEncCfg * _cfg)
     if (cfg->param.rc.rateControlMode == X265_RC_CQP)
     {
         qpConstant[P_SLICE] = baseQp;
-#if 1 //add by HDL
+#if RK_CHANGE_MAX_QP //add by HDL
         qpConstant[I_SLICE] = Clip3(0, MAX_QP, (int)(baseQp - ipOffset + 0.5));
         qpConstant[B_SLICE] = Clip3(0, MAX_QP, (int)(baseQp + pbOffset + 0.5));
 #else 
@@ -377,7 +377,11 @@ void RateControl::rateControlStart(TComPic* pic, Lookahead *l, RateControlEntry*
     {
         lastSatd = l->getEstimatedPictureCost(pic);
         double q = qScale2qp(rateEstimateQscale(rce));
-        qp = Clip3(MIN_QP, MAX_MAX_QP, (int)(q + 0.5));
+#if RK_CHANGE_MAX_QP
+		qp = Clip3(MIN_QP, MAX_QP, (int)(q + 0.5));
+#else
+		qp = Clip3(MIN_QP, MAX_MAX_QP, (int)(q + 0.5));
+#endif
         rce->qpaRc = q;
         /* copy value of lastRceq into thread local rce struct *to be used in RateControlEnd() */
         rce->qRceq = lastRceq;

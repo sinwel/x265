@@ -54,6 +54,8 @@ public:
 	/*inter FME MERGE input and output add by HDL*/
 	class FractionMotionEstimation Fme;
 	class MergeProc Merge;
+	class AmvpCand m_Amvp;
+	class MergeMvpCand m_MergeCand;
 
     struct INTERFACE_INTRA_PROC inf_intra_proc;
     struct INTERFACE_INTER_FME_PROC     inf_inter_fme_proc;

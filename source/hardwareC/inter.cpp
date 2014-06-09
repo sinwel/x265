@@ -147,7 +147,9 @@ double Lambda[QP_MAX] =
 	16.57137733, 22.183542, 29.5936, 39.357022, 52.19656867, 69.05173333, 91.14257667, 150.0651347,
 	157.8325333, 207.1422197, 271.4221573, 443.904, 447.4271947, 563.722941, 710.2464, 1118.567987,
 	1127.445883, 1420.4928, 1789.70878, 2818.614706, 2840.9856, 3579.41756, 4509.78353, 7102.464,
-	7158.83512, 9019.56706, 11363.9424
+	7158.83512, 9019.56706, 11363.9424, 14317.66967, 18039.13269, 22727.8821, 28635.33594, 36078.2611,
+	45455.7588, 57270.66508, 72156.51362, 90911.5068, 114541.3166, 144313.0101, 181822.992, 229082.6059,
+	288625.9859, 363645.9408, 458165.1574, 577251.9032, 727291.7952
 };
 
 int LambdaMotionSAD_tab_non_I[QP_MAX] =
@@ -2665,7 +2667,17 @@ void RefineIntMotionEstimation::RimeAndFme(int nRefPicIdx)
 		{
 			Mv qmv; qmv.x = tmv.x*4 + i; qmv.y = tmv.y*4 + j;
 			unsigned char *fref = pCuRimeSW + (qmv.x >> 2) - 4 + ((qmv.y >> 2)-4)* m_nRimeSwWidth;
+			unsigned short tmpCost = USHORT_MAX;
+			for (int idx = 0; idx < 3; idx++)
+			{
+				Mv Tmv; 
+				Tmv.x = qmv.x + m_mvRefine[nRefPicIdx][pmvBestIdx].x * 4;
+				Tmv.y = qmv.y + m_mvRefine[nRefPicIdx][pmvBestIdx].y * 4;
+				if (tmpCost > mvcost(mvp[idx], Tmv))
+					tmpCost = mvcost(mvp[idx], Tmv);
+			}
 			int cost = subpelCompare(fref, m_nRimeSwWidth, m_pCurrCuPel, m_nCuSize, qmv);
+			cost += tmpCost;
 			COPY_IF_LT(bcost, cost, bmv.x, qmv.x, bmv.y, qmv.y);
 		}
 	}

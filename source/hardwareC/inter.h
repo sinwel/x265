@@ -1,7 +1,7 @@
 #ifndef INTER_H
 #define INTER_H
 
-#define QP_MAX 52
+#define QP_MAX 70
 #define MV_MAX 32768
 #define INT_MAX_MINE 2147483647  ///< max. value of signed 32-bit integer
 #define USHORT_MAX 32767
@@ -147,7 +147,6 @@ extern unsigned int RasterToPelY[256];
 extern unsigned int RasterToPelX[256];
 extern double Lambda[QP_MAX];
 extern int LambdaMotionSAD_tab_non_I[QP_MAX];
-#define RK_INTER_ME_TEST 1
 #define RK_NULL 0
 
 extern short g_mergeResiY[4][64*64];

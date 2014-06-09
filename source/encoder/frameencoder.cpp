@@ -522,8 +522,11 @@ void FrameEncoder::compressFrame()
                 w = slice->m_weightPredTable[l][ref];
                 slice->m_numWPRefs++;
             }
-            //m_mref[l][ref].init(slice->getRefPic(l, ref)->getPicYuvRec(), w);
+#if RK_INTER_METEST
 			m_mref[l][ref].init(slice->getRefPic(l, ref)->getPicYuvRec(), slice->getRefPic(l,ref)->getPicYuvOrg(), w); //add by hdl for CIME
+#else
+			m_mref[l][ref].init(slice->getRefPic(l, ref)->getPicYuvRec(), w);
+#endif
         }
     }
 
@@ -1121,7 +1124,7 @@ void FrameEncoder::processRowEncoder(int row)
         if (m_cfg->param.rc.aqMode)
         {
             int qp = calcQpForCu(m_pic, cuAddr);
-#if 1 //add by HDL, i think it is a bug
+#if RK_INTER_METEST //add by HDL, i think it is a bug
 			if (m_cfg->param.bEnableWavefront)
 				setLambda(qp, row);
 			else
@@ -1215,7 +1218,7 @@ int FrameEncoder::calcQpForCu(TComPic *pic, uint32_t cuAddr)
         qp_offset /= cnt;
         qp += qp_offset;
     }
-#if 1 //add by HDL for fixing a bug
+#if RK_CHANGE_MAX_QP //add by HDL for fixing a bug
 	return Clip3(MIN_QP, MAX_QP, (int)(qp + 0.5));
 #else
 	return Clip3(MIN_QP, MAX_MAX_QP, (int)(qp + 0.5));

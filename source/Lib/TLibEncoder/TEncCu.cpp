@@ -356,7 +356,7 @@ void TEncCu::init(Encoder* top)
  */
 bool mergeFlag = 0;
 
-#if RK_INTER_ME_TEST
+#if RK_INTER_METEST
  void TEncCu::CimePrepare(TComDataCU* cu, int nQp)
  { //add by HDL for CIME verification
  	/*fetch reference and original picture, neighbor mv*/
@@ -466,7 +466,6 @@ bool mergeFlag = 0;
 		 isCuOutPic = true;
 	 return isCuOutPic;
  }
-
 void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 {//add by HDL for RIME verification
 	/*fetch reference and original picture, neighbor mv*/
@@ -659,7 +658,6 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 		pHardWare->Rime[idx[i]].CreateCuInfo(nCuSize + 2 * (nRimeWidth + 4), nCuSize + 2 * (nRimeHeight + 4), nCuSize);
 	}
 }
-
 void TEncCu::SaveTemporalMv(TComDataCU* cu)
 {
 	if(!cu->getSlice()->isReferenced()) return;
@@ -716,7 +714,6 @@ void TEncCu::SaveTemporalMv(TComDataCU* cu)
 		}
 	}
 }
-
 void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 {
 	int nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
@@ -918,6 +915,49 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 			}
 		}
 	}
+
+	MergeCand.setCtuPosInPic(cu->getAddr());
+	Amvp.setCtuPosInPic(cu->getAddr());
+	MergeCand.setCurrPicPoc(cu->getSlice()->getPOC());
+	Amvp.setCurrPicPoc(cu->getSlice()->getPOC());
+	MergeCand.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
+	Amvp.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
+	MergeCand.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
+	Amvp.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
+	MergeCand.setMergeCandNum(cu->getSlice()->getMaxNumMergeCand());
+	
+	MergeCand.setCheckLDC(cu->getSlice()->getCheckLDC());
+	Amvp.setCheckLDC(cu->getSlice()->getCheckLDC());
+	MergeCand.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
+	Amvp.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
+	int nRefPicNum[2];
+	nRefPicNum[0] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+	nRefPicNum[1] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
+	MergeCand.setRefPicNum(nRefPicNum);
+
+	if (cu->getSlice()->isInterB())
+	{
+		MergeCand.setSliceType(b_slice);
+		Amvp.setSliceType(b_slice);
+	}
+	else if (cu->getSlice()->isInterP())
+	{
+		MergeCand.setSliceType(p_slice);
+		Amvp.setSliceType(p_slice);
+	}
+	else
+	{
+		MergeCand.setSliceType(i_slice);
+		Amvp.setSliceType(i_slice);
+	}
+	int nCurrRefPicPoc[2] = { 0 };
+	nCurrRefPicPoc[0] = cu->getSlice()->getRefPic(REF_PIC_LIST_0, 0)->getPOC();
+	if (cu->getSlice()->isInterB())
+	{
+		nCurrRefPicPoc[1] = cu->getSlice()->getRefPic(REF_PIC_LIST_1, 0)->getPOC();
+	}
+	MergeCand.setCurrRefPicPoc(nCurrRefPicPoc);
+	Amvp.setCurrRefPicPoc(nCurrRefPicPoc);
 }
 #endif
 
@@ -953,12 +993,6 @@ void TEncCu::compressCU(TComDataCU* cu)
     pHardWare->ctu_calc.QP_cr = cu->m_qp[0] + m_bestCU[0]->getSlice()->getPPS()->getChromaCrQpOffset();
     #endif
 
-
-    // analysis of CU
-#if LOG_CU_STATISTICS
-    int numPartition = cu->getTotalNumPart();
-#endif
-
     if (m_bestCU[0]->getSlice()->getSliceType() == I_SLICE)
     {
         xCompressIntraCU(m_bestCU[0], m_tempCU[0], 0);
@@ -972,16 +1006,18 @@ void TEncCu::compressCU(TComDataCU* cu)
         }
         else
 		{
-#if RK_INTER_CALC_RDO_TWICE
+#if RK_INTER_METEST
 		setMvpCandInfoForCtu(m_bestCU[0]);
 		xCompressCU(m_bestCU[0], m_tempCU[0], 0, true);
 #else
 			xCompressCU(m_bestCU[0], m_tempCU[0], 0);
-#endif //end RK_INTER_CALC_RDO_TWICE
+#endif //end RK_INTER_METEST
 		}
     }
+#if RK_INTER_METEST
 	SaveTemporalMv(m_bestCU[0]);
-#if RK_CTU_CALC_PROC_ENABLE
+#endif
+#if RK_CTU_CALC_PROC_ENABLE && RK_INTER_METEST
 	if (m_bestCU[0]->getSlice()->getSliceType() != I_SLICE)
 	{
 		CimePrepare(cu, nQp);
@@ -1931,7 +1967,7 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
     assert(outBestCU->m_totalCost != MAX_DOUBLE);
 }
 
-#if RK_INTER_CALC_RDO_TWICE
+#if RK_INTER_METEST
 void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTempCU)
 {
 	assert(outTempCU->getSlice()->getSliceType() != I_SLICE);
@@ -1950,7 +1986,6 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 
 	uint32_t offsIdx = m_search->getOffsetIdx(g_maxCUWidth, outTempCU->getCUPelX(), outTempCU->getCUPelY(), outTempCU->getWidth(0));
 	outTempCU->getInterMergeCandidates(0, 0, mvFieldNeighbours, interDirNeighbours, numValidMergeCand);
-	outTempCU->PrefetchMergeCandidatesInfo(offsIdx);
 	MergeCand.getMergeCandidates();
 	for (int i = 0; i < numValidMergeCand; i ++)
 	{
@@ -1969,12 +2004,9 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 		mergeCandBuffer[i] = 0;
 	}
 
-#if RK_INTER_ME_TEST
-	//uint32_t offsIdx = m_search->getOffsetIdx(g_maxCUWidth, outTempCU->getCUPelX(), outTempCU->getCUPelY(), outTempCU->getWidth(0));
 	bool isValid[5] = { 0 };
 	for (int i = 0; i < 5; i++)
 		isValid[i] = false;
-	//bool isInPMV[nNeightMv] = { 0 };
 	bool isPrev = false;
 	bool isPost = false;
 	int nCount = 0;
@@ -2033,16 +2065,13 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 	}
 	if (0 == nCount)
 		outTempCU->m_totalCost = MAX_INT64;
-#endif
 
 	int BestCost = MAX_INT;
 	int BestIdx = 0;
 	for (uint32_t mergeCand = 0; mergeCand < numValidMergeCand; ++mergeCand)
 	{
-#if RK_INTER_ME_TEST
 		if (!isValid[mergeCand])
 			continue;
-#endif
 		outTempCU->setPredModeSubParts(MODE_INTER, 0, depth); // interprets depth relative to LCU level
 		outTempCU->setCUTransquantBypassSubParts(m_cfg->getCUTransquantBypassFlagValue(),     0, depth);
 		outTempCU->setPartSizeSubParts(SIZE_2Nx2N, 0, depth); // interprets depth relative to LCU level
@@ -2068,7 +2097,6 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 		}
 	}
 
-#if RK_INTER_ME_TEST
 	if (nCount>0)
 	{
 		outTempCU->setPredModeSubParts(MODE_INTER, 0, depth); // interprets depth relative to LCU level
@@ -2136,26 +2164,22 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 	}
 	xCheckDQP(outTempCU);
 	xCheckBestMode(outBestCU, outTempCU, depth);
-#endif
 }
-void TEncCu::xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU, PartSize partSize, bool isCalcRDOTwice, bool bUseMRG)
+void TEncCu::xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU)
 {
-	if (!isCalcRDOTwice)
-		return;
 	UChar depth = outTempCU->getDepth(0);
 
 	outTempCU->setDepthSubParts(depth, 0);
 	outTempCU->setSkipFlagSubParts(false, 0, depth);
-	outTempCU->setPartSizeSubParts(partSize, 0, depth);
+	outTempCU->setPartSizeSubParts(SIZE_2Nx2N, 0, depth);
 	outTempCU->setPredModeSubParts(MODE_INTER, 0, depth);
 	outTempCU->setCUTransquantBypassSubParts(m_cfg->getCUTransquantBypassFlagValue(), 0, depth);
 
 	outTempCU->setMergeAMP(true);
 	m_tmpRecoYuv[depth]->clear();
 	m_tmpResiYuv[depth]->clear();
-	m_search->predInterSearch(outTempCU, m_tmpPredYuv[depth], bUseMRG, true, true);
+	m_search->predInterSearch(m_tmpPredYuv[depth], outTempCU);
 
-#if RK_INTER_ME_TEST
 	UChar Width = outTempCU->getWidth(0);
 	UChar Height = outTempCU->getHeight(0);
 	unsigned int offsIdx = m_search->getOffsetIdx(g_maxCUWidth, outTempCU->getCUPelX(), outTempCU->getCUPelY(), outTempCU->getWidth(0));
@@ -2190,7 +2214,6 @@ void TEncCu::xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 			g_FmeResiV[depth][(j + offset_x / 2) + (i + offset_y / 2) * 32] = static_cast<short>(pOrigV[j + i*stride / 2] - predV[j + i*stride / 2]);
 		}
 	}
-#endif
 #if TQ_RUN_IN_HWC_ME
 	g_fme = true;
 #endif
@@ -2247,18 +2270,17 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 	if (!bSliceEnd && bInsidePicture)
 	{
 		outTempCU->initEstData(depth, qp);
-		xCheckRDCostInter(outBestCU, outTempCU, SIZE_2Nx2N, true, false);
+		outTempCU->PrefetchMergeAmvpCandInfo(offsIdx);
+		xCheckRDCostInter(outBestCU, outTempCU);
 		outTempCU->initEstData(depth, qp);
 		xCheckRDCostMerge2Nx2N(outBestCU, outTempCU);
 		outTempCU->initEstData(depth, qp);
-		//m_search->motionCompensation(outBestCU, m_bestPredYuv[depth], REF_PIC_LIST_X, 0, false, true);
-		//m_search->encodeResAndCalcRdInterCU(outBestCU, m_origYuv[depth], m_bestPredYuv[depth], m_tmpResiYuv[depth], m_bestResiYuv[depth], m_bestRecoYuv[depth], false);
-		#if 0
+#if 0
 		if (outBestCU->getSlice()->getSliceType() == I_SLICE ||
 			outBestCU->getCbf(0, TEXT_LUMA) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_U) != 0   ||
 			outBestCU->getCbf(0, TEXT_CHROMA_V) != 0) // avoid very complex intra if it is unlikely
-		#endif
+#endif
 		{
 			xCheckRDCostIntraInInter(outBestCU, outTempCU, SIZE_2Nx2N);
 			outTempCU->initEstData(depth, qp);
