@@ -238,11 +238,11 @@ void hardwareC::ConfigFiles(FILE *fp)
             case CFG_FOR_PREPROCESS:
                 break;
             case CFG_FOR_INTRA:										
-				/* 剔除名字尾部多余空格 */
+				/* cut "space" and "tab" char */
 				
 				while (cmdbuff[idx])
 				{	
-					if (cmdbuff[idx] == 0x20)
+					if ((cmdbuff[idx] == 0x20)||(cmdbuff[idx] == 0x9)) // 32 is space , 9 is tab
 					{				
 						cmdbuff[idx] = 0; 
 						break;
