@@ -215,7 +215,7 @@ public:
 	void destroy(); //actually not used
 	void proc(int predMode); // for X265, predMode=0, means Intra; preMode=1, means Inter.
 	void proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t qp, uint8_t sliceType); // for intra
-	void proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType); //for inter
+	void proc(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me, uint8_t textType, uint8_t qp, uint8_t sliceType); //for inter
 	void procTandQ();
 	void procIQandIT();
 	void setQPforQ(int qpy, uint8_t ttype);
@@ -227,9 +227,9 @@ public:
 	/************************************************************************/
 	// set info by other modules, called in other modules
 	void getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t qp, uint8_t sliceType);
-	void getFromInter(INTERFACE_ME* inf_me, uint8_t textType);
+	void getFromInter(INTERFACE_ME* inf_me, uint8_t textType, uint8_t qp, uint8_t sliceType);
 	void setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra);
-
+    void setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me);
 	// set info
 	void set2Cabac(InfoQTandCabac* infoQTandCabac);
 	void set2Intra(InfoQTandIntra* infoQTandIntra);
@@ -239,6 +239,7 @@ public:
 	infoForQT*		  m_infoForQT;
 	FILE*			  m_fp_TQ_LOG_X265_INTRA;
 	FILE*			  m_fp_TQ_LOG_X265_ME;
+
 	/************************************************************************/
 	/*                       debug in x265                                   */
 	/************************************************************************/

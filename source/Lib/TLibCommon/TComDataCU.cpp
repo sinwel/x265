@@ -39,9 +39,7 @@
 #include "TComDataCU.h"
 #include "TComPic.h"
 #include "mv.h"
-#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
-#define max(a,b) (a) > (b) ? (a) : (b)
-#endif
+
 using namespace x265;
 
 static MV scaleMv(MV mv, int scale)
@@ -2303,6 +2301,834 @@ void TComDataCU::getInterMergeCandidates(uint32_t absPartIdx, uint32_t puIdx, TC
     numValidMergeCand = arrayAddr;
 }
 
+void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
+{
+	MergeCand.setCuPosInCtu(offsIdx);
+	Amvp.setCuPosInCtu(offsIdx);
+	if (offsIdx < 64)
+	{
+		MergeCand.setCuSize(8);
+		Amvp.setCuSize(8);
+	}
+	else if (offsIdx < 80)
+	{
+		MergeCand.setCuSize(16);
+		Amvp.setCuSize(16);
+	}
+	else if (offsIdx < 84)
+	{
+		MergeCand.setCuSize(32);
+		Amvp.setCuSize(32);
+	}
+	else
+	{
+		MergeCand.setCuSize(64);
+		Amvp.setCuSize(64);
+	}
+
+	SPATIAL_MV mvSpatial;
+	switch (offsIdx)
+	{
+	//top left is 8
+	case 0: 
+	case 36:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i+5);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 5);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 18:
+	case 54:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i+5);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 5);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+	//top left is 6
+	case 16:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 3);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 3);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 34:
+	case 52:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 3);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 3);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+	//top left is 10
+	case 2:
+	case 20:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 7);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 7);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+	case 38:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 7);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 7);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+	//top left is 4
+	case 32:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 1);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 1);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 50:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 1);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 1);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+	//top left is 12
+	case 4:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 9);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 9);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 22:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 9);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 9);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+	//top left is 2
+	case 48:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i - 1);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i - 1);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+	//top left is 14
+	case 6:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCtu(mvSpatial, i + 11);
+			MergeCand.setMvSpatialForCu8(mvSpatial, i);
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 11);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+
+	case 64:
+	{
+			   int idx[10] = { 3, 4, 5, 6, 8, 9, 10, 11, 12, 13 };
+			   for (int i = 0; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+	}
+		break;
+	case 66:
+	{
+			   int idx[9] = { 8, 9, 10, 12, 13, 14, 15, 16, 17 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   MergeCand.setMvSpatialForCu16(mvSpatial, 0);
+			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 72:
+	{
+			   int idx[9] = { 0, 1, 2, 4, 5, 6, 7, 8, 9 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   MergeCand.setMvSpatialForCu16(mvSpatial, 0);
+			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 74:
+	{
+			   int idx[8] = { 4, 5, 6, 8, 9, 10, 11, 12 };
+			   for (int i = 1; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   MergeCand.setMvSpatialForCu16(mvSpatial, 0);
+			   MergeCand.setMvSpatialForCu16(mvSpatial, 9);
+			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
+			   Amvp.setMvSpatialForCu16(mvSpatial, 9);
+	}
+		break;
+
+	case 80:
+	{
+			   int idx[9] = { 0, 3, 4, 8, 9, 12, 13, 16, 17 };
+			   for (int i = 0; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   MergeCand.setMvSpatialForCu32(mvSpatial, i);
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   Amvp.setMvSpatialForCu32(mvSpatial, i);
+			   }
+	}
+		break;
+
+	case 84:
+	{
+			   int idx[4] = { 0, 8, 16, 17 };
+			   for (int i = 0; i <= 3; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   MergeCand.setMvSpatialForCu64(mvSpatial, i);
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   Amvp.setMvSpatialForCu64(mvSpatial, i);
+			   }
+	}
+		break;
+	}
+	
+	for (int i = 0; i < 5; i++)
+	{
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatial(mvSpatial, i);
+		Amvp.setMvSpatial(mvSpatial, i);
+	}
+	
+	if (offsIdx < 64)
+	{
+		if ( ((offsIdx/8)%2==0) && (offsIdx%2==0) ) //left top
+		{
+			int idx[5] = { 2, 4, 5, 1, 3 };
+			for (int i = 0; i < 5; i ++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		} 
+		else if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 != 0) ) //right top
+		{
+			int idx[5] = { 3, 5, 6, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3==i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		} 
+		else if ( ((offsIdx / 8) % 2 != 0) && (offsIdx % 2 == 0) ) //left bottom
+		{
+			int idx[5] = { 1, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 != 0) ) //right bottom
+		{
+			int idx[5] = { 2, 4, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 2);
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 2);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 80)
+	{
+		if ( ((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0 ) //left top
+		{
+			int idx[5] = { 3, 6, 7, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if ( ((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0 ) //right top
+		{
+			int idx[5] = { 4, 8, 9, 0, 6 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3==i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if ( ((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0 ) //left bottom
+		{
+			int idx[5] = { 1, 4, 5, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if ( ((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0 ) //right bottom
+		{
+			int idx[5] = { 3, 6, 0, 0, 4 };
+			for (int i = 0; i < 5; i ++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 2);
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 2);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 84)
+	{
+		if (80 == offsIdx) //left top
+		{
+			int idx[5] = { 2, 5, 6, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (81 == offsIdx) //right top
+		{
+			int idx[5] = { 3, 7, 8, 0, 5 };
+			for (int i = 0; i < 5; i ++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if (82 == offsIdx) //left bottom
+		{
+			int idx[5] = { 0, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if (83 == offsIdx) //right bottom
+		{
+			int idx[5] = { 2, 5, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
+				MergeCand.setMvSpatial(mvSpatial, i);
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.setMvSpatial(mvSpatial, 2);
+			MergeCand.setMvSpatial(mvSpatial, 3);
+			Amvp.setMvSpatial(mvSpatial, 2);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx == 84)
+	{
+		int idx[5] = { 0, 2, 3, 0, 1 };
+		for (int i = 0; i < 5; i ++)
+		{
+			if (3 == i)
+				continue;
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			MergeCand.getMvSpatialForCu64(mvSpatial, idx[i]);
+			MergeCand.setMvSpatial(mvSpatial, i);
+			Amvp.getMvSpatialForCu64(mvSpatial, idx[i]);
+			Amvp.setMvSpatial(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatial(mvSpatial, 3);
+		Amvp.setMvSpatial(mvSpatial, 3);
+	}
+}
+
+void TComDataCU::UpdateMvpInfo(unsigned int offsIdx)
+{
+	SPATIAL_MV mvSpatial;
+	TComMvField mvField;
+	if (offsIdx<64)
+	{
+		mvSpatial.valid = 1;
+		for (int i = 0; i < 2; i ++)
+		{
+			getMvField(this, 0, i, mvField);
+			if (mvField.refIdx >= 0)
+				mvSpatial.pred_flag[i] = 1;
+			else
+				mvSpatial.pred_flag[i] = 0;
+			mvSpatial.mv[i].x = mvField.mv.x;
+			mvSpatial.mv[i].y = mvField.mv.y;
+			mvSpatial.ref_idx[i] = mvField.refIdx;
+			mvSpatial.delta_poc[i] = getSlice()->getPOC() -	getSlice()->getRefPOC(i, mvField.refIdx);
+		}
+		if ( (offsIdx/8)%2 == 0 && offsIdx%2==0 ) //left top
+		{
+			MergeCand.setMvSpatialForCu8(mvSpatial, 3);
+			Amvp.setMvSpatialForCu8(mvSpatial, 3);
+		}
+		else if ( (offsIdx / 8) % 2 == 0 && offsIdx % 2 != 0 ) //right top
+		{
+			MergeCand.setMvSpatialForCu8(mvSpatial, 4);
+			Amvp.setMvSpatialForCu8(mvSpatial, 4);
+		}
+		else if ( (offsIdx / 8) % 2 != 0 && offsIdx % 2 == 0 ) //left bottom
+		{
+			MergeCand.setMvSpatialForCu8(mvSpatial, 2);
+			Amvp.setMvSpatialForCu8(mvSpatial, 2);
+		}
+		else if ( (offsIdx / 8) % 2 != 0 && offsIdx % 2 != 0 ) //right bottom
+		{
+			MergeCand.setMvSpatialForCu8(mvSpatial, 3);
+			Amvp.setMvSpatialForCu8(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx<80)
+	{
+		bool isSplit = getDepth(0)>2;
+		mvSpatial.valid = 1;
+		for (int i = 0; i < 2; i++)
+		{
+			getMvField(this, 0, i, mvField);
+			if (mvField.refIdx >= 0)
+				mvSpatial.pred_flag[i] = 1;
+			else
+				mvSpatial.pred_flag[i] = 0;
+			mvSpatial.mv[i].x = mvField.mv.x;
+			mvSpatial.mv[i].y = mvField.mv.y;
+			mvSpatial.ref_idx[i] = mvField.refIdx;
+			mvSpatial.delta_poc[i] = getSlice()->getPOC() - getSlice()->getRefPOC(i, mvField.refIdx);
+		}
+		//update internal info
+		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu8(mvSpatial, 3);
+				Amvp.getMvSpatialForCu8(mvSpatial, 3);
+			}
+			MergeCand.setMvSpatialForCu16(mvSpatial, 4);
+			Amvp.setMvSpatialForCu16(mvSpatial, 4);
+		}
+		else if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu8(mvSpatial, 2);
+				Amvp.getMvSpatialForCu8(mvSpatial, 2);
+			}
+			MergeCand.setMvSpatialForCu16(mvSpatial, 5);
+			Amvp.setMvSpatialForCu16(mvSpatial, 5);
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu8(mvSpatial, 3);
+				Amvp.getMvSpatialForCu8(mvSpatial, 3);
+			}
+			MergeCand.setMvSpatialForCu16(mvSpatial, 6);
+			Amvp.setMvSpatialForCu16(mvSpatial, 6);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu8(mvSpatial, 3);
+				Amvp.getMvSpatialForCu8(mvSpatial, 3);
+			}
+			MergeCand.setMvSpatialForCu16(mvSpatial, 3);
+			Amvp.setMvSpatialForCu16(mvSpatial, 3);
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu8(mvSpatial, 2);
+				Amvp.getMvSpatialForCu8(mvSpatial, 2);
+			}
+			MergeCand.setMvSpatialForCu16(mvSpatial, 2);
+			Amvp.setMvSpatialForCu16(mvSpatial, 2);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu8(mvSpatial, 3);
+				Amvp.getMvSpatialForCu8(mvSpatial, 3);
+			}
+			MergeCand.setMvSpatialForCu16(mvSpatial, 4);
+			Amvp.setMvSpatialForCu16(mvSpatial, 4);
+		}
+		
+		//update external info (CTU info)
+		switch (offsIdx)
+		{
+		case 0: //left top is 8
+		case 18:
+		case 36:
+		case 54:
+		case 64:
+		case 69:
+		case 74:
+		case 79:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 7);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 7);
+			}
+			break;
+		case 16: //left top is 6
+		case 34:
+		case 52:
+		case 68:
+		case 73:
+		case 78:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 5);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 5);
+			}
+			break;
+		case 2: //left top is 10
+		case 20:
+		case 38:
+		case 65:
+		case 70:
+		case 75:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 9);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 9);
+			}
+			break;
+		case 32: //left top is 4
+		case 50:
+		case 72:
+		case 77:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 3);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 3);
+			}
+			break;
+		case 4: //left top is 12
+		case 22:
+		case 66:
+		case 71:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 11);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 11);
+			}
+			break;
+		case 48: //left top is 2
+		case 76:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 1);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 1);
+			}
+			break;
+		case 6: //left top is 14
+		case 67:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					MergeCand.getMvSpatialForCu8(mvSpatial, i + 2);
+					Amvp.getMvSpatialForCu8(mvSpatial, i + 2);
+				}				
+				MergeCand.setMvSpatialForCtu(mvSpatial, i + 13);
+				Amvp.setMvSpatialForCtu(mvSpatial, i + 13);
+			}
+			break;
+		}
+	}
+	else if (offsIdx<84)
+	{
+		bool isSplit = getDepth(0)>1;
+		mvSpatial.valid = 1;
+		for (int i = 0; i < 2; i++)
+		{
+			getMvField(this, 0, i, mvField);
+			if (mvField.refIdx >= 0)
+				mvSpatial.pred_flag[i] = 1;
+			else
+				mvSpatial.pred_flag[i] = 0;
+			mvSpatial.mv[i].x = mvField.mv.x;
+			mvSpatial.mv[i].y = mvField.mv.y;
+			mvSpatial.ref_idx[i] = mvField.refIdx;
+			mvSpatial.delta_poc[i] = getSlice()->getPOC() - getSlice()->getRefPOC(i, mvField.refIdx);
+		}
+
+		//update internal info and external info
+		if (80 == offsIdx)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu16(mvSpatial, 4);
+				Amvp.getMvSpatialForCu16(mvSpatial, 4);
+			}			
+			else
+			{
+				for (int i = 5; i <= 11; i++)
+				{
+					MergeCand.setMvSpatialForCtu(mvSpatial, i); //external info
+					Amvp.setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			MergeCand.setMvSpatialForCu32(mvSpatial, 3); //internal info
+			Amvp.setMvSpatialForCu32(mvSpatial, 3); //internal info
+		}
+		else if (81 == offsIdx)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu16(mvSpatial, 2);
+				Amvp.getMvSpatialForCu16(mvSpatial, 2);
+			}			
+			MergeCand.setMvSpatialForCu32(mvSpatial, 4); //internal info
+			Amvp.setMvSpatialForCu32(mvSpatial, 4); //internal info
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu16(mvSpatial, 4);
+				Amvp.getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 9; i <= 15; i++)
+				{
+					MergeCand.setMvSpatialForCtu(mvSpatial, i); //external info
+					Amvp.setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			MergeCand.setMvSpatialForCu32(mvSpatial, 5); //internal info
+			Amvp.setMvSpatialForCu32(mvSpatial, 5); //internal info
+		}
+		else if (82 == offsIdx)
+		{
+			if (isSplit)
+			{
+				MergeCand.getMvSpatialForCu16(mvSpatial, 4);
+				Amvp.getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 1; i <= 7; i++)
+				{
+					MergeCand.setMvSpatialForCtu(mvSpatial, i); //external info
+					Amvp.setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			MergeCand.setMvSpatialForCu32(mvSpatial, 2); //internal
+			Amvp.setMvSpatialForCu32(mvSpatial, 2); //internal
+		}
+		else if (83 == offsIdx) //no update
+		{
+			if (!isSplit)
+			{
+				for (int i = 5; i <= 11; i++)
+				{
+					MergeCand.setMvSpatialForCtu(mvSpatial, i); //external info
+					Amvp.setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+		}
+	}
+	else if (offsIdx == 84) //no update
+	{
+	}
+
+}
+
 /** Check whether the current PU and a spatial neighboring PU are in a same ME region.
  * \param xN, xN   location of the upper-left corner pixel of a neighboring PU
  * \param xP, yP   location of the upper-left corner pixel of the current PU
@@ -2570,10 +3396,10 @@ bool TComDataCU::isBipredRestriction(uint32_t puIdx)
 void TComDataCU::clipMv(MV& outMV)
 {
     int mvshift = 2;
-#if RK_INTER_ME_TEST
-	int offset = max(g_nSearchRangeHeight, g_nSearchRangeWidth) + 5 + 1; //plus 5 is for RIME, plus 1 is for holding ME
+#if RK_INTER_METEST
+	int offset = MAX_MINE(g_nSearchRangeHeight, g_nSearchRangeWidth) + 5 + 1; //plus 5 is for RIME, plus 1 is for holding ME
 #else
-	int offset = 12; //add by hdl for ME
+	int offset = 8; //add by hdl for ME
 #endif
     int xmax = (m_slice->getSPS()->getPicWidthInLumaSamples() + offset - m_cuPelX - 1) << mvshift;
     int xmin = (-(int)g_maxCUWidth - offset - (int)m_cuPelX + 1) << mvshift;
@@ -2588,17 +3414,14 @@ void TComDataCU::clipMv(MV& outMV)
 void TComDataCU::clipMv(MV& outMV, bool isTest)
 {
 	int mvshift = 2;
-#if RK_INTER_ME_TEST
-	int offset = max(g_nSearchRangeHeight, g_nSearchRangeWidth);
+#if RK_INTER_METEST
+	int offset = MAX_MINE(g_nSearchRangeHeight, g_nSearchRangeWidth);
 #else
 	int offset = 8;
 #endif
 	int xmax, xmin, ymax, ymin;
 	if (isTest)
 	{
-#if !RK_INTER_ME_TEST
-		offset -= 4;
-#endif
 		xmax = (m_slice->getSPS()->getPicWidthInLumaSamples() + offset - m_cuPelX) << mvshift;
 		xmin = (-(int)g_maxCUWidth - offset - (int)m_cuPelX) << mvshift;
 		ymax = (m_slice->getSPS()->getPicHeightInLumaSamples() + offset - m_cuPelY) << mvshift;
@@ -3062,19 +3885,17 @@ uint32_t TComDataCU::getSCUAddr()
     return (m_cuAddr) * (1 << (m_slice->getSPS()->getMaxCUDepth() << 1)) + m_absIdxInLCU;
 }
 
-void TComDataCU::getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width)
+void TComDataCU::getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width, int list)
 {
 	uint32_t absPartAddr = 0;
 	if (getSlice()->getEnableTMVPFlag())
 	{
-		//>> MTK colocated-RightBottom
 		uint32_t partIdxRB;
 		int lcuIdx = getAddr();
 
 		partIdxRB = g_rasterToZscan[g_zscanToRaster[absIdxInLCU] + (((width / m_pic->getMinCUHeight()) >> 1) - 1) *
 			m_pic->getNumPartInWidth() + width / m_pic->getMinCUWidth() - 1];
 		partIdxRB += (width / 4 * width / 4) >> 1;
-		//deriveRightBottomIdx(0, partIdxRB);
 
 		uint32_t uiAbsPartIdxTmp = g_zscanToRaster[partIdxRB];
 		uint32_t numPartInCUWidth = m_pic->getNumPartInWidth();
@@ -3122,25 +3943,13 @@ void TComDataCU::getTMVP(MV &tmvp, uint32_t absIdxInLCU, int width)
 		partIdxCenter = g_rasterToZscan[g_zscanToRaster[partIdxCenter]
 			+ (width / m_pic->getMinCUHeight()) / 2 * m_pic->getNumPartInWidth()
 			+ (width / m_pic->getMinCUWidth()) / 2];
-		//xDeriveCenterIdx(0, partIdxCenter);
 
-		bExistMV = lcuIdx >= 0 && xGetColMVP(REF_PIC_LIST_0, lcuIdx, absPartAddr, colmv, refIdx);
+		bExistMV = lcuIdx >= 0 && xGetColMVP(list, lcuIdx, absPartAddr, colmv, refIdx);
 		if (bExistMV == false)
-			bExistMV = xGetColMVP(REF_PIC_LIST_0, curLCUIdx, partIdxCenter, colmv, refIdx);
+			bExistMV = xGetColMVP(list, curLCUIdx, partIdxCenter, colmv, refIdx);
 		if (bExistMV)
 			tmvp = colmv;
-		//if (getSlice()->isInterB())
-		//{
-		//	bExistMV = lcuIdx >= 0 && xGetColMVP(REF_PIC_LIST_1, lcuIdx, absPartAddr, colmv, refIdx);
-		//	if (bExistMV == false)
-		//		bExistMV = xGetColMVP(REF_PIC_LIST_1, curLCUIdx, partIdxCenter, colmv, refIdx);
-		//	if (bExistMV)
-		//		tmvp[1] = colmv;
-		//}
 	}
 }
-#if defined(__GNUC__) || defined(__clang__)    // use inline assembly, Gnu/AT&T syntax
-#undef max 
-#endif
 
 //! \}

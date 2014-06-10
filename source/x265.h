@@ -480,7 +480,6 @@ typedef struct x265_param
     int       searchRange;
 	int       meRangeX;
 	int       meRangeY;
-	JudgeStand    judgeStand;
     /* The maximum number of merge candidates that are considered during inter
      * analysis.  This number (between 1 and 5) is signaled in the stream
      * headers and determines the number of bits required to signal a merge so

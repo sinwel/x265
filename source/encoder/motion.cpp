@@ -33,6 +33,7 @@
 #include <assert.h>
 #include "hardwareC/inter.h"
 
+
 #if _MSC_VER
 #pragma warning(disable: 4127) // conditional  expression is constant (macros use this construct)
 #endif
@@ -127,7 +128,7 @@ void MotionEstimate::setSourcePU(int offset, int width, int height)
     blockOffset = offset;
 
     /* copy PU block into cache */
-#if !RK_INTER_ME_TEST
+#if !RK_INTER_METEST
     primitives.luma_copy_pp[partEnum](fenc, FENC_STRIDE, fencplane + offset, fencLumaStride);
 #else
 	for (int i = 0; i < FENC_STRIDE; i ++)
@@ -1259,12 +1260,13 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	intptr_t              blockOffset_ds,
 	int                     stride_ds,
 	int                     nValidCtuWidth,
-	int                     nValidCtuHeight)
+	int                     nValidCtuHeight,
+	int                     nRefPicIdx)
 {
 	size_t stride = ref->lumaStride;
 	pixel *fref = ref->fpelPlane + blockOffset;
 	MV bmv;
-	static MV Pmv[nNeightMv + 1];
+	static MV Pmv[6][nNeightMv + 1];
 	int bcost = MAX_INT, tmpCost;
 	
 	if (isSavePmv)
@@ -1295,14 +1297,18 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 		}
 		bmv.x *= 4; bmv.y *= 4;
 		delete[] pCurrCtuDS;
-		g_leftPmv.x = g_leftPMV.x; g_leftPmv.y = g_leftPMV.y; g_leftPmv.nSadCost = g_leftPMV.nSadCost; //add for test;
-		Pmv[0] = bmv;
-		g_leftPMV.x = Pmv[0].x;  g_leftPMV.y = Pmv[0].y; g_leftPMV.nSadCost = bcost;
+		g_leftPmv[nRefPicIdx].x = g_leftPMV[nRefPicIdx].x; g_leftPmv[nRefPicIdx].y = g_leftPMV[nRefPicIdx].y; g_leftPmv[nRefPicIdx].nSadCost = g_leftPMV[nRefPicIdx].nSadCost; //add for test;
+		Pmv[nRefPicIdx][0] = bmv;
+		g_leftPMV[nRefPicIdx].x = Pmv[nRefPicIdx][0].x;  g_leftPMV[nRefPicIdx].y = Pmv[nRefPicIdx][0].y; g_leftPMV[nRefPicIdx].nSadCost = bcost;
 	}
 
 	for (int idx = 0; idx < nMvNeighBor; idx++)
 	{
-		Pmv[idx + 1] = mvNeighBor[idx];
+		Pmv[nRefPicIdx][idx + 1] = mvNeighBor[idx];
+	}
+	if (nMvNeighBor < nNeightMv)
+	{
+		Pmv[nRefPicIdx][2] = Pmv[nRefPicIdx][1];
 	}
 
 	short Width = static_cast<short>(nRimeWidth);
@@ -1336,58 +1342,29 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	{
 		for (int idx = 0; idx <= nNeightMv; idx++)
 		{
-			g_Mvmin[idx].x = Pmv[idx].x - offsX - Width;
-			g_Mvmin[idx].y = Pmv[idx].y - offsY - Height;
-			g_Mvmax[idx].x = Pmv[idx].x + static_cast<short>(g_maxCUWidth) + Width - offsX - width;
-			g_Mvmax[idx].y = Pmv[idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
+			g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x - offsX - Width;
+			g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y - offsY - Height;
+			g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
+			g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
 		}
 	}
 	else
 	{
 		for (int idx = 0; idx <= nMvNeighBor; idx++)
 		{
-			g_Mvmin[idx].x = Pmv[idx].x - offsX - Width;
-			g_Mvmin[idx].y = Pmv[idx].y - offsY - Height;
-			g_Mvmax[idx].x = Pmv[idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
-			g_Mvmax[idx].y = Pmv[idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
+			g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x - offsX - Width;
+			g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y - offsY - Height;
+			g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
+			g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
 		}
 		for (int idx = nMvNeighBor + 1; idx <= nNeightMv; idx++)
 		{
-			g_Mvmin[idx].x = Pmv[1].x - offsX - Width;
-			g_Mvmin[idx].y = Pmv[1].y - offsY - Height;
-			g_Mvmax[idx].x = Pmv[1].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
-			g_Mvmax[idx].y = Pmv[1].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
+			g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][1].x - offsX - Width;
+			g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][1].y - offsY - Height;
+			g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][1].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
+			g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][1].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
 		}
 	}
-
-	if (nMvNeighBor < nNeightMv)
-	{
-		Pmv[2] = Pmv[1];
-	}
-
-	//int nRSWidth = g_maxCUWidth + 2 * (nRimeWidth + 4);
-	//int nRSHeight = g_maxCUWidth + 2 * (nRimeHeight + 4);
-	//if (isSavePmv)
-	//{
-	//	for (int idxPmv = 0; idxPmv < 3; idxPmv++)
-	//	{
-	//		pixel *pRefPic = fref + Pmv[idxPmv].x - 4 - nRimeWidth + (Pmv[idxPmv].y - 4 - nRimeHeight)*stride;
-	//		//pixel *pRefPic_tmp = ref->fpelPlane - 176 - 176 * stride;
-
-	//		//pixel *pRefPic = ref->fpelPlane - 176 - 176 * stride;
-	//		FILE *fp = fopen("e:\\orig.txt", "ab");
-	//		for (int i = 0; i < nRSHeight; i++)
-	//		{
-	//			for (int j = 0; j < nRSWidth; j++)
-	//			{
-	//				//assert((&pRefPic[j + i*stride]) >= pRefPic_tmp && (&pRefPic[j + i*stride]) < (pRefPic_tmp+832*stride));
-	//				fprintf(fp, "%4d", pRefPic[j + i*stride]);
-	//			}
-	//			fprintf(fp, "\n");
-	//		}
-	//		fclose(fp);
-	//	}
-	//}
 
 	/*7x7块的每个点都算  add by hdl*/
 	bcost = MAX_INT;
@@ -1398,7 +1375,7 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 		{
 			for (short j = -nRimeWidth; j <= nRimeWidth; j++)
 			{
-				tmv = Pmv[idxPmv] + MV(j, i);
+				tmv = Pmv[nRefPicIdx][idxPmv] + MV(j, i);
 				int cost;
 				tmpCost = MAX_INT;
 				for (int idx = 0; idx < 3; idx++)
@@ -1414,7 +1391,7 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 			}
 		}
 	}
-	g_RimeMv[offsIdx].x = bmv.x; g_RimeMv[offsIdx].y = bmv.y; g_RimeMv[offsIdx].nSadCost = bcost;
+	g_RimeMv[nRefPicIdx][offsIdx].x = bmv.x; g_RimeMv[nRefPicIdx][offsIdx].y = bmv.y; g_RimeMv[nRefPicIdx][offsIdx].nSadCost = bcost;
 	/*7x7块的每个点都算  add by hdl*/
 	
 	bmv = bmv.toQPel(); // promote search bmv to qpel
@@ -1443,15 +1420,26 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 					pfref[n + m * (blockwidth + 8)] = (pRef[n + m*ref->lumaStride] >> shift) << shift;
 				}
 			}
-			int cost = subpelCompare(pfref, (blockwidth + 8), pfenc, blockwidth, qmv);
+			tmpCost = MAX_INT;
+			for (int idx = 0; idx < 3; idx++)
+			{
+				setMVP(mvNeighBor[7 + idx]);
+				if (tmpCost > mvcost(qmv))
+					tmpCost = mvcost(qmv);
+			}
+			if (!isHaveMvd)
+				tmpCost = 0;
+			int cost = subpelCompare(pfref, (blockwidth + 8), pfenc, blockwidth, qmv) + tmpCost;
 			COPY2_IF_LT(bcost, cost, bmv, qmv);
 		}
 	}
-	g_FmeMv[offsIdx].x = bmv.x; g_FmeMv[offsIdx].y = bmv.y; g_FmeMv[offsIdx].nSadCost = bcost;
+	g_FmeMv[nRefPicIdx][offsIdx].x = bmv.x; g_FmeMv[nRefPicIdx][offsIdx].y = bmv.y; g_FmeMv[nRefPicIdx][offsIdx].nSadCost = bcost;
 
 	x265_emms();
 	outQMv = bmv;
-	return bcost;
+    if (pfenc) delete [] pfenc;
+    if (pfref) delete [] pfref;
+    return bcost;
 }
 int MotionEstimate::sad_ud(pixel *pix1, intptr_t stride_pix1, pixel *pix2, intptr_t stride_pix2, char BitWidth, char sampDist, bool isDirectSamp, int lx, int ly)
 {

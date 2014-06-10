@@ -927,10 +927,6 @@ void Encoder::initSPS(TComSPS *sps)
 	sps->setMeRangeX(param.meRangeX);
 	sps->setMeRangeY(param.meRangeY);
 #endif
-
-#if RK_INTER_CALC_RDO_TWICE
-	sps->setJudgeStand(param.judgeStand);
-#endif
     sps->setPicWidthInLumaSamples(param.sourceWidth);
     sps->setPicHeightInLumaSamples(param.sourceHeight);
     sps->setConformanceWindow(m_conformanceWindow);
@@ -1305,7 +1301,7 @@ void Encoder::configure(x265_param *_param)
         break;
     }
 
-#if RK_CHOOSE
+#if 1 // RK_CHOOSE
 		// RDOQ closed
 		bEnableRDOQ = 0;
 #endif

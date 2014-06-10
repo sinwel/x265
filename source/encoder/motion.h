@@ -97,7 +97,7 @@ public:
 	int SAD(short *src_1, short *src_2, int width, int height, int stride);
 	void DownSample(short *dst, pixel *src_2, int nCtuSize, int nCtuSize_ds);
 	int motionEstimate(ReferencePlanes *ref, const MV & mvmin, const MV & mvmax, MV & outQMv, MV *mvNeightBor,
-		int nMvNeightBor, bool isHaveMvd, bool isSavePmv, uint32_t offsIdx, uint32_t depth, intptr_t blockOffset_ds, int stride, int, int);
+		int nMvNeightBor, bool isHaveMvd, bool isSavePmv, uint32_t offsIdx, uint32_t depth, intptr_t blockOffset_ds, int stride, int, int, int);
 	int sad_ud(pixel *pix1, intptr_t stride_pix1, pixel *pix2, intptr_t stride_pix2, char BitWidth, char sampDist, bool isDirectSamp, int lx, int ly);
 	int subpelCompare(pixel *pfref, int stride_1, pixel *pfenc, int stride_2, const MV& qmv);
 	void InterpHoriz(pixel *src, intptr_t srcStride, pixel *dst, intptr_t dstStride, int coeffIdx, int N, int width, int height);

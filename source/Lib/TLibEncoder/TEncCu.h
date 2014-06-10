@@ -141,9 +141,12 @@ public:
 #endif
     TEncCu();
 
-#if RK_INTER_ME_TEST
-	void CimeVerification(TComDataCU* cu);
-	void RimeAndFmeVerification(TComDataCU* cu);
+#if RK_INTER_METEST
+	void CimePrepare(TComDataCU* cu, int nQp);
+	void RimeAndFmePrepare(TComDataCU* cu, int nQp);
+	bool isOutPic(int);
+	void SaveTemporalMv(TComDataCU* cu);
+	void setMvpCandInfoForCtu(TComDataCU* cu);
 #endif
 
     void init(Encoder* top);
@@ -170,9 +173,9 @@ protected:
 
     void finishCU(TComDataCU* cu, uint32_t absPartIdx, uint32_t depth);
     void xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, PartSize parentSize = SIZE_NONE);
-#if RK_INTER_CALC_RDO_TWICE
+#if RK_INTER_METEST
 	void xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTempCU);
-	void xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU, PartSize partSize, bool isCalcRDOTwice, bool bUseMRG);
+	void xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU);
 	void xCheckBestMode(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, bool isCalcRDOTwice);
 	void xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_t depth, bool isCalcRDOTwice);
 #endif

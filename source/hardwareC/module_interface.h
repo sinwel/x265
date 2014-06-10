@@ -32,7 +32,33 @@ struct INTERFACE_INTRA_PROC
     uint8_t   predModeIntra[4]; // if partSize == NxN, predMode exist 4 direction.
 };
 
-struct INTERFACE_INTER_PROC
+struct INTERFACE_INTER_FME_PROC
+{
+    /* input */
+
+    /* output */
+    uint32_t Distortion;
+    uint32_t Bits;
+    uint32_t totalCost;
+    int16_t *ResiY;
+    int16_t *ResiU;
+    int16_t *ResiV;
+    uint8_t  *ReconY;
+    uint8_t  *ReconU;
+    uint8_t  *ReconV;
+    uint8_t   partSize;
+    uint8_t   predMode;
+    //uint8_t   skipFlag;
+    //uint8_t   mergeFlag;
+    uint8_t   interDir;
+    uint8_t   refIdx;
+    MV_INFO   mv;
+    uint32_t  mvd;
+    uint8_t   mvpIndex;
+    uint8_t   **cbf;
+};
+
+struct INTERFACE_INTER_MERGE_PROC
 {
     /* input */
 
@@ -53,7 +79,7 @@ struct INTERFACE_INTER_PROC
     uint8_t   interDir;
     uint8_t   refIdx;
     MV_INFO   mv;
-    uint32_t  mvd;
+    //uint32_t  mvd;
     uint8_t   mvpIndex;
     uint8_t   **cbf;
 };
@@ -127,22 +153,19 @@ struct INTERFACE_RDO
 struct INTERFACE_ME
 {
     /* output */
-    uint8_t  *predY;
-    uint8_t  *predU;
-    uint8_t  *predV;
-    int16_t  *resiY;
-    int16_t  *resiU;
-    int16_t  *resiV;
+    uint8_t  *pred;
+    int16_t  *resi;
+    uint8_t   size; // TU size
 	int32_t   predModes; //inter或intra的模式标识
     uint8_t   partSize; //pu的划分模式
-	bool       skipFlag;
+	bool      skipFlag;
 	uint32_t  interDir;
-	int32_t    refPicIdx; //参考图像的标识,只有在多参考帧的时候有效
+	int32_t   refPicIdx; //参考图像的标识,只有在多参考帧的时候有效
     uint8_t   mergeFlag;
     uint8_t   mergeIdx;
-    Mv         mvd;
+    Mv        mvd;
     uint32_t  mvdIdx;
-    Mv         mv;
+    Mv        mv;
 };
 
 struct INTERFACE_CABAC
@@ -208,7 +231,11 @@ struct INTERFACE_CTU_CALC
 
 struct INTERFACE_DBLK
 {
-
+    MV_INFO mv_info[64];
+    uint8_t intra_bs_flag[256];
+    uint8_t recon_y[64*64];
+    uint8_t recon_u[32*32];
+    uint8_t recon_v[32*32];
 };
 
 struct INTERFACE_SAO_CALC

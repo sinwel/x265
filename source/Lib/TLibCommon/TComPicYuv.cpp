@@ -81,7 +81,7 @@ void TComPicYuv::create(int picWidth, int picHeight, int picCsp, uint32_t maxCUW
     m_numCuInWidth = (m_picWidth + m_cuWidth - 1)  / m_cuWidth;
     m_numCuInHeight = (m_picHeight + m_cuHeight - 1) / m_cuHeight;
 
-#if RK_INTER_ME_TEST
+#if RK_INTER_METEST
 	m_lumaMarginX = g_maxCUWidth + g_nSearchRangeWidth + 4 + 12; //4 is for fraction interpolation,12 is for 16 Byte alignment
 	m_lumaMarginY = g_maxCUWidth + g_nSearchRangeHeight + 4 + 12; //128 is mv positive and negative range
 #else

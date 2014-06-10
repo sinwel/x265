@@ -180,10 +180,8 @@ void x265_param_default(x265_param *param)
     // default FME mode 5
     param->subpelRefine = 5;                        // 5
     param->searchRange = 57;
-	param->meRangeX = 256;
-	param->meRangeY = 128;
-    // default use SATD for IME and FME
-	param->judgeStand = JUDGE_SATD;                 // JUDGE_SSE
+	param->meRangeX = 384;
+	param->meRangeY = 320;
     // default 3 candidate
     param->maxNumMergeCand = 3;                     // 2
     // default disable weighted prediction
@@ -225,8 +223,8 @@ void x265_param_default(x265_param *param)
     param->rc.rateTolerance = 1.0;
     param->rc.qCompress = 0.6;
     // default set I/P/B same qp
-    param->rc.ipFactor = 1.0f;                      // 1.4f
-    param->rc.pbFactor = 1.0f;                      // 1.3f
+    param->rc.ipFactor = 1.4f;                      // 1.4f
+    param->rc.pbFactor = 1.3f;                      // 1.3f
     param->rc.qpStep = 4;
     param->rc.rateControlMode = X265_RC_CRF;
     param->rc.qp = 32;
@@ -487,10 +485,6 @@ int x265_check_params(x265_param *param)
 		"Search Range must be more than 0");
 	CHECK(param->meRangeY >= 32768,
 		"Search Range must be less than 32768");
-	CHECK(param->judgeStand < 0,
-		"Search Range must be more than 0");
-	CHECK(param->judgeStand >= 3,
-		"Search Range must be less than 3");
     CHECK(param->subpelRefine > X265_MAX_SUBPEL_LEVEL,
           "subme must be less than or equal to X265_MAX_SUBPEL_LEVEL (7)");
     CHECK(param->subpelRefine < 0,
@@ -737,7 +731,7 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("threads") p->poolNumThreads = atoi(value);
     OPT("frame-threads") p->frameNumThreads = atoi(value);
     OPT("log") p->logLevel = atoi(value);
-    OPT("wpp") p->bEnableWavefront = 0;//bvalue; default 0
+    OPT("wpp") p->bEnableWavefront = bvalue;
     OPT("ctu") p->maxCUSize = (uint32_t)atoi(value);
     OPT("tu-intra-depth") p->tuQTMaxIntraDepth = (uint32_t)atoi(value);
     OPT("tu-inter-depth") p->tuQTMaxInterDepth = (uint32_t)atoi(value);
@@ -745,13 +739,13 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("merange") p->searchRange = atoi(value);
 	OPT("merangex") p->meRangeX = atoi(value);
 	OPT("merangey") p->meRangeY = atoi(value);
-    OPT("rect") p->bEnableRectInter = 0; //bvalue; default 0
-    OPT("amp") p->bEnableAMP = 0;        //bvalue; default 0
+    OPT("rect") p->bEnableRectInter = bvalue;
+    OPT("amp") p->bEnableAMP = bvalue;
     OPT("max-merge") p->maxNumMergeCand = (uint32_t)atoi(value);
-    OPT("early-skip") p->bEnableEarlySkip = 0;//bvalue; default 0
+    OPT("early-skip") p->bEnableEarlySkip = bvalue;
     OPT("fast-cbf") p->bEnableCbfFastMode = bvalue;
     OPT("rdpenalty") p->rdPenalty = atoi(value);
-    OPT("tskip") p->bEnableTransformSkip = 0 ;// bvalue; default 0
+    OPT("tskip") p->bEnableTransformSkip = bvalue;
     OPT("no-tskip-fast") p->bEnableTSkipFast = bvalue;
     OPT("tskip-fast") p->bEnableTSkipFast = bvalue;
     OPT("strong-intra-smoothing") p->bEnableStrongIntraSmoothing = bvalue;
@@ -766,7 +760,7 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("weightp") p->bEnableWeightedPred = bvalue;
     OPT("cbqpoffs") p->cbQpOffset = atoi(value);
     OPT("crqpoffs") p->crQpOffset = atoi(value);
-    OPT("rd") p->rdLevel = atoi(value);
+    OPT("rd") p->rdLevel = atoi(value); 
     OPT("signhide") p->bEnableSignHiding = bvalue;
     OPT("lft") p->bEnableLoopFilter = bvalue;
     OPT("sao") p->bEnableSAO = bvalue;
@@ -776,7 +770,7 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("psnr") p->bEnablePsnr = bvalue;
     OPT("hash") p->decodedPictureHashSEI = atoi(value);
     OPT("b-pyramid") p->bBPyramid = bvalue;
-    OPT("aq-mode") p->rc.aqMode = 1;//atoi(value); default 1
+    OPT("aq-mode") p->rc.aqMode = atoi(value);
     OPT("aq-strength") p->rc.aqStrength = atof(value);
     OPT("vbv-maxrate") p->rc.vbvMaxBitrate = atoi(value);
     OPT("vbv-bufsize") p->rc.vbvBufferSize = atoi(value);
@@ -800,15 +794,6 @@ int x265_param_parse(x265_param *p, const char *name, const char *value)
     OPT("me")        p->searchMethod = parseName(value, x265_motion_est_names, berror);
     OPT("cutree")    p->rc.cuTree = bvalue;
     OPT("no-cutree") p->rc.cuTree = bvalue;
-    else if (!strcmp(name, "judgestand"))
-    {
-		if (0 == atoi(value))
-			p->judgeStand = JUDGE_SATD;
-		else if (1 == atoi(value))
-			p->judgeStand = JUDGE_SAD;
-		else
-			p->judgeStand = JUDGE_SSE;
-    }
 	else
         return X265_PARAM_BAD_NAME;
 #undef OPT
@@ -838,12 +823,6 @@ char *x265_param2string(x265_param *p)
     s += sprintf(s, " merange=%d", p->searchRange);
 	s += sprintf(s, " merangex=%d", p->meRangeX);
 	s += sprintf(s, " merangey=%d", p->meRangeY);
-	if (JUDGE_SATD == p->judgeStand)
-		s += sprintf(s, " judgestand=SATD");
-	else if (JUDGE_SAD == p->judgeStand)
-        s += sprintf(s, " judgestand=SAD");
-	else
-		s += sprintf(s, " judgestand=SSE");
 
     BOOL(p->bEnableRectInter, "rect");
     BOOL(p->bEnableAMP, "amp");

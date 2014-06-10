@@ -779,10 +779,6 @@ public:
 	int         m_MeRangeX;
 	int         m_MeRangeY;
 #endif
-
-#if RK_INTER_CALC_RDO_TWICE
-	JudgeStand   m_judgeStand;
-#endif
     int         m_SPSId;
     int         m_VPSId;
     int         m_chromaFormatIdc;
@@ -864,11 +860,6 @@ public:
 	void      setMeRangeX(int b)   { m_MeRangeX = b; }
 	int      getMeRangeY() const   { return m_MeRangeY; }
 	void      setMeRangeY(int b)   { m_MeRangeY = b; }
-#endif
-
-#if RK_INTER_CALC_RDO_TWICE
-	JudgeStand getJudgeStand() const {return m_judgeStand;}
-	void setJudgeStand(JudgeStand js) {m_judgeStand = js;}
 #endif
 
     int  getVPSId()         { return m_VPSId; }

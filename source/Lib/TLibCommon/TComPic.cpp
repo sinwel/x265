@@ -93,6 +93,16 @@ void TComPic::create(TEncCfg* cfg)
 
     /* configure lowres dimensions */
     m_lowres.create(m_origPicYuv, cfg->param.bframes, &cfg->param.rc.aqMode);
+
+	/*add by hdl for mvp candidates info*/
+	int nCtuInPicWidth = (cfg->param.sourceWidth / g_maxCUWidth*g_maxCUWidth < cfg->param.sourceWidth) ?
+		cfg->param.sourceWidth / g_maxCUWidth + 1 : cfg->param.sourceWidth / g_maxCUWidth;
+	int nCtuInPicHeight = (cfg->param.sourceHeight / g_maxCUHeight*g_maxCUHeight < cfg->param.sourceHeight) ?
+		cfg->param.sourceHeight / g_maxCUHeight + 1 : cfg->param.sourceHeight / g_maxCUHeight;
+	m_pTemporalMv = new TEMPORAL_MV[nCtuInPicWidth*nCtuInPicHeight * 16];
+	assert(m_pTemporalMv != NULL);
+	memset(m_pTemporalMv, 0, sizeof(TEMPORAL_MV)*nCtuInPicWidth*nCtuInPicHeight * 16);
+	/*add by hdl for mvp candidates info*/
 }
 
 void TComPic::destroy(int bframes)
@@ -117,6 +127,12 @@ void TComPic::destroy(int bframes)
         delete m_reconPicYuv;
         m_reconPicYuv = NULL;
     }
+
+	if (m_pTemporalMv != NULL)
+	{
+		delete[] m_pTemporalMv;
+		m_pTemporalMv = NULL;
+	}
 
     m_lowres.destroy(bframes);
 }

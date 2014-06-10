@@ -69,7 +69,7 @@ int MotionReference::init(TComPicYuv* pic, wpScalingParam *w)
 
     return 0;
 }
-
+#if RK_INTER_METEST
 void MotionReference::extendEdge(short *pic, int nMarginY, int nMarginX, int stride, int picWidth, int picHeight)
 {
 	for (int i = 1; i <= nMarginY; i++)
@@ -140,7 +140,6 @@ void MotionReference::extendEdge(short *pic, int nMarginY, int nMarginX, int str
 		}
 	}
 }
-
 void MotionReference::downSampleAndSum(pixel *src, int width, int height, int src_stride, short *dst, int dst_stride, int sampDist)
 {
 	for (int i = 0; i < height; i +=sampDist)
@@ -159,7 +158,6 @@ void MotionReference::downSampleAndSum(pixel *src, int width, int height, int sr
 		}
 	}
 }
-
 int MotionReference::init(TComPicYuv* reconPic, TComPicYuv* origPic, wpScalingParam *w)
 {
 	m_reconPic = reconPic;
@@ -204,7 +202,7 @@ int MotionReference::init(TComPicYuv* reconPic, TComPicYuv* origPic, wpScalingPa
 
 	return 0;
 }
-
+#endif
 MotionReference::~MotionReference()
 {
     X265_FREE(m_weightBuffer);
