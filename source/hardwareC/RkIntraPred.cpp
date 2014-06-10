@@ -2183,7 +2183,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
 		  // only do 0, 1, 2, 4, 6, ..., 34
-		  if (INTRA_REDUCE_DIR(dirMode))
+		  if (INTRA_REDUCE_DIR(dirMode,width))
 		  { 
 		  	//RK_HEVC_PRINT("%d\n", dirMode);
 		   	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
