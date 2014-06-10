@@ -125,8 +125,6 @@ void CTU_CALC::init()
     cu_level_calc[1].pHardWare = pHardWare;
     cu_level_calc[2].pHardWare = pHardWare;
     cu_level_calc[3].pHardWare = pHardWare;
-
-    ime_mv = pHardWare->ime_mv;
 }
 
 
@@ -251,8 +249,6 @@ void CTU_CALC::end()
         L_intra_buf_u[i] = L_intra_buf_u[32 + i];
         L_intra_buf_v[i] = L_intra_buf_v[32 + i];
     }
-
-
 
 	/* inter */
     pos = ctu_x * ctu_w;
@@ -682,19 +678,6 @@ void CTU_CALC::LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_
  	}
 }
 
-void CTU_CALC::Create()
-{
-	assert(ctu_w == 64 || ctu_w == 32 || ctu_w == 16);
-	pCurrCtu = new uint8_t[ctu_w*ctu_w];
-	pImeSearchRange = new uint8_t[ImeSearchRangeHeight*ImeSearchRangeWidth];
-}
-
-void CTU_CALC::Destory()
-{
-	delete[] pCurrCtu;
-	delete[] pImeSearchRange;
-}
-
 void CTU_CALC::proc()
 {
     unsigned int cost_0 = 0, cost_1 = 0, cost_2 = 0, cost_3 = 0;
@@ -743,7 +726,7 @@ void CTU_CALC::proc()
 #ifdef LOG_INTRA_PARAMS_2_FILE
             LogIntraParams2File(cu_level_calc[1].inf_intra_proc, cu_x_1, cu_y_1);
 #endif
-#if 0//TQ_RUN_IN_HWC_INTRA
+#if TQ_RUN_IN_HWC_INTRA
 			//compare coeff(after T and Q), and Recon (Y, U, V)
 			compareCoeffandRecon(cu_level_calc, 1);
 #endif
@@ -772,7 +755,7 @@ void CTU_CALC::proc()
 			#ifdef LOG_INTRA_PARAMS_2_FILE
                 LogIntraParams2File(cu_level_calc[2].inf_intra_proc, cu_x_2, cu_y_2);
 			#endif
-#if 0//TQ_RUN_IN_HWC_INTRA
+#if TQ_RUN_IN_HWC_INTRA
 			    //compare coeff(after T and Q), and Recon (Y, U, V)
 			    compareCoeffandRecon(cu_level_calc, 2);
 #endif
@@ -796,7 +779,7 @@ void CTU_CALC::proc()
 				#ifdef LOG_INTRA_PARAMS_2_FILE
                     LogIntraParams2File(cu_level_calc[3].inf_intra_proc, cu_x_3, cu_y_3);
 				#endif
-#if 0 //wait for 4x4 intra to be done, added by lks
+#if 1 //wait for 4x4 intra to be done, added by lks
 				    //compare coeff(after T and Q), and Recon (Y, U, V)
 				    compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
 #endif

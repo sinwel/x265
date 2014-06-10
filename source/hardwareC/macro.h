@@ -22,8 +22,9 @@
 #define RK_CABAC
 #define INTRA_4x4_DEBUG
 #define RK_INTRA_4x4_PRED
-//#define RK_INTRA_MODE_CHOOSE
-//#define DISABLE_64x64_CU
+//#define RK_INTRA_MODE_CHOOSE              // ?¨¬?¨´?¡ê¨º??D??¡ê???¡¤?¡ã?2?2¨¦¨¨?
+#define INTRA_REDUCE_DIR(dirMode, width) 	( ( (dirMode % 2 == 0) || (dirMode == 1)) || ((width != 4) && (width != 8)))
+#define DISABLE_64x64_CU
 /* ======================================================================= */
 
 

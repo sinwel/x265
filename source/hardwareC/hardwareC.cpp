@@ -25,6 +25,87 @@ void hardwareC::init()
 
 void hardwareC::proc()
 {
+	int nRefPic = Cime.getRefPicNum();
+	if (Cime.getSliceType() == b_slice)
+	{
+		for (int nRefPicIdx = 0; nRefPicIdx < nRefPic - 1; nRefPicIdx++)
+		{
+			Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPicIdx), nRefPicIdx);
+			assert(Cime.getCimeMv(nRefPicIdx).x == g_leftPMV[nRefPicIdx].x);
+			assert(Cime.getCimeMv(nRefPicIdx).y == g_leftPMV[nRefPicIdx].y);
+			assert(Cime.getCimeMv(nRefPicIdx).nSadCost == g_leftPMV[nRefPicIdx].nSadCost);
+		}
+		Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPic - 1), nRefPic - 1);
+		assert(Cime.getCimeMv(nRefPic - 1).x == g_leftPMV[nMaxRefPic - 1].x);
+		assert(Cime.getCimeMv(nRefPic - 1).y == g_leftPMV[nMaxRefPic - 1].y);
+		assert(Cime.getCimeMv(nRefPic - 1).nSadCost == g_leftPMV[nMaxRefPic - 1].nSadCost);
+	} 
+	else
+	{
+		for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+		{
+			Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPicIdx), nRefPicIdx);
+			assert(Cime.getCimeMv(nRefPicIdx).x == g_leftPMV[nRefPicIdx].x);
+			assert(Cime.getCimeMv(nRefPicIdx).y == g_leftPMV[nRefPicIdx].y);
+			assert(Cime.getCimeMv(nRefPicIdx).nSadCost == g_leftPMV[nRefPicIdx].nSadCost);
+		}
+	}
+	
+	for (int i = 0; i < 85; i++)
+	{
+		nRefPic = Rime[i].getRefPicNum();
+		if (b_slice == Rime[i].getSliceType())
+		{
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic-1; nRefPicIdx++)
+			{
+				if (Rime[i].PrefetchCuInfo(nRefPicIdx))
+				{
+					Rime[i].RimeAndFme(nRefPicIdx);
+					//RIME compare
+					assert(Rime[i].getRimeMv(nRefPicIdx).x == g_RimeMv[nRefPicIdx][i].x);
+					assert(Rime[i].getRimeMv(nRefPicIdx).y == g_RimeMv[nRefPicIdx][i].y);
+					assert(Rime[i].getRimeMv(nRefPicIdx).nSadCost == g_RimeMv[nRefPicIdx][i].nSadCost);
+					//FME compare
+					assert(Rime[i].getFmeMv(nRefPicIdx).x == g_FmeMv[nRefPicIdx][i].x);
+					assert(Rime[i].getFmeMv(nRefPicIdx).y == g_FmeMv[nRefPicIdx][i].y);
+					assert(Rime[i].getFmeMv(nRefPicIdx).nSadCost == g_FmeMv[nRefPicIdx][i].nSadCost);
+				}
+				//Rime[i].DestroyCuInfo();
+			}
+			if (Rime[i].PrefetchCuInfo(nMaxRefPic - 1))
+			{
+				Rime[i].RimeAndFme(nMaxRefPic - 1);
+				//RIME compare
+				assert(Rime[i].getRimeMv(nMaxRefPic - 1).x == g_RimeMv[nMaxRefPic - 1][i].x);
+				assert(Rime[i].getRimeMv(nMaxRefPic - 1).y == g_RimeMv[nMaxRefPic - 1][i].y);
+				assert(Rime[i].getRimeMv(nMaxRefPic - 1).nSadCost == g_RimeMv[nMaxRefPic - 1][i].nSadCost);
+				//FME compare
+				assert(Rime[i].getFmeMv(nMaxRefPic - 1).x == g_FmeMv[nMaxRefPic - 1][i].x);
+				assert(Rime[i].getFmeMv(nMaxRefPic - 1).y == g_FmeMv[nMaxRefPic - 1][i].y);
+				assert(Rime[i].getFmeMv(nMaxRefPic - 1).nSadCost == g_FmeMv[nMaxRefPic - 1][i].nSadCost);
+			}
+		}
+		else
+		{
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+			{
+				if (Rime[i].PrefetchCuInfo(nRefPicIdx))
+				{
+					Rime[i].RimeAndFme(nRefPicIdx);
+					//RIME compare
+					assert(Rime[i].getRimeMv(nRefPicIdx).x == g_RimeMv[nRefPicIdx][i].x);
+					assert(Rime[i].getRimeMv(nRefPicIdx).y == g_RimeMv[nRefPicIdx][i].y);
+					assert(Rime[i].getRimeMv(nRefPicIdx).nSadCost == g_RimeMv[nRefPicIdx][i].nSadCost);
+					//FME compare
+					assert(Rime[i].getFmeMv(nRefPicIdx).x == g_FmeMv[nRefPicIdx][i].x);
+					assert(Rime[i].getFmeMv(nRefPicIdx).y == g_FmeMv[nRefPicIdx][i].y);
+					assert(Rime[i].getFmeMv(nRefPicIdx).nSadCost == g_FmeMv[nRefPicIdx][i].nSadCost);
+				}
+				//Rime[i].DestroyCuInfo();
+			}
+		}
+	}
+
     /*
 	stream_buf;
 	recon_buf;

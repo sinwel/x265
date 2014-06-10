@@ -10,20 +10,19 @@
 
 #define OPT(name0, name1) else if (!strncmp(name0, name1, sizeof(name1) - 1))
 
-/* data definitions */
-struct RK_MV
-{
-    uint32_t mv_x        : 10; //8.2
-    uint32_t mv_y        : 10; //8.2
-    uint32_t ref_idx     : 4;  //
-    uint32_t pic_idx     : 4;
-    uint32_t pred_flag   : 1;
-    uint32_t reserve     : 3;
-};
 
 struct MV_INFO
 {
-    struct RK_MV mv[2];
+    uint32_t pred_flag_0 : 1;
+    uint32_t pred_flag_1 : 1;
+    uint32_t pic_idx_0   : 4;
+    uint32_t pic_idx_1   : 4;
+    uint32_t delta_poc_0 : 5;
+    uint32_t delta_poc_1 : 5;
+    uint32_t mv_x_0      : 12;
+    uint32_t mv_y_0      : 10;
+    uint32_t mv_x_1      : 12;
+    uint32_t mv_y_1      : 10;
 };
 
 struct IME_MV
@@ -87,7 +86,7 @@ struct CTU_CMD
 
 #define RK_DEPTH                8
 
-#define RK_CHOOSE               1   // enable flag for default cfg modificaiton(e.g. RDOQ, signhide), added by lks
+#define RK_CHOOSE               0   // enable flag for default cfg modificaiton(e.g. RDOQ, signhide), added by lks
 
 #define RK_ClipY(x)			(((x) < 0) ? 0 : (((x) > ((1 << RK_DEPTH) - 1)) ? ((1 << RK_DEPTH) - 1) : (x)))
 #define RK_ClipC(x)			(((x) < 0) ? 0 : (((x) > ((1 << RK_DEPTH) - 1)) ? ((1 << RK_DEPTH) - 1) : (x)))
@@ -101,7 +100,6 @@ typedef enum X265_AND_RKs   // Routines can be indexed using log2n(width)
     X265_AND_RK
 } X265_AND_RKs;
 
-// add by zxy for reduce half direction for intra.
-#define INTRA_REDUCE_DIR(dirMode) (( dirMode % 2 == 0 )||( dirMode == 1))  
+
 
 #endif
