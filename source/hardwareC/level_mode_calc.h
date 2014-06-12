@@ -8,6 +8,7 @@
 #include "RkIntraPred.h"
 #include "qt.h"
 #include "inter.h"
+#include "CABAC.h"
 //using namespace RK_HEVC;
 //#include "hardwareC.h"
 
@@ -47,6 +48,10 @@ public:
 #if TQ_RUN_IN_HWC_INTRA || TQ_RUN_IN_HWC_ME
 public:
 	hevcQT*			 m_hevcQT;
+#endif
+#if RK_CABAC_H
+public:
+	CABAC_RDO*  m_cabac_rdo;
 #endif
 
 public:

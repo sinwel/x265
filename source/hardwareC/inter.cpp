@@ -225,7 +225,7 @@ void CoarseIntMotionEstimation::Create(int nCimeSwWidth, int nCimeSwHeight, int 
 	assert(RK_NULL != m_mvNeighMv);
 	for (int nRefPic = 0; nRefPic < m_nRefPic; nRefPic ++)
 	{
-		m_mvNeighMv[nRefPic] = new Mv[36];
+		m_mvNeighMv[nRefPic] = new Mv[nAllNeighMv];
 		assert(RK_NULL != m_mvNeighMv[nRefPic]);
 	}
 	m_mvCimeOut = new Mv[m_nRefPic];
@@ -753,7 +753,7 @@ unsigned short CoarseIntMotionEstimation::mvcost(Mv mvp, Mv mv)
 
 void CoarseIntMotionEstimation::setMvp(Mv *mvp, int nRefPicIdx)
 {
-	const int nMvNeigh = 36;
+	const int nMvNeigh = nAllNeighMv;
 	bool isValid[nMvNeigh];
 	memset(isValid, 1, nMvNeigh);
 	bool PicWidthNotDivCtu = m_nPicWidth / m_nCtuSize*m_nCtuSize < m_nPicWidth;
@@ -779,55 +779,23 @@ void CoarseIntMotionEstimation::setMvp(Mv *mvp, int nRefPicIdx)
 		isValidRightTop = false;
 	}
 	//check 36 neighbor positions valid or not
-	if (64 == m_nCtuSize)
+	if (!isValidLeftTop)
 	{
-		if (!isValidLeftTop)
-		{
-			isValid[11] = false;
-		}
-		if (!isValidRightTop)
-		{
-			isValid[8] = false;
-		}
-		if (!isValidLeft)
-		{
-			isValid[26] = false;
-			isValid[27] = false;
-			isValid[29] = false;
-			isValid[31] = false;
-			isValid[33] = false;
-		}
-		if (!isValidTop)
-		{
-			isValid[34] = false; isValid[30] = false; isValid[32] = false;
-			isValid[28] = false; isValid[24] = false; isValid[17] = false;
-			isValid[23] = false; isValid[5] = false; isValid[25] = false;
-			isValid[14] = false; isValid[20] = false; isValid[2] = false;
-		}
+		isValid[11] = false;
 	}
-	else if (32 == m_nCtuSize)
+	if (!isValidRightTop)
 	{
-		if (!isValidLeftTop)
-		{
-			isValid[7] = false;
-		}
-		if (!isValidRightTop)
-		{
-			isValid[6] = false;
-		}
-		if (!isValidLeft)
-		{
-			isValid[11] = false;
-			isValid[13] = false;
-			isValid[14] = false;
-		}
-		if (!isValidTop)
-		{
-			isValid[2] = false; isValid[4] = false;   isValid[8] = false;
-			isValid[9] = false; isValid[10] = false; isValid[12] = false;
-		}
-		for (int i = 16; i < 36; i++)
-			isValid[i] = false;
+		isValid[8] = false;
+	}
+	if (!isValidLeft)
+	{
+		isValid[26] = false;
+	}
+	if (!isValidTop)
+	{
+		isValid[24] = false; isValid[17] = false;
+		isValid[23] = false; isValid[5] = false; isValid[25] = false;
+		isValid[14] = false; isValid[20] = false; isValid[2] = false;
 	}
 
 	int idxFirst = INT_MAX_MINE;
@@ -910,9 +878,9 @@ RefineIntMotionEstimation::~RefineIntMotionEstimation()
 
 }
 
-void RefineIntMotionEstimation::setPmv(Mv pMvNeigh[36], Mv mvCpmv, int nRefPicIdx)
+void RefineIntMotionEstimation::setPmv(Mv pMvNeigh[nAllNeighMv], Mv mvCpmv, int nRefPicIdx)
 {
-	for (int i = 0; i < 36; i ++)
+	for (int i = 0; i < nAllNeighMv; i++)
 	{
 		m_mvNeigh[nRefPicIdx][i].x = pMvNeigh[i].x;
 		m_mvNeigh[nRefPicIdx][i].y = pMvNeigh[i].y;
@@ -923,7 +891,7 @@ void RefineIntMotionEstimation::setPmv(Mv pMvNeigh[36], Mv mvCpmv, int nRefPicId
 	m_mvRefine[nRefPicIdx][0].y = mvCpmv.y;
 
 	/*get 2 neighbor PMV  begin*/
-	const int nMvNeigh = 36;
+	const int nMvNeigh = nAllNeighMv;
 	bool isValid[nMvNeigh];
 	memset(isValid, 1, nMvNeigh);
 	bool PicWidthNotDivCtu = m_nPicWidth / m_nCtuSize*m_nCtuSize < m_nPicWidth;
@@ -950,55 +918,23 @@ void RefineIntMotionEstimation::setPmv(Mv pMvNeigh[36], Mv mvCpmv, int nRefPicId
 	}
 	//check 36 neighbor positions valid or not
 
-	if (64 == m_nCtuSize)
+	if (!isValidLeftTop)
 	{
-		if (!isValidLeftTop)
-		{
-			isValid[11] = false;
-		}
-		if (!isValidRightTop)
-		{
-			isValid[8] = false;
-		}
-		if (!isValidLeft)
-		{
-			isValid[26] = false;
-			isValid[27] = false;
-			isValid[29] = false;
-			isValid[31] = false;
-			isValid[33] = false;
-		}
-		if (!isValidTop)
-		{
-			isValid[34] = false; isValid[30] = false; isValid[32] = false;
-			isValid[28] = false; isValid[24] = false; isValid[17] = false;
-			isValid[23] = false; isValid[5] = false; isValid[25] = false;
-			isValid[14] = false; isValid[20] = false; isValid[2] = false;
-		}
+		isValid[11] = false;
 	}
-	else if (32 == m_nCtuSize)
+	if (!isValidRightTop)
 	{
-		if (!isValidLeftTop)
-		{
-			isValid[7] = false;
-		}
-		if (!isValidRightTop)
-		{
-			isValid[6] = false;
-		}
-		if (!isValidLeft)
-		{
-			isValid[11] = false;
-			isValid[13] = false;
-			isValid[14] = false;
-		}
-		if (!isValidTop)
-		{
-			isValid[2] = false; isValid[4] = false;  isValid[8] = false;
-			isValid[9] = false; isValid[10] = false; isValid[12] = false;
-		}
-		for (int i = 16; i < 36; i++)
-			isValid[i] = false;
+		isValid[8] = false;
+	}
+	if (!isValidLeft)
+	{
+		isValid[26] = false;
+	}
+	if (!isValidTop)
+	{
+        isValid[24] = false; isValid[17] = false;
+		isValid[23] = false; isValid[5] = false; isValid[25] = false;
+		isValid[14] = false; isValid[20] = false; isValid[2] = false;
 	}
 
 	int idxFirst = INT_MAX_MINE;
@@ -1051,9 +987,9 @@ void RefineIntMotionEstimation::setPmv(Mv pMvNeigh[36], Mv mvCpmv, int nRefPicId
 	
 }
 
-void RefineIntMotionEstimation::setMvp(Mv *mvp, Mv pMvNeigh[36])
+void RefineIntMotionEstimation::setMvp(Mv *mvp, Mv pMvNeigh[nAllNeighMv])
 {
-	const int nMvNeigh = 36;
+	const int nMvNeigh = nAllNeighMv;
 	bool isValid[nMvNeigh];
 	memset(isValid, 1, nMvNeigh);
 	bool PicWidthNotDivCtu = m_nPicWidth / m_nCtuSize*m_nCtuSize < m_nPicWidth;
@@ -1080,55 +1016,23 @@ void RefineIntMotionEstimation::setMvp(Mv *mvp, Mv pMvNeigh[36])
 	}
 	//check 36 neighbor positions valid or not
 
-	if (64 == m_nCtuSize)
+	if (!isValidLeftTop)
 	{
-		if (!isValidLeftTop)
-		{
-			isValid[11] = false;
-		}
-		if (!isValidRightTop)
-		{
-			isValid[8] = false;
-		}
-		if (!isValidLeft)
-		{
-			isValid[26] = false;
-			isValid[27] = false;
-			isValid[29] = false;
-			isValid[31] = false;
-			isValid[33] = false;
-		}
-		if (!isValidTop)
-		{
-			isValid[34] = false; isValid[30] = false; isValid[32] = false;
-			isValid[28] = false; isValid[24] = false; isValid[17] = false;
-			isValid[23] = false; isValid[5] = false; isValid[25] = false;
-			isValid[14] = false; isValid[20] = false; isValid[2] = false;
-		}
+		isValid[11] = false;
 	}
-	else if (32 == m_nCtuSize)
+	if (!isValidRightTop)
 	{
-		if (!isValidLeftTop)
-		{
-			isValid[7] = false;
-		}
-		if (!isValidRightTop)
-		{
-			isValid[6] = false;
-		}
-		if (!isValidLeft)
-		{
-			isValid[11] = false;
-			isValid[13] = false;
-			isValid[14] = false;
-		}
-		if (!isValidTop)
-		{
-			isValid[2] = false; isValid[4] = false;   isValid[8] = false;
-			isValid[9] = false; isValid[10] = false; isValid[12] = false;
-		}
-		for (int i = 16; i < 36; i++)
-			isValid[i] = false;
+		isValid[8] = false;
+	}
+	if (!isValidLeft)
+	{
+		isValid[26] = false;
+	}
+	if (!isValidTop)
+	{
+		isValid[24] = false; isValid[17] = false;
+		isValid[23] = false; isValid[5] = false; isValid[25] = false;
+		isValid[14] = false; isValid[20] = false; isValid[2] = false;
 	}
 
 	int idxFirst = INT_MAX_MINE;

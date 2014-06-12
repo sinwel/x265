@@ -45,7 +45,8 @@ set(HARDWAREC_HDR
 	../hardwareC/ctu_calc.h
 	../hardwareC/hevcSAO.h
 	../hardwareC/macro.h
-	../hardwareC/rk_define.h)
+	../hardwareC/rk_define.h
+	../hardwareC/CABAC.h)
 set(HARDWAREC_SRC
     ../hardwareC/hardwareC.cpp
 	../hardwareC/RkIntraPred.cpp
@@ -54,7 +55,8 @@ set(HARDWAREC_SRC
 	../hardwareC/qtTables.cpp
 	../hardwareC/level_mode_calc.cpp
 	../hardwareC/ctu_calc.cpp
-	../hardwareC/hevcSAO.cpp)
+	../hardwareC/hevcSAO.cpp
+	../hardwareC/CABAC.cpp)
 source_group(HardWareC FILES ${HARDWAREC_HDR} ${HARDWAREC_SRC})
 
 if(GCC)

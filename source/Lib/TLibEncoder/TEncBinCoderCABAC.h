@@ -40,6 +40,7 @@
 
 #include "TLibCommon/ContextTables.h"
 #include "TLibCommon/TComBitStream.h"
+#include "CABAC.h"
 
 //! \ingroup TLibEncoder
 //! \{
@@ -73,7 +74,11 @@ public:
         // NOTE: the HM go here only in Counter mode
         assert(!m_bIsCounter || (m_bitIf->getNumberOfWrittenBits() == 0));
         assert(m_bIsCounter);
-        return uint32_t(m_fracBits >> 15);
+#if CABAC_INT_MODIFY
+		return uint32_t((m_fracBits +16384)>> 15);
+#else
+		return uint32_t(m_fracBits >> 15);
+#endif
 
         // NOTE: I keep the old code, so someone may active if they want
         //return m_bitIf->getNumberOfWrittenBits() + 8 * m_numBufferedBytes + 23 - m_bitsLeft;

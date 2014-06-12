@@ -26,6 +26,7 @@
 #include "encoder.h"
 #include "PPA/ppa.h"
 #include "cturow.h"
+#include "CABAC.h"
 
 using namespace x265;
 
@@ -78,6 +79,12 @@ void CTURow::processCU(TComDataCU *cu, TComSlice *slice, TEncSbac *bufferSbac, b
     m_entropyCoder.setBitstream(&m_bitCounter);
     m_cuCoder.setRDGoOnSbacCoder(&m_rdGoOnSbacCoder);
 
+
+#if (RK_CABAC_TEST||RK_CABAC_H)
+	memset(&g_intra_est_bit_luma_pred_mode_all_case , 0 , sizeof(g_intra_est_bit_luma_pred_mode_all_case));
+	memset(&g_intra_est_bit_luma_pred_mode , 0 , sizeof(g_intra_est_bit_luma_pred_mode));
+	memset(&g_intra_cu_best_mode , 0 , sizeof(g_intra_cu_best_mode));
+#endif
     m_cuCoder.compressCU(cu); // Does all the CU analysis
 
     // restore entropy coder to an initial state

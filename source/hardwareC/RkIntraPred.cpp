@@ -2051,13 +2051,79 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			{
 				rk_OrgBufAll[lu_cb_cr_idx[partOffset]][i] = fenc[15 - i];			    
 			}
+
+			//INTRA_4_TU_CABAC_BITS
+			__int64 tu_cabac_bits[6];
+			uint32_t zscan = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			tu_cabac_bits[0] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan + 0];
+			tu_cabac_bits[1] = g_est_bit_tu_cb_NoCbf[1][cur_depth][zscan];
+			tu_cabac_bits[2] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan + 1];
+			tu_cabac_bits[3] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan + 2];
+			tu_cabac_bits[4] = g_est_bit_tu_cr_NoCbf[1][cur_depth][zscan];
+			tu_cabac_bits[5] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan + 3];
+
+			for (uint8_t i = 0; i < 6; i++)
+			{
+				FPRINT(fp_intra_4x4[INTRA_4_TU_CABAC_BITS],"%08llx",tu_cabac_bits[i]);
+			}
+			FPRINT(fp_intra_4x4[INTRA_4_TU_CABAC_BITS],"\n");
+
+			//INTRA_4_PU_PRED_MODE_BITS
+			__int64 pu_pred_mode_bits[6];
+			pu_pred_mode_bits[0] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[1] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[2] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 1];
+			pu_pred_mode_bits[3] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 2];
+			pu_pred_mode_bits[4] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[5] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 3];
+
+			for (uint8_t i = 0; i < 6; i++)
+			{
+				FPRINT(fp_intra_4x4[INTRA_4_PU_PRED_MODE_BITS],"%08llx",pu_pred_mode_bits[i]);
+			}
+			FPRINT(fp_intra_4x4[INTRA_4_PU_PRED_MODE_BITS],"\n");
+
+			//INTRA_4_TU_CBF_BITS
+			__int64 tu_cbf_bits[6];
+			tu_cbf_bits[0] = g_intra_est_bit_cbf[0][cur_depth][zscan + 0];
+			tu_cbf_bits[1] = g_intra_est_bit_cbf[1][cur_depth][zscan + 0];
+			tu_cbf_bits[2] = g_intra_est_bit_cbf[0][cur_depth][zscan + 1];
+			tu_cbf_bits[3] = g_intra_est_bit_cbf[0][cur_depth][zscan + 2];
+			tu_cbf_bits[4] = g_intra_est_bit_cbf[2][cur_depth][zscan + 0];
+			tu_cbf_bits[5] = g_intra_est_bit_cbf[0][cur_depth][zscan + 3];
+
+			for (uint8_t i = 0; i < 6; i++)
+			{
+				FPRINT(fp_intra_4x4[INTRA_4_TU_CBF_BITS],"%06llx",tu_cbf_bits[i]);
+			}
+			FPRINT(fp_intra_4x4[INTRA_4_TU_CBF_BITS],"\n");
+
+			//INTRA_4_PU_PART_MODE_BITS
+			__int64 pu_part_mode_bits[6];
+			pu_part_mode_bits[0] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[1] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[2] = g_intra_est_bit_part_mode[cur_depth][zscan + 1];
+			pu_part_mode_bits[3] = g_intra_est_bit_part_mode[cur_depth][zscan + 2];
+			pu_part_mode_bits[4] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[5] = g_intra_est_bit_part_mode[cur_depth][zscan + 3];
+
+			for (uint8_t i = 0; i < 6; i++)
+			{
+				FPRINT(fp_intra_4x4[INTRA_4_PU_PART_MODE_BITS],"%06llx",pu_part_mode_bits[i]);
+			}
+			FPRINT(fp_intra_4x4[INTRA_4_PU_PART_MODE_BITS],"\n");
 		}
+		
+
+		
+		
+
 	#endif
 
 	#if OUTPUT_8X8_DATA
 		if((width == 8) && (cur_depth == 3)) // 8x8 CU
 		{
-			// print CU valid flag.
+			// print CU valid flag.`
 			uint8_t ValidIdx8x8[] = { 7, 5, 4, 2, 0 };// reverse
 			for ( uint8_t  i = 0 ; i < 5 ; i++ )
 			{
@@ -2225,12 +2291,15 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 					puStride,
 					width);
 			//
-		#ifdef RK_CABAC
+#if RK_CABAC_H
+			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			uint32_t bits_x265 = g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode];
+			uint32_t bits = m_cabac_rdo->Est_bit_pu_luma_dir(cur_depth,dirMode);
+			assert(bits_x265 == bits);
+#else
 			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
 			uint32_t bits = g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode];
-		#else
-			uint32_t bits = 0;
-		#endif
+#endif
 
 			//setLambda(30, 2);
 			bits_luma_dir[dirMode] = bits;
@@ -2347,6 +2416,17 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		BubbleSort(index,costTotal, 35);
 
 		int bestMode = index[0];
+#if RK_CABAC_H
+		m_cabac_rdo->pu_best_mode_flag[1][cur_depth] = 1;
+		m_cabac_rdo->intra_pu_depth_luma_bestDir[cur_depth] = bestMode;
+		if ( (cur_depth == 4 && partOffset == 0) || cur_depth!=4 )
+		{
+			m_cabac_rdo->intra_pu_depth_chroma_bestDir[cur_depth] = bestMode;
+		}
+		m_cabac_rdo->cabac_rdo_status(cur_depth,1,0);//PU_EST_WAIT->PU_EST  根据最优的方向选择prev_intra_luma_pred_flag的上下文
+		m_cabac_rdo->cabac_rdo_status(cur_depth,1,0);//PU_EST->TU_EST_WAIT  等待QT结束
+		m_cabac_rdo->cabac_rdo_status(cur_depth,1,0);//TU_EST_WAIT->TU_EST_WAIT  自转一圈 表示等待QT结束
+#endif
 	#if OUTPUT_4X4_DATA
 		
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3

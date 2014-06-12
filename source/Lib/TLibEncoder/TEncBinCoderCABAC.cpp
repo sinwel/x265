@@ -37,6 +37,7 @@
 
 #include "TEncBinCoderCABAC.h"
 #include "TLibCommon/TComRom.h"
+#include "CABAC.h"
 
 using namespace x265;
 
@@ -163,7 +164,11 @@ void TEncBinCABAC::resetBits()
     m_bitsLeft         = -12;
     m_numBufferedBytes = 0;
     m_bufferedByte     = 0xff;
-    m_fracBits        &= 32767;
+#if CABAC_INT_MODIFY
+	m_fracBits        = 0;
+#else
+	m_fracBits        &= 32767;
+#endif
 }
 
 /**

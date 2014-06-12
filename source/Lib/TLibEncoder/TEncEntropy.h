@@ -80,6 +80,9 @@ public:
     virtual void resetBits() = 0;
     virtual void resetCoeffCost() = 0;
     virtual uint32_t getNumberOfWrittenBits() = 0;
+
+	virtual int64_t getNumberOfWrittenBits_fraction() = 0;//ADD BY GSL 提取分数bit
+
     virtual uint32_t getCoeffCost() = 0;
 
     virtual void codeVPS(TComVPS* vps) = 0;

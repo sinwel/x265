@@ -10,6 +10,7 @@
 #include "macro.h"
 #include "qt.h"
 #include "rk_define.h"
+#include "CABAC.h"
 
 #include <stdio.h>
 #include <assert.h>
@@ -96,13 +97,13 @@ typedef enum Intra4HardwareFile
     INTRA_4_RECON             , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb y y cr y 的顺序打印
     INTRA_4_BEST_MODE         , //按照8bit一行进行打印, 按照y cb y y cr y的顺序打印
     INTRA_4_TU_CABAC_BITS   	, //按照一个tu 残差，24bit一行的顺序进行打印按照y cb y y cr y的顺序打印
-    INTRA_4_PU_PRED_MODE_BITS   , //按照8bit一行的数据进行打印,按照 y cb&cr 的顺序进行打印
+    INTRA_4_PU_PRED_MODE_BITS   , //按照8bit一行的数据进行打印,按照y cb y y cr y的顺序进行打印
     INTRA_4_CU_TOTAL_BITS       ,
     INTRA_4_CU_TOTAL_DISTORTION ,
     INTRA_4_CU_TOTAL_COST       ,
     INTRA_4_TU_COST_BITS        ,
     INTRA_4_TU_CBF_BITS         , //按照 8bit打印 ，y cb y y cr y的顺序打印 一个TU 一行
-    INTRA_4_PU_SPLIT_FLAG_BIT	, //按照8bit一行的顺序进行打印,一个PU一行    
+    INTRA_4_PU_PART_MODE_BITS	, //按照8bit一行的顺序进行打印,一个PU一行    
     INTRA_4_FILE_NUM
 } Intra4HardwareFile;
 
@@ -136,6 +137,9 @@ typedef enum Intra8HardwareFile
 class Rk_IntraPred
 {
 public:
+#if RK_CABAC_H
+	CABAC_RDO* m_cabac_rdo;
+#endif
     FILE *rk_logIntraPred[20];
     FILE* fp_intra_4x4[INTRA_4_FILE_NUM];
     FILE* fp_intra_8x8[INTRA_8_FILE_NUM];

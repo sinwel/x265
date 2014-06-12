@@ -49,6 +49,7 @@
 #include "../../hardwareC/rk_define.h"
 #include "hardwareC/inter.h"
 #include "hardwareC/level_mode_calc.h"
+#include "CABAC.h"
 
 #include "macro.h"
 
@@ -409,7 +410,6 @@ bool mergeFlag = 0;
 	static unsigned int nPrevAddr = MAX_INT;
 	if (nPrevAddr != cu->getAddr())
 	{
-		const int nAllNeighMv = 36;
 		MV tmpMv[nAllNeighMv]; bool isValid[nAllNeighMv];
 		for (int mvIdx = 0; mvIdx < nAllNeighMv; mvIdx++)
 			tmpMv[mvIdx] = MV(0, 0);
@@ -539,7 +539,6 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 	}
 
 	static unsigned int nPrevAddr = MAX_INT;
-	const int nAllNeighMv = 36;
 	static Mv mvNeigh[nAllNeighMv];
 	if (nPrevAddr != cu->getAddr())
 	{
@@ -1017,6 +1016,12 @@ void TEncCu::compressCU(TComDataCU* cu)
 #if RK_INTER_METEST
 	SaveTemporalMv(m_bestCU[0]);
 #endif
+
+#if RK_CABAC_H
+	//	memset(g_cabac_rdo_test->inx_in_tu,0,sizeof(g_cabac_rdo_test->inx_in_tu));
+	//	memset(g_cabac_rdo_test->inx_in_cu,0,sizeof(g_cabac_rdo_test->inx_in_cu));
+	memset(pHardWare->ctu_calc.m_cabac_rdo.next_status , CTU_EST , sizeof(pHardWare->ctu_calc.m_cabac_rdo.next_status));
+#endif
 #if RK_CTU_CALC_PROC_ENABLE && RK_INTER_METEST
 	if (m_bestCU[0]->getSlice()->getSliceType() != I_SLICE)
 	{
@@ -1041,6 +1046,10 @@ void TEncCu::compressCU(TComDataCU* cu)
 				pHardWare->Rime[i].DestroyPicInfo();
 		}
 	}
+#endif
+
+#if RK_CABAC_H
+	this->pHardWare->ctu_calc.m_cabac_rdo.update_L_buffer_x();
 #endif
 }
 
@@ -1255,7 +1264,9 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         }
 
         m_entropyCoder->resetBits();
-        m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+# if !INTRA_SPLIT_FLAG_MODIFY
+		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+#endif
         outBestCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); // split bits
         outBestCU->m_totalCost  = m_rdCost->calcRdCost(outBestCU->m_totalDistortion, outBestCU->m_totalBits);
 
@@ -1330,7 +1341,19 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
             {
                 if (0 == partUnitIdx) //initialize RD with previous depth buffer
                 {
-                    m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+# if INTRA_SPLIT_FLAG_MODIFY
+					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+					m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
+					if (depth == 0 || depth == 1)
+					{
+						m_entropyCoder->encodeSplitFlag(subTempPartCU[partUnitIdx], 0, depth  , true);
+					}
+
+					m_entropyCoder->resetBits();
+					m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
+#else
+					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+#endif
                 }
                 else
                 {
@@ -1352,10 +1375,20 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         if (!bBoundary)
         {
             m_entropyCoder->resetBits();
-            m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+# if INTRA_SPLIT_FLAG_MODIFY
+			m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+			m_entropyCoder->resetBits();
+			//            m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+			m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+#else
+			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+#endif
 
             outTempCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); //split bits
-        }
+#if RK_CABAC_H
+			g_est_bit_cu_split_flag[0][depth ][outTempCU->getZorderIdxInCU()][1] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+#endif
+		}
         outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
 
         //curr sublevel CU Cost¡¢Bits¡¢Distortion
@@ -2169,6 +2202,11 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 			m_tmpRecoYuv[depth],
 			false);
 	}
+
+	if (0 == nCount)
+		g_mergeBits[offsIdx] = MAX_INT;
+	else
+		g_mergeBits[offsIdx] = outTempCU->m_totalBits;
 	xCheckDQP(outTempCU);
 	xCheckBestMode(outBestCU, outTempCU, depth);
 }
@@ -2225,6 +2263,7 @@ void TEncCu::xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU)
 	g_fme = true;
 #endif
 	m_search->encodeResAndCalcRdInterCU(outTempCU, m_origYuv[depth], m_tmpPredYuv[depth], m_tmpResiYuv[depth], m_bestResiYuv[depth], m_tmpRecoYuv[depth], false);
+	g_fmeBits[offsIdx] = outTempCU->m_totalBits;
 	xCheckDQP(outTempCU);
 	xCheckBestMode(outBestCU, outTempCU, depth);
 }
@@ -2895,19 +2934,104 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
     m_search->estIntraPredChromaQT(outTempCU, m_origYuv[depth], m_tmpPredYuv[depth], m_tmpResiYuv[depth], m_tmpRecoYuv[depth], preCalcDistC);
 
     m_entropyCoder->resetBits();
+
+# if INTRA_SPLIT_FLAG_MODIFY
+	//	m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+#endif
+#if RK_CABAC_H
+	UChar depth_temp = depth;
+	if (*outTempCU->getPartitionSize() == SIZE_NxN)
+	{
+		depth_temp+=1;
+	}
+
+	if (depth == 0 || depth == 1 || depth ==2)
+	{
+		g_est_bit_cu_split_flag[0][depth ][outTempCU->getZorderIdxInCU()][0] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+	}
+	int64_t temp = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+#endif
+
+
     if (outTempCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
     {
         m_entropyCoder->encodeCUTransquantBypassFlag(outTempCU, 0, true);
     }
     m_entropyCoder->encodeSkipFlag(outTempCU, 0, true);
     m_entropyCoder->encodePredMode(outTempCU, 0, true);
-    m_entropyCoder->encodePartSize(outTempCU, 0, depth, true);
-    m_entropyCoder->encodePredInfo(outTempCU, 0, true);
+#if RK_CABAC_H
+	int64_t temp4 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+	m_entropyCoder->encodePartSize(outTempCU, 0, depth, true);
+	int64_t temp5 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+	g_intra_est_bit_part_mode[depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp5 - temp4) ;
+	
+	m_entropyCoder->encodeIntraDirModeLuma(outTempCU, 0, true);
+	int64_t temp6 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+//	g_intra_est_bit_luma_pred_mode[depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp6 - temp5) ;
+
+	m_entropyCoder->encodeIntraDirModeChroma(outTempCU, 0, true);
+	int64_t temp7 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+	g_intra_est_bit_chroma_pred_mode[depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp7 - temp6) ;
+#else
+	m_entropyCoder->encodePartSize(outTempCU, 0, depth, true);
+	m_entropyCoder->encodePredInfo(outTempCU, 0, true);
+#endif
+    
+
     m_entropyCoder->encodeIPCMInfo(outTempCU, 0, true);
 
     // Encode Coefficients
     bool bCodeDQP = getdQPFlag();
-    m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+#if RK_CABAC_H
+	
+
+	for (int i = 0 ; i < 3 ; i++)
+	{
+		g_intra_est_bit_coded_sub_block_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_sig_coeff_flag[i][depth_temp][outTempCU->getZorderIdxInCU()]= 0;
+		g_intra_est_bit_coeff_abs_level_greater1_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_coeff_abs_level_greater2_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_coeff_sign_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_coeff_abs_level_remaining[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_last_sig_coeff_xy[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+
+		g_intra_est_bit_cbf[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_est_bit_tu_luma_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_est_bit_tu_cb_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_est_bit_tu_cr_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		if (depth_temp == 4)
+		{
+			for (int j = 1 ; j < 4 ; j++)
+			{
+				g_intra_est_bit_coded_sub_block_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_sig_coeff_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j]= 0;
+				g_intra_est_bit_coeff_abs_level_greater1_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_coeff_abs_level_greater2_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_coeff_sign_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_coeff_abs_level_remaining[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_last_sig_coeff_xy[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+
+				g_intra_est_bit_cbf[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_est_bit_tu_luma_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_est_bit_tu_cb_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_est_bit_tu_cr_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+			}
+		}
+	}
+
+#endif
+#if RK_CABAC_H
+	int64_t temp0 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+	int64_t temp1 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+
+	g_est_bit_tu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp0);
+
+	g_est_bit_cu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp);
+
+#else
+	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+#endif
     setdQPFlag(bCodeDQP);
 
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_TEMP_BEST]);

@@ -7,7 +7,7 @@
 #include "rk_define.h"
 #include "level_mode_calc.h"
 #include "inter.h"
-
+#include "CABAC.h"
 
 class hardwareC;
 
@@ -74,6 +74,11 @@ public:
 class CTU_CALC
 {
 public:
+
+#if RK_CABAC_H
+	CABAC_RDO  m_cabac_rdo;
+#endif
+
     /* Input */
     uint8_t *input_curr_y;              //64*64  //inPut
     uint8_t *input_curr_u;              //32*32  //input

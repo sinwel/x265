@@ -16,6 +16,9 @@ extern FILE* g_fp_TQ_LOG_HWC_ME;
 // ====================================================================================================================
 // Macros
 // ====================================================================================================================
+// SWC T/iT functions
+#define	SWC_EN		0 //for experiment on C to RTL conversion
+
 
 // debug used
 
@@ -23,6 +26,18 @@ extern FILE* g_fp_TQ_LOG_HWC_ME;
 #define T_LOG_EN_16 0
 #define T_LOG_EN_32 0
 #define IT_LOG_EN_4 0
+
+/* iDCT  in:after transpose,    outD1:before transpose,		outD2:normal
+   DCT   in:normal,             outD1:before transpose,		outD2:after transpose
+ */
+#define LOG_T_IT_4 	0		
+#define LOG_T_IT_8 	0
+#define LOG_T_IT_16 0
+#define LOG_T_IT_32 0
+
+/* T input,	T output, Q output, IQ output, IT ouput.
+ */
+#define LOG_T_Q		0 // in x265 proc, set(if m_infoForQT->size==?)for log appointed size data.
 
 // ====================================================================================================================
 // tables definition
@@ -68,6 +83,8 @@ hevcQT::hevcQT()
 	m_infoForQT->coeffTQ = new int32_t[CTU_SIZE*CTU_SIZE];
 	m_infoForQT->coeffTQIQ = new int32_t[CTU_SIZE*CTU_SIZE];
 
+	g_count_block = 0;
+
 #if TQ_LOG_IN_X265_INTRA
 	m_fp_TQ_LOG_X265_INTRA= fopen(PATH_NAME("TQ_LOG_X265_INTRA.txt"), "w+");
 	if (m_fp_TQ_LOG_X265_INTRA == NULL)
@@ -83,6 +100,77 @@ hevcQT::hevcQT()
 		RK_HEVC_PRINT("creat TQ_LOG_X265_ME file failed.\n");
 	}	
 #endif
+
+#if GET_DBG_INFO_FOR_RTL
+	m_fp_input4x4data= fopen(PATH_NAME("qt4x4_input.dat"), "w+");
+	m_fp_output4x4data= fopen(PATH_NAME("qt4x4_output.dat"), "w+");
+	if (m_fp_input4x4data == NULL || m_fp_output4x4data==NULL)
+	{
+		RK_HEVC_PRINT("creat qt4x4 file failed.\n");
+	}
+	#if 0
+	m_fp_input4x4data_8x8chr= fopen(PATH_NAME("qt4x4_input_chr.dat"), "w+");
+	m_fp_output4x4data_8x8chr= fopen(PATH_NAME("qt4x4_output_chr.dat"), "w+");
+	if (m_fp_input4x4data_8x8chr == NULL || m_fp_output4x4data_8x8chr==NULL)
+	{
+		RK_HEVC_PRINT("creat qt4x4_8x8chr file failed.\n");
+	}	
+	#endif
+	m_fp_input8x8data= fopen(PATH_NAME("qt8x8_input.dat"), "w+");
+	m_fp_output8x8data= fopen(PATH_NAME("qt8x8_output.dat"), "w+");
+	if (m_fp_input8x8data == NULL || m_fp_output8x8data==NULL)
+	{
+		RK_HEVC_PRINT("creat qt8x8 file failed.\n");
+	}
+	m_fp_input16x16data= fopen(PATH_NAME("qt16x16_input.dat"), "w+");
+	m_fp_output16x16data= fopen(PATH_NAME("qt16x16_output.dat"), "w+");
+	if (m_fp_input16x16data == NULL || m_fp_output16x16data==NULL)
+	{
+		RK_HEVC_PRINT("creat qt16x16 file failed.\n");
+	}
+	m_fp_input32x32data= fopen(PATH_NAME("qt32x32_input.dat"), "w+");
+	m_fp_output32x32data= fopen(PATH_NAME("qt32x32_output.dat"), "w+");
+	if (m_fp_input32x32data == NULL || m_fp_output32x32data==NULL)
+	{
+		RK_HEVC_PRINT("creat qt32x32 file failed.\n");
+	}
+#endif // #if GET_DBG_INFO_FOR_RTL
+
+#if GET_TQ_INFO_FOR_RTL
+	m_fp_t_input4x4data= fopen(PATH_NAME("t4x4_input.dat"), "a+");
+	m_fp_qit_output4x4data= fopen(PATH_NAME("qit4x4_output.dat"), "a+");
+	if (m_fp_t_input4x4data == NULL || m_fp_qit_output4x4data==NULL)
+	{
+		RK_HEVC_PRINT("creat t4x4 or qit4x4 file failed.\n");
+	}
+#if 0
+	m_fp_t_input4x4data_8x8chr= fopen(PATH_NAME("t4x4_input_chr.dat"), "w+");
+	m_fp_qit_output4x4data_8x8chr= fopen(PATH_NAME("qit4x4_output_chr.dat"), "w+");
+	if (m_fp_t_input4x4data_8x8chr == NULL || m_fp_qit_output4x4data_8x8chr==NULL)
+	{
+		RK_HEVC_PRINT("creat t4x4_chr or qit4x4_chr file failed.\n");
+	}	
+#endif
+	m_fp_t_input8x8data= fopen(PATH_NAME("t8x8_input.dat"), "a+");
+	m_fp_qit_output8x8data= fopen(PATH_NAME("qit8x8_output.dat"), "a+");
+	if (m_fp_t_input8x8data == NULL || m_fp_qit_output8x8data==NULL)
+	{
+		RK_HEVC_PRINT("creat t8x8 or qit8x8 file failed.\n");
+	}	
+	m_fp_t_input16x16data= fopen(PATH_NAME("t16x16_input.dat"), "a+");
+	m_fp_qit_output16x16data= fopen(PATH_NAME("qit16x16_output.dat"), "a+");
+	if (m_fp_t_input16x16data == NULL || m_fp_qit_output16x16data==NULL)
+	{
+		RK_HEVC_PRINT("creat t16x16 or qit16x16 file failed.\n");
+	}		
+	m_fp_t_input32x32data= fopen(PATH_NAME("t32x32_input.dat"), "a+");
+	m_fp_qit_output32x32data= fopen(PATH_NAME("qit32x32_output.dat"), "a+");
+	if (m_fp_t_input32x32data == NULL || m_fp_qit_output32x32data==NULL)
+	{
+		RK_HEVC_PRINT("creat t32x32 or qit32x32 file failed.\n");
+	}		
+#endif //#if GET_TQ_INFO_FOR_RTL
+
 	m_infoFromX265 = new infoFromX265;
 	m_infoFromX265->coeffT = new int32_t[CTU_SIZE*CTU_SIZE];
 	m_infoFromX265->inResi = new int16_t[CTU_SIZE*CTU_SIZE];
@@ -113,6 +201,84 @@ hevcQT::~hevcQT()
 	{
 		fclose(m_fp_TQ_LOG_X265_ME); m_fp_TQ_LOG_X265_ME = NULL;
 	}
+#endif
+
+#if GET_DBG_INFO_FOR_RTL
+	if(m_fp_input4x4data)
+	{
+		fclose(m_fp_input4x4data); m_fp_input4x4data = NULL;
+	}
+	if(m_fp_output4x4data)
+	{
+		fclose(m_fp_output4x4data); m_fp_output4x4data = NULL;
+	}
+	if(m_fp_input4x4data_8x8chr)
+	{
+		fclose(m_fp_input4x4data_8x8chr); m_fp_input4x4data_8x8chr = NULL;
+	}
+	if(m_fp_output4x4data_8x8chr)
+	{
+		fclose(m_fp_output4x4data_8x8chr); m_fp_output4x4data_8x8chr = NULL;
+	}
+	if(m_fp_input8x8data)
+	{
+		fclose(m_fp_input8x8data); m_fp_input8x8data = NULL;
+	}
+	if(m_fp_output8x8data)
+	{
+		fclose(m_fp_output8x8data); m_fp_output8x8data = NULL;
+	}
+	if(m_fp_input16x16data)
+	{
+		fclose(m_fp_input16x16data); m_fp_input16x16data = NULL;
+	}
+	if(m_fp_output16x16data)
+	{
+		fclose(m_fp_output16x16data); m_fp_output16x16data = NULL;
+	}
+	if(m_fp_input32x32data)
+	{
+		fclose(m_fp_input32x32data); m_fp_input32x32data = NULL;
+	}
+	if(m_fp_output32x32data)
+	{
+		fclose(m_fp_output32x32data); m_fp_output32x32data = NULL;
+	}	
+#endif
+
+#if GET_TQ_INFO_FOR_RTL
+	if(m_fp_t_input4x4data)
+	{
+		fclose(m_fp_t_input4x4data); m_fp_t_input4x4data = NULL;
+	}
+	if(m_fp_qit_output4x4data)
+	{
+		fclose(m_fp_qit_output4x4data); m_fp_qit_output4x4data = NULL;
+	}
+	if(m_fp_t_input8x8data)
+	{
+		fclose(m_fp_t_input8x8data); m_fp_t_input8x8data = NULL;
+	}
+	if(m_fp_qit_output8x8data)
+	{
+		fclose(m_fp_qit_output8x8data); m_fp_qit_output8x8data = NULL;
+	}
+	if(m_fp_t_input16x16data)
+	{
+		fclose(m_fp_t_input16x16data); m_fp_t_input16x16data = NULL;
+	}
+	if(m_fp_qit_output16x16data)
+	{
+		fclose(m_fp_qit_output16x16data); m_fp_qit_output16x16data = NULL;
+	}
+	if(m_fp_t_input32x32data)
+	{
+		fclose(m_fp_t_input32x32data); m_fp_t_input32x32data = NULL;
+	}
+	if(m_fp_qit_output32x32data)
+	{
+		fclose(m_fp_qit_output32x32data); m_fp_qit_output32x32data = NULL;
+	}	
 #endif
 
 	delete[] m_infoFromX265->coeffT;			m_infoFromX265->coeffT = NULL;
@@ -161,6 +327,569 @@ void hevcQT::fillResi(short* resi, int val, uint32_t resiStride, uint32_t tuSize
 	}
 }
 
+void hevcQT::printResiOneDim(int16_t *in, int16_t *outD1, int16_t *outD2,int size, bool isT, int trType)
+{
+
+	if(isT) // T
+	{
+		if (trType == 0)
+		{
+			printf("===================== DCT start =====================\n");
+		}
+		else
+		{
+			printf("===================== DST start =====================\n");
+		}
+	}
+	else // IT
+	{
+		if (trType == 0)
+		{
+			printf("===================== iDCT start =====================\n");
+		}
+		else
+		{
+			printf("===================== iDST start =====================\n");
+		}
+	}
+			
+	printf("in:\n");
+	for (int j = 0; j < size; j++)
+	{
+		for (int i = 0; i < size; i++)
+		{
+
+			printf("%04x, ", in[j*size + i] & 0xffff); //%d
+		}
+		printf("\n");
+	}
+	
+	printf("\n");
+	printf("out_d1:\n");
+	for (int j = 0; j < size; j++)
+	{
+		for (int i = 0; i < size; i++)
+		{
+			printf("%04x, ", outD1[j*size + i]&0xffff);//%d
+		}
+		printf("\n");
+	}
+	
+	printf("\n");
+	printf("out_d2:\n");
+	for (int j = 0; j < size; j++)
+	{
+		for (int i = 0; i < size; i++)
+		{
+			printf("%04x, ", outD2[j*size + i]&0xffff);//%d
+		}
+		printf("\n");
+	}
+	
+	if(isT) // T
+	{
+		if (trType == 0)
+		{
+			printf("===================== DCT end =====================\n");
+		}
+		else
+		{
+			printf("===================== DST end =====================\n");
+		}
+	}
+	else // IT
+	{
+		if (trType == 0)
+		{
+			printf("===================== iDCT end =====================\n");
+		}
+		else
+		{
+			printf("===================== iDST end =====================\n");
+		}
+	}
+	printf("\n\n");
+}	
+
+void hevcQT::printResi(int16_t *resi, uint8_t size)
+{
+	uint8_t i, j;
+	for (j = 0; j < size; j++)
+	{
+		for (i = 0; i < size; i++)
+		{
+
+			printf("%04x, ", resi[j*size + i] & 0xffff); //%d
+		}
+		printf("\n");
+	}
+}
+void hevcQT::printResiTQiQiT(int16_t *inT, int16_t *outT, int16_t *outQ, int16_t *outIQ, int16_t* outIT,
+									 uint8_t trType)
+{	int qp;
+	if (m_infoForQT->textType == 0) // LUMA
+	{
+		qp = m_infoForQT->qp;
+	}
+	else //Chroma
+	{
+		qp = ChromaScale[m_infoForQT->qp];
+	}
+	
+	char *preFixStart, *postFixEnd;
+	if(trType==0)
+	{
+		preFixStart = "===================== DCT start =====================";
+		postFixEnd = "===================== iDCT end =====================\n";
+	}
+	else
+	{
+		preFixStart = "===================== DST start =====================";
+		postFixEnd = "===================== iDST end =====================\n";	
+	}
+	uint8_t sliceType = m_infoForQT->sliceType==2? 0 : 1; //temp
+	printf(preFixStart);
+	printf("[%d]th TU\n", g_count_block);
+	printf("qp=%d,\tslice_type=%d,\ttext_type=%d\n", 
+			qp, sliceType, m_infoForQT->textType);
+
+	printf("\nT input:\n");
+	printResi(inT, m_infoForQT->size);
+
+	printf("\nT output:\n");
+	printResi(outT, m_infoForQT->size);
+	
+	printf("\nQ output:\n");
+	printResi(outQ, m_infoForQT->size);
+
+	printf("\nIQ output:\n");
+	printResi(outIQ, m_infoForQT->size);
+
+	printf("\nIT output:\n");
+	printResi(outIT, m_infoForQT->size);	
+
+	printf(postFixEnd);
+	printf("\n\n");
+}	
+
+#if GET_DBG_INFO_FOR_RTL
+void hevcQT::printResiForTandIT(FILE* fpIn, FILE* fpOut, int16_t *in, int16_t *out, uint8_t size, bool isT, uint8_t trType)
+{
+	int idx;
+	if(size==4 ) // tu_size
+	{
+		if(m_infoForQT->textType==0) //luma
+		{
+			if(isT) 
+			{
+				if(trType==0) // dct
+					idx=2;
+				else // dst
+					idx=0;
+			}
+			else // it
+			{
+				if(trType==0) // dct
+					idx=3;
+				else // dst
+					idx=1;
+			}
+		}
+		else //8x8chroma
+		{
+			if(isT)
+				idx=0; // dct
+			else
+				idx=1; // idct
+		}
+		fprintf(fpIn, "%x", idx&0xf);	
+		fprintf(fpOut, "%x", idx&0xf);	
+		for (int j = size*size-1; j >= 0; j--)
+		{
+			fprintf(fpIn, "%04x", in[j]&0xffff);		
+			fprintf(fpOut, "%04x", out[j]&0xffff);
+		}
+
+		fprintf(fpIn, "\n");	
+		fprintf(fpOut, "\n");	
+	}
+	else // size>=8 || (size==4 && chroma)
+	{
+		if(isT)
+			idx=0; // dct
+		else
+			idx=1; // idct
+
+		for(int i = 0; i < size; i++)
+		{
+			fprintf(fpIn, "%x", idx & 0xf);
+			fprintf(fpOut, "%x", idx & 0xf);
+			for (int j = size-1; j >= 0; j--)
+			{
+				fprintf(fpIn, "%04x", in[i*size+j]&0xffff);		
+				fprintf(fpOut, "%04x", out[i*size+j]&0xffff);
+			}
+			fprintf(fpIn, "\n");	
+			fprintf(fpOut, "\n");
+		}
+	}	
+	
+}
+#endif // #if GET_DBG_INFO_FOR_RTL
+
+#if GET_TQ_INFO_FOR_RTL
+void hevcQT::fprintResiForTQiT(FILE* fpIn, FILE* fpOut, int16_t *inT, int16_t *outQ, int16_t *outIT,
+									   uint8_t trType)
+{
+	int qp;
+	if (m_infoForQT->textType == 0) // LUMA
+	{
+		qp = m_infoForQT->qp;
+	}
+	else //Chroma
+	{
+		qp = ChromaScale[m_infoForQT->qp];
+	}
+
+	int idx0[4], idx1[4]; // (qp) (slice_type) (text_type) (tran_type)
+	idx1[0] = idx0[0] = qp;
+	//assert(m_infoForQT->qp==30);
+	idx1[1] = idx0[1] = m_infoForQT->sliceType==2? 0 : 1;
+	if(m_infoForQT->size==4 ) // tu_size
+	{
+		// [text_type] 0: intra Luma;  1: intra chroma;  2: inter Luma;  3: inter chroma;
+		if(m_infoForQT->textType==0) //luma
+		{
+			if(m_infoForQT->predMode==0) // luma && intra
+			{
+				idx1[2] = idx0[2] = 0;
+			}
+			else // luma && inter
+			{
+				idx1[2] = idx0[2] = 2;
+			}		
+		}
+		else //8x8chroma
+		{
+			if(m_infoForQT->predMode==0) // chroma && intra
+			{
+				idx1[2] = idx0[2] = 1;
+			}
+			else // chroma && inter
+			{
+				idx1[2] = idx0[2] = 3;
+			}	
+		}
+
+		// [trType]: 0:DST;  1:IDST;   2:DCT;   3:IDCT
+		if(trType==0) // dct || idct
+		{
+			idx0[3] = 2;
+			idx1[3] = 3;
+		}
+		else
+		{
+			idx0[3] = 0;
+			idx1[3] = 1;
+		}
+
+		// print prefix t
+		fprintf(fpIn, "%02x", idx0[0]&0xff);
+		for(int k=1; k<4; k++)
+		{
+			fprintf(fpIn, "%x", idx0[k]&0xf);	
+		}
+		// print resi t
+		for (int j = m_infoForQT->size*m_infoForQT->size-1; j >= 0; j--)
+		{
+			fprintf(fpIn, "%04x", inT[j]&0xffff);		
+		}
+		fprintf(fpIn, "\n");	
+
+		// print prefix q
+		fprintf(fpOut, "%02x", idx1[0]&0xff);
+		for(int k=1; k<4; k++)
+		{
+			fprintf(fpOut, "%x", idx1[k]&0xf);	
+		}	
+		// print resi q
+		for (int j = m_infoForQT->size*m_infoForQT->size-1; j >= 0; j--)
+		{
+			fprintf(fpOut, "%04x", outQ[j]&0xffff);
+		}		
+		fprintf(fpOut, "\n");	
+
+		// print prefix it
+		fprintf(fpOut, "%02x", idx1[0]&0xff);
+		for(int k=1; k<4; k++)
+		{
+			fprintf(fpOut, "%x", idx1[k]&0xf);	
+		}	
+		//print resi it
+		for (int j = m_infoForQT->size*m_infoForQT->size-1; j >= 0; j--)
+		{
+			fprintf(fpOut, "%04x", outIT[j]&0xffff);
+		}		
+		fprintf(fpOut, "\n");	
+	}
+	else // size>=8 || (size==4 && chroma)
+	{
+		//0: Luma;  1: chroma
+		if(m_infoForQT->textType==0) //luma
+		{
+			idx1[2] = idx0[2] = 0;
+		}
+		else //chroma
+		{
+			idx1[2] = idx0[2] = 1;
+		}
+		
+		// 0:DCT;     1:IDCT;
+		idx0[3] = 0;
+		idx1[3] = 1;
+
+		
+		for(int i = 0; i < m_infoForQT->size; i++)
+		{
+			// print prefix t
+			fprintf(fpIn, "%02x", idx0[0]&0xff);
+			for(int k=1; k<4; k++)
+			{
+				fprintf(fpIn, "%x", idx0[k]&0xf);
+			}		
+			
+			// print resi t
+			for (int j = m_infoForQT->size-1; j >= 0; j--)
+			{
+				fprintf(fpIn, "%04x", inT[i*m_infoForQT->size+j]&0xffff);		
+			}
+			fprintf(fpIn, "\n");	
+		}
+
+		for(int i = 0; i < m_infoForQT->size; i++)
+		{
+			// print prefix q
+			fprintf(fpOut, "%02x", idx1[0]&0xff);
+			for(int k=1; k<4; k++)
+			{
+				fprintf(fpOut, "%x", idx1[k]&0xf);
+			}
+			// print resi q
+			for (int j = m_infoForQT->size-1; j >= 0; j--)
+			{
+				fprintf(fpOut, "%04x", outQ[i*m_infoForQT->size+j]&0xffff);
+			}
+			fprintf(fpOut, "\n");
+
+			// print prefix it
+			fprintf(fpOut, "%02x", idx1[0]&0xff);
+			for(int k=1; k<4; k++)
+			{
+				fprintf(fpOut, "%x", idx1[k]&0xf);
+			}
+			// print resi it
+			for (int j = m_infoForQT->size-1; j >= 0; j--)
+			{
+				fprintf(fpOut, "%04x", outIT[i*m_infoForQT->size+j]&0xffff);
+			}
+			fprintf(fpOut, "\n");
+
+		}		
+	}
+		
+}
+#endif //#if GET_TQ_INFO_FOR_RTL
+
+
+void hevcQT::_ist4(short *out, short *in, int shift)
+{
+    int i, c[4];
+    int rnd_factor = 1 << (shift - 1);
+
+    for (i = 0; i < 4; i++)
+    {
+        // Intermediate Variables
+        c[0] =  	in[i]  + in[8 + i];
+        c[1] =  	in[8+i]+ in[12 + i];
+        c[2] =		in[i]  - in[12 + i];
+        c[3] =	 74*in[4 + i];
+
+        out[4 * i + 0] = (int16_t)CLIP((29 * c[0] + 55 * c[1] + c[3]          + rnd_factor) >> shift, -32768, 32767);
+		out[4 * i + 1] = (int16_t)CLIP((55 * c[2] - 29 * c[1] + c[3]		  +	rnd_factor) >> shift, -32768, 32767);
+		out[4 * i + 2] = (int16_t)CLIP((74 * (in[i] - in[8 + i] + in[12 + i]) + rnd_factor) >> shift, -32768, 32767);
+		out[4 * i + 3] = (int16_t)CLIP((55 * c[0] + 29 * c[2] - c[3]		  +	rnd_factor) >> shift, -32768, 32767);
+    }	
+}
+
+void hevcQT::_idst4(short *dst, int *src)
+{
+    const int shift_1st = 7;
+    const int shift_2nd = 12;
+	
+#define N (4)
+	short in[N*N], tmp[N*N], out[N*N];
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            in[i*N + j] = (short)src[i*N + j];
+        }
+    }
+
+    _ist4(tmp, in,  shift_1st); 
+    _ist4(out, tmp, shift_2nd);
+
+	// copy [out] to [outResi], size in 4x4
+	for (int k = 0; k < N; k++)
+	{
+		memcpy(&(dst[k*CTU_SIZE]), &(out[k*N]), N*sizeof(short));
+	}
+#undef N	
+}
+
+
+void hevcQT::_ict4(int16_t *dst, int16_t *src, int shift)
+{
+    int j;
+    int E[2], O[2];
+    int add = 1 << (shift - 1);
+
+    for (j=0; j<4; j++)
+    {
+        /* Utilizing symmetry properties to the maximum to minimize the number of multiplications */
+        O[0] = t4_coeff[1][0] * src[4] + t4_coeff[3][0] * src[3*4];
+        O[1] = t4_coeff[1][1] * src[4] + t4_coeff[3][1] * src[3*4];
+        E[0] = t4_coeff[0][0] * src[0] + t4_coeff[2][0] * src[2*4];
+        E[1] = t4_coeff[0][1] * src[0] + t4_coeff[2][1] * src[2*4];
+
+        /* Combining even and odd terms at each hierarchy levels to calculate the final spatial domain vector */
+        dst[0] = (int16_t)(CLIP((E[0] + O[0] + add) >> shift, -32768, 32767));
+        dst[1] = (int16_t)(CLIP((E[1] + O[1] + add) >> shift, -32768, 32767));
+        dst[2] = (int16_t)(CLIP((E[1] - O[1] + add) >> shift, -32768, 32767));
+        dst[3] = (int16_t)(CLIP((E[0] - O[0] + add) >> shift, -32768, 32767));
+
+        src++;
+        dst += 4;
+    }
+}
+
+void hevcQT::_idct4(short *dst, int *src)
+{
+    const int shift_1st = 7;
+    const int shift_2nd = 12;
+
+#define N (4)
+	short in[N*N], tmp[N*N], out[N*N];
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            in[i*N + j] = (short)src[i*N + j];
+        }
+    }
+
+    _ict4(tmp, in,  shift_1st); 
+    _ict4(out, tmp, shift_2nd);
+
+	// copy [out] to [outResi], size in 4x4
+	for (int k = 0; k < N; k++)
+	{
+		memcpy(&(dst[k*CTU_SIZE]), &(out[k*N]), N*sizeof(short));
+	}
+#undef N	
+}
+
+
+void hevcQT::_st4(short *dst, short *src, int shift)
+{
+    int c[4];
+    int add = 1 << (shift - 1);
+
+    for (int i = 0; i < 4; i++)
+    {
+        // Intermediate Variables
+        c[0] = src[4 * i + 0] + src[4 * i + 3];
+        c[1] = src[4 * i + 1] + src[4 * i + 3];
+        c[2] = src[4 * i + 0] - src[4 * i + 1];
+        c[3] = 74 * src[4 * i + 2];
+
+        dst[ 0+i] = (int16_t)((29 * c[0] + 55 * c[1] + c[3]							 + add) >> shift);
+        dst[ 4+i] = (int16_t)((74 * (src[4 * i + 0] + src[4 * i + 1] - src[4 * i + 3]) + add) >> shift);
+        dst[ 8+i] = (int16_t)((29 * c[2] + 55 * c[0] - c[3]							 + add) >> shift);
+        dst[12+i] = (int16_t)((55 * c[2] - 29 * c[1] + c[3]							 + add) >> shift);
+    }
+}
+
+
+void hevcQT::_dst4(int *dst, short *src)
+{
+    const int shift_1st = 1;
+    const int shift_2nd = 8;
+
+#define N (4)
+	short in[N*N], tmp[N*N], out[N*N];
+	for (int k = 0; k < N; k++)
+	{
+		memcpy(&(in[k*N]), &(src[k*CTU_SIZE]), N*sizeof(short));
+	}
+
+    _st4(tmp, in,  shift_1st); 
+    _st4(out, tmp, shift_2nd);
+
+	// copy [out] to [outResi], size in 4x4
+	for (int k = 0; k < N*N; k++)
+	{
+		dst[k] = (int)out[k];
+	}
+#undef N	
+}
+
+void hevcQT::_ct4(int16_t *dst, int16_t *src, int shift)
+{
+    int j;
+    int E[2], O[2];
+    int add = 1 << (shift - 1);
+
+    for (j = 0; j < 4; j++)
+    {
+        /* E and O */
+        E[0] = src[0] + src[3];
+        O[0] = src[0] - src[3];
+        E[1] = src[1] + src[2];
+        O[1] = src[1] - src[2];
+
+        dst[0*4] = (int16_t)((t4_coeff[0][0] * E[0] + t4_coeff[0][1] * E[1] + add) >> shift);
+        dst[2*4] = (int16_t)((t4_coeff[2][0] * E[0] + t4_coeff[2][1] * E[1] + add) >> shift);
+        dst[1*4] = (int16_t)((t4_coeff[1][0] * O[0] + t4_coeff[1][1] * O[1] + add) >> shift);
+        dst[3*4] = (int16_t)((t4_coeff[3][0] * O[0] + t4_coeff[3][1] * O[1] + add) >> shift);
+
+        src += 4;
+        dst++;
+    }
+}
+
+void hevcQT::_dct4(int *dst, short *src)
+{
+    const int shift_1st = 1;
+    const int shift_2nd = 8;
+
+#define N (4)
+	short in[N*N], tmp[N*N], out[N*N];
+	for (int k = 0; k < N; k++)
+	{
+		memcpy(&(in[k*N]), &(src[k*CTU_SIZE]), N*sizeof(short));
+	}
+
+    _ct4(tmp, in,  shift_1st); 
+    _ct4(out, tmp, shift_2nd);
+
+	// copy [out] to [outResi], size in 4x4
+	for (int k = 0; k < N*N; k++)
+	{
+		dst[k] = (int)out[k];
+	}
+#undef N	
+}
 // inverse transform 4x4 block
 void hevcQT::it4(short *out, short *in, int shift, int trType, int dim)
 {
@@ -252,7 +981,9 @@ void hevcQT::idct4(short *outResi, int *coeffTQIQ, int trType)
 	short in[16];
 	short out[16];
 	short temp[16];
-
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_4)
+	short inDbg[16];
+#endif
 	int shift1D = 7;
 	int shift2D = 12 - (RK_BIT_DEPTH - 8);
 
@@ -262,20 +993,39 @@ void hevcQT::idct4(short *outResi, int *coeffTQIQ, int trType)
 	for (int k = 0; k < 16; k++)
 	{
 		in[k] = (short)coeffTQIQ[k];
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_4)
+		inDbg[k] = in[k];
+#endif		
 	}
 
 	//transpose, behavior of hevc decoder,	debug used
 	transpose(in, 4);
-
-
+	
 	it4(temp, in, shift1D, trType, 1);// 1D idct4x4, row in, row out
+#if LOG_T_IT_4
+#define N 4
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif	
 	it4(out, temp, shift2D, trType, 2);//2D idct4x4, row in, col out
 
 	// copy [out] to [ourResi], size in 4x4
 	for (int k = 0; k < 4; k++)
 	{
-		memcpy(&(outResi[k*CTU_SIZE]), &(out[k * 4]), 4 * sizeof(short));
+		memcpy(&(outResi[k*CTU_SIZE]), &(out[k * 4]), 4*sizeof(short));
 	}
+	
+#if GET_DBG_INFO_FOR_RTL
+	if(m_infoForQT->textType==0)
+		printResiForTandIT(m_fp_input4x4data, m_fp_output4x4data, in, out, 4, false, trType);
+	else
+		printResiForTandIT(m_fp_input4x4data_8x8chr, m_fp_output4x4data_8x8chr, inDbg, out, 4, false, 0);
+#endif	
+
+#if LOG_T_IT_4
+	printResiOneDim(inDbg, out1, out, N, false, trType);
+#undef N
+#endif
 }
 
 // idct 8x8
@@ -314,7 +1064,9 @@ void hevcQT::idct8(short *outResi, int *coeffTQIQ)
 	short in[64];
 	short out[64];
 	short temp[64];
-
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_8)
+	short inDbg[64];
+#endif
 	int shift1D = 7;
 	int shift2D = 12 - (RK_BIT_DEPTH - 8);
 
@@ -324,6 +1076,9 @@ void hevcQT::idct8(short *outResi, int *coeffTQIQ)
 	for (int k = 0; k < 64; k++)
 	{
 		in[k] = (short)coeffTQIQ[k];
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_8)
+		inDbg[k] = in[k];
+#endif		
 	}
 
 	//transpose, behavior of hevc decoder,	debug used
@@ -333,6 +1088,12 @@ void hevcQT::idct8(short *outResi, int *coeffTQIQ)
 	{
 		it8(&(temp[k * 8]), &(in[8 * k]), shift1D); //1D 1 1ine
 	}
+	
+#if LOG_T_IT_8
+#define N 8
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif	
 
 	//transpose, behavior of hevc decoder,	debug used
 	transpose(temp, 8);
@@ -348,6 +1109,14 @@ void hevcQT::idct8(short *outResi, int *coeffTQIQ)
 	{
 		memcpy(&(outResi[k*CTU_SIZE]), &(out[k * 8]), 8 * sizeof(short));
 	}
+#if GET_DBG_INFO_FOR_RTL
+	printResiForTandIT(m_fp_input8x8data, m_fp_output8x8data, in, out, 8, false, 0); // idct
+#endif
+
+#if LOG_T_IT_8
+	printResiOneDim(in, out1, out, N, false, 0);
+#undef N
+#endif
 }
 
 // inverse transform 16x16, get out[0~3] and out[12~15]
@@ -420,13 +1189,18 @@ void hevcQT::idct16(short *outResi, int *coeffTQIQ)
 	short in[16 * 16];
 	short out[16 * 16];
 	short temp[16 * 16];
-
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_16)
+	short inDbg[16*16];
+#endif
 	int shift1D = 7;
 	int shift2D = 12 - (RK_BIT_DEPTH - 8);
 
 	for (int k = 0; k < 16 * 16; k++)
 	{
 		in[k] = (short)coeffTQIQ[k];
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_16)
+		inDbg[k] = in[k];
+#endif			
 	}
 
 	//transpose, behavior of hevc decoder,	debug used
@@ -437,7 +1211,11 @@ void hevcQT::idct16(short *outResi, int *coeffTQIQ)
 		it16_0to3(&(temp[k * 16]), &(in[16 * k]), shift1D); //1D 1 1ine, get temp[0~3], temp[12~15] 
 		it16_4to7(&(temp[k * 16]), &(in[16 * k]), shift1D); //1D 1 line, get temp[4~7], temp[ 8~11]
 	}
-
+#if LOG_T_IT_16
+#define N 16
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif	
 	//transpose, behavior of hevc decoder,	debug used
 	transpose(temp, 16);
 
@@ -453,6 +1231,14 @@ void hevcQT::idct16(short *outResi, int *coeffTQIQ)
 	{
 		memcpy(&(outResi[k*CTU_SIZE]), &(out[k * 16]), 16 * sizeof(short));
 	}
+#if GET_DBG_INFO_FOR_RTL
+	printResiForTandIT(m_fp_input16x16data, m_fp_output16x16data, in, out, 16, false, 0); // idct
+#endif	
+
+#if LOG_T_IT_16
+	printResiOneDim(in, out1, out, N, false, 0);
+#undef N
+#endif
 }
 
 // inverse transform 32x32, get out[0~3], out[28~31]
@@ -622,13 +1408,18 @@ void hevcQT::idct32(short *outResi, int *coeffTQIQ)
 	short in[32 * 32];
 	short out[32 * 32];
 	short temp[32 * 32];
-
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_32)
+	short inDbg[32*32];
+#endif
 	int shift1D = 7;
 	int shift2D = 12 - (RK_BIT_DEPTH - 8);
 
 	for (int k = 0; k < 32 * 32; k++)
 	{
 		in[k] = (short)coeffTQIQ[k];
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_32)
+		inDbg[k] = in[k];
+#endif			
 	}
 
 	//transpose, behavior of hevc decoder,	debug used
@@ -641,6 +1432,12 @@ void hevcQT::idct32(short *outResi, int *coeffTQIQ)
 		it32_8to11(&(temp[k * 32]), &(in[32 * k]), shift1D); //1D 1 line, get temp[8~11], temp[20~23]
 		it32_12to15(&(temp[k * 32]), &(in[32 * k]), shift1D); //1D 1 line, get temp[12~15], temp[16~19]
 	}
+	
+#if LOG_T_IT_32
+#define N 32
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif	
 
 	//transpose, behavior of hevc decoder,	debug used
 	transpose(temp, 32);
@@ -659,6 +1456,14 @@ void hevcQT::idct32(short *outResi, int *coeffTQIQ)
 	{
 		memcpy(&(outResi[k*CTU_SIZE]), &(out[k * 32]), 32 * sizeof(short));
 	}
+#if GET_DBG_INFO_FOR_RTL
+	printResiForTandIT(m_fp_input32x32data, m_fp_output32x32data, in, out, 32, false, 0); // idct
+#endif	
+
+#if LOG_T_IT_32
+	printResiOneDim(in, out1, out, N, false, 0);
+#undef N
+#endif
 }
 
 void hevcQT::idct(short* outResi, int* coeffTQIQ, uint32_t tuWidth, bool isIntra, uint8_t textType)
@@ -669,9 +1474,18 @@ void hevcQT::idct(short* outResi, int* coeffTQIQ, uint32_t tuWidth, bool isIntra
 
 	trType = isIntra ? (textType == 0 ? 1 : 0) : 0; // LUMA & Intra, only for 4x4, 1--IDST, 0--IDCT
 
+
 	switch (tuWidth)
 	{
-	case 4:	 idct4(outResi, coeffTQIQ, trType);//1--IDST, 0--IDCT
+	case 4:
+		#if SWC_EN 
+		if(trType==0)
+			_idct4(outResi, coeffTQIQ);
+		else
+			_idst4(outResi, coeffTQIQ);
+		#else
+		idct4(outResi, coeffTQIQ, trType);//1--IDST, 0--IDCT
+		#endif
 		break;
 	case 8:  idct8(outResi, coeffTQIQ);
 		break;
@@ -797,6 +1611,11 @@ void hevcQT::dct4(int *coeffT, short *inResi, int trType)
 	}
 
 	t4(temp, in, shift1D, trType, 1); // 1D dct4x4,	row in, col out
+#if LOG_T_IT_4
+#define N 4
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif	
 	t4(out, temp, shift2D, trType, 2);// 2D dct4x4,	row in, col out
 
 	// copy [out] to [coeffT], size in 4x4
@@ -804,6 +1623,24 @@ void hevcQT::dct4(int *coeffT, short *inResi, int trType)
 	{
 		coeffT[k] = (int)out[k];
 	}
+	
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_4)
+	short out2[4*4];
+	memcpy(out2, out, 4*4*2);
+	
+	transpose(out, 4);
+#endif	
+#if GET_DBG_INFO_FOR_RTL
+	if(m_infoForQT->textType==0)
+		printResiForTandIT(m_fp_input4x4data, m_fp_output4x4data, in, out, 4, true, trType);
+	else
+		printResiForTandIT(m_fp_input4x4data_8x8chr, m_fp_output4x4data_8x8chr, in, out2, 4, true, 0);
+#endif
+
+#if LOG_T_IT_4
+	printResiOneDim(in, out1, out, N, true, trType);
+#undef N
+#endif
 }
 
 void hevcQT::t8(short* out, short* in, int shift)
@@ -854,7 +1691,12 @@ void hevcQT::dct8(int *coeffT, short *inResi)
 		memcpy(&(in[k * 8]), &(inResi[k*CTU_SIZE]), 8 * sizeof(short));
 	}
 
-	t8(temp, in, shift1D);//  1D dct8x8,	row in, col out
+	t8(temp, in, shift1D);//  1D dct8x8,	row in, col out	
+#if LOG_T_IT_8
+#define N 8
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif
 	t8(out, temp, shift2D);// 2D dct8x8,	row in, col out
 
 	// copy [out] to [coeffT], size in 8x8
@@ -862,6 +1704,18 @@ void hevcQT::dct8(int *coeffT, short *inResi)
 	{
 		coeffT[k] = (int)out[k];
 	}
+	
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_4)
+	transpose(out, 8);
+#endif		
+#if GET_DBG_INFO_FOR_RTL
+	printResiForTandIT(m_fp_input8x8data, m_fp_output8x8data, in, out, 8, true, 0); // dct
+#endif
+
+#if LOG_T_IT_8
+	printResiOneDim(in, out1, out, N, true, 0);
+#undef N
+#endif
 
 }
 
@@ -988,6 +1842,11 @@ void hevcQT::dct16(int *coeffT, short *inResi)
 	}
 
 	t16(temp, in, shift1D);//  1D dct16x16,	row in, col out
+#if LOG_T_IT_16
+#define N 16
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif	
 	t16(out, temp, shift2D);// 2D dct16x16,	row in, col out
 
 	// copy [out] to [coeffT], size in 16x16
@@ -995,6 +1854,18 @@ void hevcQT::dct16(int *coeffT, short *inResi)
 	{
 		coeffT[k] = (int)out[k];
 	}
+	
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_4)
+	transpose(out, 16);
+#endif	
+#if GET_DBG_INFO_FOR_RTL
+	printResiForTandIT(m_fp_input16x16data, m_fp_output16x16data, in, out, 16, true, 0); // dct
+#endif	
+
+#if LOG_T_IT_16
+	printResiOneDim(in, out1, out, N, true, 0);
+#undef N
+#endif
 }
 
 void hevcQT::t32(short* out, short* in, int shift)
@@ -1137,6 +2008,11 @@ void hevcQT::dct32(int *coeffT, short *inResi)
 	}
 
 	t32(temp, in, shift1D);//  1D dct32x32,	row in, col out
+#if LOG_T_IT_32
+#define N 32
+	short out1[N*N];
+	memcpy(out1, temp, N*N*2);
+#endif		
 	t32(out, temp, shift2D);// 2D dct32x32,	row in, col out
 
 	// copy [out] to [coeffT], size in 32x32
@@ -1144,6 +2020,18 @@ void hevcQT::dct32(int *coeffT, short *inResi)
 	{
 		coeffT[k] = (int)out[k];
 	}
+	
+#if (GET_DBG_INFO_FOR_RTL || LOG_T_IT_4)
+	transpose(out, 32);
+#endif		
+#if GET_DBG_INFO_FOR_RTL
+	printResiForTandIT(m_fp_input32x32data, m_fp_output32x32data, in, out, 32, true, 0); // dct
+#endif	
+
+#if LOG_T_IT_32
+	printResiOneDim(in, out1, out, N, true, 0);
+#undef N
+#endif
 }
 
 void hevcQT::dct(int* coeffT, short* inResi, uint32_t tuWidth, bool isIntra, uint8_t textType)
@@ -1156,7 +2044,15 @@ void hevcQT::dct(int* coeffT, short* inResi, uint32_t tuWidth, bool isIntra, uin
 
 	switch (tuWidth)
 	{
-	case 4:	 dct4(coeffT, inResi, trType);//1--IDST, 0--IDCT
+	case 4:
+		#if SWC_EN
+		if(trType==0)
+			_dct4(coeffT, inResi);
+		else
+			_dst4(coeffT, inResi);
+		#else	
+			dct4(coeffT, inResi, trType);//1--IDST, 0--IDCT
+		#endif
 		break;
 	case 8:  dct8(coeffT, inResi);
 		break;
@@ -1317,7 +2213,7 @@ void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra)
 
 	// output
 	uint8_t	 size = m_infoForQT->size;
-	inf_tq->absSum = m_infoForQT->absSum;
+	inf_tq->absSum = m_infoForQT->absSum > 0;
 	inf_tq->lastPosX = m_infoForQT->lastPos % size;
 	inf_tq->lastPosY = m_infoForQT->lastPos / size;
 	for (uint8_t k = 0; k < size; k++)
@@ -1345,7 +2241,7 @@ void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me)
 
 	// output
 	uint8_t	 size = m_infoForQT->size;
-	inf_tq->absSum = m_infoForQT->absSum;
+	inf_tq->absSum = m_infoForQT->absSum > 0;
 	inf_tq->lastPosX = m_infoForQT->lastPos % size;
 	inf_tq->lastPosY = m_infoForQT->lastPos / size;
 	for (uint8_t k = 0; k < size; k++)
@@ -1483,7 +2379,6 @@ void hevcQT::procTandQ()
 
 	uint8_t textType = m_infoForQT->textType;
 
-	int qpBdOffset = m_infoForQT->qpBdOffset;
 	int chromaQPOffset = m_infoForQT->chromaQPOffset;
 	uint8_t predMode = m_infoForQT->predMode;
 
@@ -1516,7 +2411,9 @@ void hevcQT::procTandQ()
 	/* complete  Transform */
 	bool isIntra = (predMode == 0);
 
+	/******	Transform ******/
 	dct(coeffT, inResi, size, isIntra, textType); // 0 means inter, 1 means intra.
+
 	/******	Quant ******/
 	int add = 0;
 	int qbits = RK_QUANT_SHIFT + qpPer + transformShift;
@@ -1601,6 +2498,66 @@ void hevcQT::proc(int predMode)
 	// IQ and IT
 	procIQandIT();
 
+#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+	int16_t *tmpCoeffT = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	int16_t *tmpCoeffTQ = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	int16_t	*tmpCoeffTQIQ = new int16_t[m_infoForQT->size*m_infoForQT->size];	
+	for(int k=0; k<m_infoForQT->size*m_infoForQT->size; k++)
+	{
+		tmpCoeffT[k] = (int16_t)m_infoForQT->coeffT[k];
+		tmpCoeffTQ[k] = (int16_t)m_infoForQT->coeffTQ[k];		
+		tmpCoeffTQIQ[k] = (int16_t)m_infoForQT->coeffTQIQ[k];
+	}
+
+	int16_t *tmpInResi = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	int16_t *tmpOutResi = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	for(int k=0; k<m_infoForQT->size; k++)
+	{
+		memcpy(&tmpInResi[k*m_infoForQT->size], &m_infoForQT->inResi[k*CTU_SIZE], 2*m_infoForQT->size);
+		memcpy(&tmpOutResi[k*m_infoForQT->size], &m_infoForQT->outResi[k*CTU_SIZE], 2*m_infoForQT->size);
+	}
+	
+	uint8_t trType = 0; // dct
+	if(m_infoForQT->size==4)
+		trType = m_infoForQT->predMode==0 ? (m_infoForQT->textType== 0 ? 1 : 0) : 0;
+#endif //#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+
+#if GET_TQ_INFO_FOR_RTL
+	FILE *fpIn = NULL, *fpOut = NULL;
+	if(m_infoForQT->size==4)
+	{
+		fpIn = m_fp_t_input4x4data;		fpOut = m_fp_qit_output4x4data;
+	}
+	else if(m_infoForQT->size==8)
+	{
+		fpIn = m_fp_t_input8x8data;		fpOut = m_fp_qit_output8x8data;
+	}
+	else if(m_infoForQT->size==16)
+	{
+		fpIn = m_fp_t_input16x16data;	fpOut = m_fp_qit_output16x16data;
+	}
+	else // 32
+	{
+		fpIn = m_fp_t_input32x32data;	fpOut = m_fp_qit_output32x32data;
+	}
+
+	fprintResiForTQiT(fpIn, fpOut, tmpInResi, tmpCoeffTQ, tmpOutResi, trType);
+#endif //#if GET_TQ_INFO_FOR_RTL
+
+#if LOG_T_Q
+	if(m_infoForQT->size==32)
+		printResiTQiQiT(tmpInResi, tmpCoeffT, tmpCoeffTQ, tmpCoeffTQIQ, tmpOutResi, trType);
+#endif //#if LOG_T_Q
+
+
+#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+	delete[] tmpInResi;
+	delete[] tmpCoeffT;
+	delete[] tmpCoeffTQ;
+	delete[] tmpCoeffTQIQ;
+	delete[] tmpOutResi;
+#endif //#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+
 	// print output
 #if TQ_LOG_IN_X265_INTRA	
 	if(predMode==0) // Intra
@@ -1613,6 +2570,8 @@ void hevcQT::proc(int predMode)
 
 	// compare results
 	compareX265andHWC();
+	if(m_infoForQT->size==32)
+		g_count_block++;
 }
 
 // for Intra

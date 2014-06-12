@@ -688,7 +688,8 @@ int main(int argc, char **argv)
     FILE *fp = fopen(CFG_FILE_NAME("hevc_enc_cmodel.cfg"),"rb+");
     if (fp)
         G_hardwareC.ConfigFiles(fp);
-
+	else
+		RK_HEVC_PRINT("open file failed, CFG_FILE_NAME = %s \n",CFG_FILE);
     // main encoder loop
     uint32_t inFrameCount = 0;
     uint32_t outFrameCount = 0;

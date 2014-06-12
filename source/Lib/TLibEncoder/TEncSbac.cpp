@@ -2123,6 +2123,22 @@ void TEncSbac::codeLastSignificantXY(uint32_t posx, uint32_t posy, int width, in
 
 void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, uint32_t width, uint32_t height, uint32_t depth, TextType ttype)
 {
+#if RK_CABAC_H
+	UChar depth_temp = depth;
+	// 	if (*cu->getPartitionSize() == SIZE_NxN)
+	// 	{
+	// 		depth_temp+=1;
+	// 	}
+	uint32_t absPartIdx_offset = absPartIdx;
+	// 	if (depth == 4&& (ttype == TEXT_CHROMA_U || ttype == TEXT_CHROMA_V))
+	// 	{
+	// 		absPartIdx_offset+=3;
+	// 	}
+
+	uint64_t temp0 ;
+	uint64_t temp1 ;
+	TextType TU_type = ttype;
+#endif
 #if ENC_DEC_TRACE
     DTRACE_CABAC_VL(g_nSymbolCounter++)
     DTRACE_CABAC_T("\tparseCoeffNxN()\teType=")
@@ -2226,7 +2242,26 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
     // Code position of last coefficient
     int posLastY = posLast >> log2BlockSize;
     int posLastX = posLast - (posLastY << log2BlockSize);
-    codeLastSignificantXY(posLastX, posLastY, width, height, ttype, scanIdx);
+#if RK_CABAC_H
+	temp0 = m_binIf->m_fracBits;
+	codeLastSignificantXY(posLastX, posLastY, width, height, ttype, scanIdx);
+	temp1 = m_binIf->m_fracBits;
+	if (TU_type == TEXT_LUMA)
+	{
+		g_intra_est_bit_last_sig_coeff_xy[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+	}
+	else if (TU_type == TEXT_CHROMA_U)
+	{
+		g_intra_est_bit_last_sig_coeff_xy[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+	}
+	else if (TU_type == TEXT_CHROMA_V)
+	{
+		g_intra_est_bit_last_sig_coeff_xy[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+	}
+
+#else
+	codeLastSignificantXY(posLastX, posLastY, width, height, ttype, scanIdx);
+#endif
 
     //===== code significance flag =====
     ContextModel * const baseCoeffGroupCtx = &m_contextModels[OFF_SIG_CG_FLAG_CTX + (ttype ? NUM_SIG_CG_FLAG_CTX : 0)];
@@ -2269,7 +2304,25 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
         {
             uint32_t sigCoeffGroup = (sigCoeffGroupFlag[cgBlkPos] != 0);
             uint32_t ctxSig = TComTrQuant::getSigCoeffGroupCtxInc(sigCoeffGroupFlag, cgPosX, cgPosY, log2BlockSize);
-            m_binIf->encodeBin(sigCoeffGroup, baseCoeffGroupCtx[ctxSig]);
+#if RK_CABAC_H
+			temp0 = m_binIf->m_fracBits;
+			m_binIf->encodeBin(sigCoeffGroup, baseCoeffGroupCtx[ctxSig]);
+			temp1 = m_binIf->m_fracBits;
+			if (TU_type == TEXT_LUMA)
+			{
+				g_intra_est_bit_coded_sub_block_flag[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+			}
+			else if (TU_type == TEXT_CHROMA_U)
+			{
+				g_intra_est_bit_coded_sub_block_flag[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+			}
+			else if (TU_type == TEXT_CHROMA_V)
+			{
+				g_intra_est_bit_coded_sub_block_flag[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+			}
+#else
+			m_binIf->encodeBin(sigCoeffGroup, baseCoeffGroupCtx[ctxSig]);
+#endif
         }
 
         // encode significant_coeff_flag
@@ -2286,7 +2339,25 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
                 if (scanPosSig > subPos || subSet == 0 || numNonZero)
                 {
                     ctxSig  = TComTrQuant::getSigCtxInc(patternSigCtx, scanIdx, posx, posy, log2BlockSize, ttype);
-                    m_binIf->encodeBin(sig, baseCtx[ctxSig]);
+#if RK_CABAC_H
+					temp0 = m_binIf->m_fracBits;
+					m_binIf->encodeBin(sig, baseCtx[ctxSig]);
+					temp1 = m_binIf->m_fracBits;
+					if (TU_type == TEXT_LUMA)
+					{
+						g_intra_est_sig_coeff_flag[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+					}
+					else if (TU_type == TEXT_CHROMA_U)
+					{
+						g_intra_est_sig_coeff_flag[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+					}
+					else if (TU_type == TEXT_CHROMA_V)
+					{
+						g_intra_est_sig_coeff_flag[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+					}
+#else
+					m_binIf->encodeBin(sig, baseCtx[ctxSig]);
+#endif
                 }
                 if (sig)
                 {
@@ -2323,7 +2394,25 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
             for (int idx = 0; idx < numC1Flag; idx++)
             {
                 uint32_t symbol = absCoeff[idx] > 1;
-                m_binIf->encodeBin(symbol, baseCtxMod[c1]);
+#if RK_CABAC_H
+				temp0 = m_binIf->m_fracBits;
+				m_binIf->encodeBin(symbol, baseCtxMod[c1]);
+				temp1 = m_binIf->m_fracBits;
+				if (TU_type == TEXT_LUMA)
+				{
+					g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+				}
+				else if (TU_type == TEXT_CHROMA_U)
+				{
+					g_intra_est_bit_coeff_abs_level_greater1_flag[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+				}
+				else if (TU_type == TEXT_CHROMA_V)
+				{
+					g_intra_est_bit_coeff_abs_level_greater1_flag[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+				}
+#else
+				m_binIf->encodeBin(symbol, baseCtxMod[c1]);
+#endif
                 if (symbol)
                 {
                     c1 = 0;
@@ -2345,7 +2434,25 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
                 if (firstC2FlagIdx != -1)
                 {
                     uint32_t symbol = absCoeff[firstC2FlagIdx] > 2;
-                    m_binIf->encodeBin(symbol, baseCtxMod[0]);
+#if RK_CABAC_H
+					temp0 = m_binIf->m_fracBits;
+					m_binIf->encodeBin(symbol, baseCtxMod[0]);
+					temp1 = m_binIf->m_fracBits;
+					if (TU_type == TEXT_LUMA)
+					{
+						g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+					}
+					else if (TU_type == TEXT_CHROMA_U)
+					{
+						g_intra_est_bit_coeff_abs_level_greater2_flag[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+					}
+					else if (TU_type == TEXT_CHROMA_V)
+					{
+						g_intra_est_bit_coeff_abs_level_greater2_flag[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+					}
+#else
+					m_binIf->encodeBin(symbol, baseCtxMod[0]);
+#endif
                 }
             }
 
@@ -2355,7 +2462,25 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
             }
             else
             {
-                m_binIf->encodeBinsEP(coeffSigns, numNonZero);
+#if RK_CABAC_H
+				temp0 = m_binIf->m_fracBits;
+				m_binIf->encodeBinsEP(coeffSigns, numNonZero);
+				temp1 = m_binIf->m_fracBits;
+				if (TU_type == TEXT_LUMA)
+				{
+					g_intra_est_bit_coeff_sign_flag[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+				}
+				else if (TU_type == TEXT_CHROMA_U)
+				{
+					g_intra_est_bit_coeff_sign_flag[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+				}
+				else if (TU_type == TEXT_CHROMA_V)
+				{
+					g_intra_est_bit_coeff_sign_flag[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+				}
+#else
+				m_binIf->encodeBinsEP(coeffSigns, numNonZero);
+#endif
             }
 
             int firstCoeff2 = 1;
@@ -2367,7 +2492,25 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
 
                     if (absCoeff[idx] >= baseLevel)
                     {
-                        xWriteCoefRemainExGolomb(absCoeff[idx] - baseLevel, goRiceParam);
+#if RK_CABAC_H
+						temp0 = m_binIf->m_fracBits;
+						xWriteCoefRemainExGolomb(absCoeff[idx] - baseLevel, goRiceParam);
+						temp1 = m_binIf->m_fracBits;
+						if (TU_type == TEXT_LUMA)
+						{
+							g_intra_est_bit_coeff_abs_level_remaining[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+						}
+						else if (TU_type == TEXT_CHROMA_U)
+						{
+							g_intra_est_bit_coeff_abs_level_remaining[1][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+						}
+						else if (TU_type == TEXT_CHROMA_V)
+						{
+							g_intra_est_bit_coeff_abs_level_remaining[2][depth_temp ][cu->getZorderIdxInCU() + absPartIdx_offset] += (temp1 - temp0);
+						}
+#else
+						xWriteCoefRemainExGolomb(absCoeff[idx] - baseLevel, goRiceParam);
+#endif
                         if (absCoeff[idx] > 3 * (1 << goRiceParam))
                         {
                             goRiceParam = std::min<uint32_t>(goRiceParam + 1, 4);

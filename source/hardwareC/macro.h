@@ -20,9 +20,9 @@
 //#define LOG_INTRA_PARAMS_2_FILE
 //#define INTRA_RESULT_STORE_FILE
 #define RK_CABAC
-#define INTRA_4x4_DEBUG
+//#define INTRA_4x4_DEBUG
 #define RK_INTRA_4x4_PRED
-//#define RK_INTRA_MODE_CHOOSE              // ?¨¬?¨´?¡ê¨º??D??¡ê???¡¤?¡ã?2?2¨¦¨¨?
+//#define RK_INTRA_MODE_CHOOSE              // ?Â¨Â¬?Â¨Â´?Â¡ÃªÂ¨Âº??D??Â¡Ãª???Â¡Â¤?Â¡Ã£?2?2Â¨Â¦Â¨Â¨?
 #define INTRA_REDUCE_DIR(dirMode, width) 	( ( (dirMode % 2 == 0) || (dirMode == 1)) || ((width != 4) && (width != 8)))
 #define DISABLE_64x64_CU
 /* ======================================================================= */

@@ -91,6 +91,7 @@ public:
     void  resetBits()                { m_binIf->resetBits(); m_bitIf->resetBits(); }
 
     uint32_t  getNumberOfWrittenBits()   { return m_binIf->getNumWrittenBits(); }
+	int64_t  getNumberOfWrittenBits_fraction()   { return m_binIf->m_fracBits; }//ADD BY GSL 提取分数bit
 
     //--SBAC RD
 

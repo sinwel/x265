@@ -718,11 +718,20 @@ void CTU_CALC::proc()
         cu_x_1 = (m & 1)*(ctu_w>>1);
         cu_y_1 = (m >>1)*(ctu_w>>1);
 
+#if RK_CABAC_H
+		cu_level_calc[1].m_cabac_rdo = &m_cabac_rdo;
+		m_cabac_rdo.cabac_rdo_status(1,1,0);//CTU_EST->CU_EST        第一次除外：CU_EST->PU_EST_WAIT    超出图像边界时：CU_EST->CU_EST_WAIT
+		m_cabac_rdo.cabac_rdo_status(1,1,0);//CU_EST->PU_EST_WAIT   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转  准备好35种方向的bit     超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度2未更新完
+		m_cabac_rdo.cabac_rdo_status(1,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转 超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度2未更新完
+		m_cabac_rdo.est_bits_init();
+#endif
+
+
         cost_1 = cu_level_calc[1].proc(1, cu_x_1, cu_y_1);
 
         if (!(cost_1 & 0x80000000)) {
-            totalBits_1 += cu_level_calc[1].cost_best->Bits;
-            totalDist_1 += cu_level_calc[1].cost_best->Distortion;
+//            totalBits_1 += cu_level_calc[1].cost_best->Bits;
+//            totalDist_1 += cu_level_calc[1].cost_best->Distortion;
 #ifdef LOG_INTRA_PARAMS_2_FILE
             LogIntraParams2File(cu_level_calc[1].inf_intra_proc, cu_x_1, cu_y_1);
 #endif
@@ -743,14 +752,22 @@ void CTU_CALC::proc()
             cu_x_2 = cu_x_1 + (n & 1)*(ctu_w>>2);
             cu_y_2 = cu_y_1 + (n >>1)*(ctu_w>>2);
 
+#if RK_CABAC_H
+			cu_level_calc[2].m_cabac_rdo = &m_cabac_rdo;
+			m_cabac_rdo.cabac_rdo_status(2,1,0);//CTU_EST->CU_EST        第一次除外：CU_EST->PU_EST_WAIT   超出图像边界时：CU_EST->CU_EST_WAIT
+			m_cabac_rdo.cabac_rdo_status(2,1,0);//CU_EST->PU_EST_WAIT   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转    超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度3未更新完
+			m_cabac_rdo.cabac_rdo_status(2,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转    超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度3未更新完
+			m_cabac_rdo.est_bits_init();
+#endif 
+
             cost_2 = cu_level_calc[2].proc(2, cu_x_2, cu_y_2);
 
             if(ctu_w == 32)
                 continue;
 
             if (!(cost_2 & 0x80000000)) {
-                totalBits_2 += cu_level_calc[2].cost_best->Bits;
-                totalDist_2 += cu_level_calc[2].cost_best->Distortion;
+//                totalBits_2 += cu_level_calc[2].cost_best->Bits;
+//                totalDist_2 += cu_level_calc[2].cost_best->Distortion;
 
 			#ifdef LOG_INTRA_PARAMS_2_FILE
                 LogIntraParams2File(cu_level_calc[2].inf_intra_proc, cu_x_2, cu_y_2);
@@ -770,7 +787,25 @@ void CTU_CALC::proc()
                 cu_x_3 = cu_x_2 + (k & 1)*(ctu_w>>3);
                 cu_y_3 = cu_y_2 + (k >>1)*(ctu_w>>3);
 
+#if RK_CABAC_H
+				cu_level_calc[3].m_cabac_rdo = &m_cabac_rdo;
+				m_cabac_rdo.cabac_rdo_status(3,1,0);//CTU_EST->CU_EST        第一次除外：CU_EST->PU_EST_WAIT    超出图像边界时：CU_EST->CU_EST_WAIT
+				m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST->PU_EST_WAIT    第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转      超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度4未更新完
+				m_cabac_rdo.cabac_rdo_status(3,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向  第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转   超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度4未更新完
+
+				m_cabac_rdo.cabac_rdo_status(4,1,0);//CTU_EST->CU_EST       第一次除外：CU_EST->PU_EST_WAIT     超出图像边界时：CU_EST->CU_EST_WAIT
+				m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->PU_EST_WAIT   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转 准备好35种方向的bit   超出图像边界时:CU_EST_WAIT->CU_EST  不作状态更新
+				m_cabac_rdo.cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转  超出图像边界时：CU_EST->CU_EST 自转 因为深度3未状态更新，深度4不能开始下一个cu
+				m_cabac_rdo.est_bits_init();
+#endif
+
                 cost_3 = cu_level_calc[3].proc(3, cu_x_3, cu_y_3);
+
+#if RK_CABAC_H
+				m_cabac_rdo.cu_best_mode_flag[3] = 1;
+				m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST_WAIT->CU_EST   更新上下文
+				m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度3的第4个cu时不置为1
+#endif
 
                 if (!(cost_3 & 0x80000000)) {
                     totalBits_3 += cu_level_calc[3].cost_best->Bits;
@@ -779,7 +814,7 @@ void CTU_CALC::proc()
 				#ifdef LOG_INTRA_PARAMS_2_FILE
                     LogIntraParams2File(cu_level_calc[3].inf_intra_proc, cu_x_3, cu_y_3);
 				#endif
-#if 1 //wait for 4x4 intra to be done, added by lks
+#if TQ_RUN_IN_HWC_INTRA //wait for 4x4 intra to be done, added by lks
 				    //compare coeff(after T and Q), and Recon (Y, U, V)
 				    compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
 #endif
@@ -792,14 +827,80 @@ void CTU_CALC::proc()
             //EncoderCuSplitFlag();
             //calcRDOCOST
             cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_2[cu_level_calc[2].temp_pos-1].m_totalCost;
-            cu_level_compare(cost_2, cost_3_total, 2);
+#if RK_CABAC_H
+			int temp = cu_level_calc[3].RdoCostCalc(totalDist_3, totalBits_3, pHardWare->ctu_calc.QP_cb);
+			if ((totalDist_3==0) && (totalBits_3==0))
+			{
+				cost_3_total = 0xffffffff;
+				temp = 0xffffffff;
+			}
+			assert(cost_3_total == temp);  
+#endif
+#if RK_CABAC_H
+			m_cabac_rdo.cu_best_mode_flag[2] = 1;
+			if (cost_2 <= cost_3_total)
+			{
+				m_cabac_rdo.cu_best_mode[2] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
+				if (!(cost_2 & 0x80000000)) {
+					totalBits_2 += cu_level_calc[2].cost_best->Bits;
+					totalDist_2 += cu_level_calc[2].cost_best->Distortion;
+				}
+			}
+			else 
+			{
+				m_cabac_rdo.cu_best_mode[2] = 2;
+				if (!(cost_3_total & 0x80000000)) {
+					totalBits_2 += totalBits_3;
+					totalDist_2 += totalDist_3;
+				}
+			}
+
+			m_cabac_rdo.cabac_rdo_status(2,1,0);//CU_EST_WAIT->CU_EST  更新上下文
+			m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度2的第4个cu时不置为1
+			m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度3的第4个cu时不置为1
+#endif
+			
+			cu_level_compare(cost_2, cost_3_total, 2);
             cu_level_calc[2].end();
             cu_level_calc[2].ori_pos++;
         }
         //EncoderCuSplitFlag();
         //calcRDOCOST
         cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_1[cu_level_calc[1].temp_pos-1].m_totalCost;
-        cu_level_compare(cost_1, cost_2_total, 1);
+#if RK_CABAC_H
+		int temp = cu_level_calc[2].RdoCostCalc(totalDist_2, totalBits_2, pHardWare->ctu_calc.QP_cb);
+		if (totalDist_2==0 && totalBits_2 == 0)
+		{
+			cost_2_total = 0xffffffff;
+			temp = 0xffffffff;
+		}
+		assert(cost_2_total == temp);  
+#endif
+#if RK_CABAC_H
+		m_cabac_rdo.cu_best_mode_flag[1] = 1;
+		if (cost_1 <= cost_2_total)
+		{
+			m_cabac_rdo.cu_best_mode[1] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
+			if (!(cost_1 & 0x80000000)) {
+				totalBits_1 += cu_level_calc[1].cost_best->Bits;
+				totalDist_1 += cu_level_calc[1].cost_best->Distortion;
+			}
+		}
+		else 
+		{
+			m_cabac_rdo.cu_best_mode[1] = 2;
+			if (!(cost_2_total & 0x80000000)) {
+				totalBits_1 += totalBits_2;
+				totalDist_1 += totalDist_2;
+			}
+		}
+		m_cabac_rdo.cabac_rdo_status(1,1,0);//CU_EST_WAIT->CU_EST  更新上下文
+		m_cabac_rdo.cabac_rdo_status(2,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度1的第4个cu时不置为1
+		m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度2的第4个cu时不置为1
+		m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度3的第4个cu时不置为1
+#endif
+		
+		cu_level_compare(cost_1, cost_2_total, 1);
         cu_level_calc[1].end();
         cu_level_calc[1].ori_pos++;
     }

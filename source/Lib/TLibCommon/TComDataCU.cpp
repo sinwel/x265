@@ -3397,7 +3397,7 @@ void TComDataCU::clipMv(MV& outMV)
 {
     int mvshift = 2;
 #if RK_INTER_METEST
-	int offset = MAX_MINE(g_nSearchRangeHeight, g_nSearchRangeWidth) + 5 + 1; //plus 5 is for RIME, plus 1 is for holding ME
+	int offset = MAX_MINE(g_nSearchRangeHeight, g_nSearchRangeWidth) + MAX_MINE(nRimeWidth, nRimeHeight) + 8;
 #else
 	int offset = 8; //add by hdl for ME
 #endif

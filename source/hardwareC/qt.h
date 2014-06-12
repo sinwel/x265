@@ -48,6 +48,8 @@ extern int dct_32x32_coeff_odd[16][16];
 extern int dct_32x32_coeff_even[16][8];
 extern int dct_32x32_coeff[32][32]; // not used actually
 
+// SWC coeff
+extern int t4_coeff[4][4];
 // private namespace
 
 //! \ingroup TLibCommon
@@ -57,10 +59,19 @@ extern int dct_32x32_coeff[32][32]; // not used actually
 // Constants
 // ====================================================================================================================
 
-
+#define GET_DBG_INFO_FOR_RTL      0
+/* iDCT(8x8-32x32)  in:after transpose,    out:normal            (4x4) in:normal   out:normal
+   DCT(8x8-32x32)   in:normal,             out:after transpose   (4x4) in:normal   out:normal
+ */
+ 
+#define GET_TQ_INFO_FOR_RTL       0
+/* data form: (qp)(slice_type)(text_type)(tran_type)[data]
+   input:   before T, every row or all elements(only for 4x4)
+   output:  after Q and after IT, every row or all elements(only for 4x4)
+ */
 
 #define RK_QP_BITS 15
-#define RK_BIT_DEPTH			8
+#define RK_BIT_DEPTH			  8
 #define RK_MAX_TR_DYNAMIC_RANGE  15 // Maximum transform dynamic range (excluding sign bit)
 #define RK_QUANT_SHIFT           14 // Q(4) = 2^14
 #define RK_QUANT_IQUANT_SHIFT    20 // Q(QP%6) * IQ(QP%6) = 2^20
@@ -240,10 +251,43 @@ public:
 	FILE*			  m_fp_TQ_LOG_X265_INTRA;
 	FILE*			  m_fp_TQ_LOG_X265_ME;
 
+    // debug info for RTL
+    void printResi(int16_t *resi, uint8_t size);
+    void printResiOneDim(int16_t *in, int16_t *outD1, int16_t *outD2,int size, bool isT, int trType);
+    void printResiTQiQiT(int16_t *inT, int16_t *outT, int16_t *outQ, int16_t *outIQ, int16_t* outIT,
+									 uint8_t trType);
+
+
+#if GET_DBG_INFO_FOR_RTL
+    void printResiForTandIT(FILE* fpIn, FILE* fpOut, int16_t *in, int16_t *out, uint8_t size, bool isT, uint8_t trType);
+    FILE*             m_fp_input4x4data;
+    FILE*             m_fp_output4x4data;
+    FILE*             m_fp_input4x4data_8x8chr;   
+    FILE*             m_fp_output4x4data_8x8chr;
+    FILE*             m_fp_input8x8data;
+    FILE*             m_fp_output8x8data;  
+    FILE*             m_fp_input16x16data;
+    FILE*             m_fp_output16x16data;      
+    FILE*             m_fp_input32x32data;
+    FILE*             m_fp_output32x32data;     
+#endif
+#if GET_TQ_INFO_FOR_RTL
+    void             fprintResiForTQiT(FILE* fpIn, FILE* fpOut, int16_t *inT, int16_t *outQ, int16_t *outIT,
+                                           uint8_t trType);
+    FILE*             m_fp_t_input4x4data;
+    FILE*             m_fp_qit_output4x4data;
+    //FILE*             m_fp_t_input4x4data_8x8chr;
+    //FILE*             m_fp_qit_output4x4data_8x8chr;
+    FILE*             m_fp_t_input8x8data;
+    FILE*             m_fp_qit_output8x8data;    
+    FILE*             m_fp_t_input16x16data;
+    FILE*             m_fp_qit_output16x16data;   
+    FILE*             m_fp_t_input32x32data;
+    FILE*             m_fp_qit_output32x32data;    
+#endif
 	/************************************************************************/
 	/*                       debug in x265                                   */
 	/************************************************************************/
-
 	void getFromX265();
 
 	// compare results with x265
@@ -251,7 +295,7 @@ public:
 	// info from x265
 
 	infoFromX265*     m_infoFromX265;
-
+    int               g_count_block;
 
 	void getOutputFrom();
 protected:
@@ -260,6 +304,19 @@ protected:
 private:
 	//tools
 	void transpose(short* inArray, int size);
+
+    //======================= SWC version =======================
+    void _ist4(short *out, short *in, int shift);
+    void _idst4(short *dst, int *src);
+    void _ict4(short *out, short *in, int shift);
+    void _idct4(short *dst, int *src);
+    void _st4(short *dst, short *src, int shift);
+    void _dst4(int *dst, short *src);
+    void _ct4(short *dst, short *src, int shift);
+    void _dct4(int *dst, short *src);
+
+
+    //======================= HWC version =======================
 	/* inverse transform*/
 	void it4(short* out, short* in, int shift, int trType, int dim); //idct4x4, or idst4x4
 	void it8(short* out, short* in, int shift);

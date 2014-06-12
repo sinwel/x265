@@ -1,7 +1,8 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include "level_mode_calc.h"
 #include "hardwareC.h"
 #include "inter.h"
+#include "CABAC.h"
 
 #ifdef RK_INTRA_4x4_PRED
 extern uint32_t g_rk_raster2zscan_depth_4[256];
@@ -24,6 +25,9 @@ int16_t			  g_fmeCoeffU[4][32*32];
 int16_t			  g_fmeCoeffV[4][32*32];
 bool			  g_fme;
 bool			  g_merge;
+unsigned int  g_mergeBits[85];
+unsigned int  g_fmeBits[85];
+
 
 // table to locate pos, used in inter_proc, added by lks
 static int lumaPart2pos[4] = {0, 32, 32*64, 32*64+32};
@@ -126,8 +130,8 @@ void CU_LEVEL_CALC::deinit()
 	X265_FREE(inf_intra4x4.pred);
 	X265_FREE(inf_intra4x4.resi);
 #endif
-#if TQ_RUN_IN_HWC_INTRA
-	//delete m_hevcQT;
+#if (TQ_RUN_IN_HWC_INTRA || TQ_RUN_IN_HWC_ME)
+	delete m_hevcQT; // reuse by intra and me
 #endif
 
 #if TQ_RUN_IN_HWC_INTRA //added by lks
@@ -181,9 +185,7 @@ void CU_LEVEL_CALC::deinit()
 	free(cost_temp.resi_y);
 	free(cost_temp.resi_u);
 	free(cost_temp.resi_v);
-#if TQ_RUN_IN_HWC_INTRA || TQ_RUN_IN_HWC_ME
-	delete m_hevcQT; // reuse by intra and me
-#endif
+
 	for(i=0; i<((cu_w == 64)? 1 : 4); i++)
         cu_matrix_data[i].deinit();
 	free(cu_matrix_data);
@@ -565,9 +567,9 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 	Merge.Create();
 
 	inf_inter_fme_proc.Distortion = 0;
-	inf_inter_fme_proc.Bits= 0;// to do
+	inf_inter_fme_proc.Bits= g_fmeBits[offsIdx];// to do
 	inf_inter_merge_proc.Distortion = 0;
-	inf_inter_merge_proc.Bits= 0;// to do
+	inf_inter_merge_proc.Bits= g_mergeBits[offsIdx];// to do
 	
 	if (!isCuOutPic)
 	{
@@ -921,7 +923,10 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 			inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);	
 			
 			// Calc Cost
-			inf_inter_merge_proc.totalCost = RdoCostCalc(inf_inter_merge_proc.Distortion, inf_inter_merge_proc.Bits, inf_tq.QP);
+			if (MAX_INT == g_mergeBits[offsIdx])
+				inf_inter_merge_proc.totalCost = MAX_INT;
+			else
+				inf_inter_merge_proc.totalCost = RdoCostCalc(inf_inter_merge_proc.Distortion, inf_inter_merge_proc.Bits, inf_tq.QP);
 		}
 #endif
 
@@ -998,6 +1003,10 @@ void CU_LEVEL_CALC::intra_proc()
 	inf_intra.lumaDirMode		= 35; // inf_intra_proc.predMode;
 	inf_intra.useStrongIntraSmoothing = inf_intra_proc.useStrongIntraSmoothing;
 
+#if RK_CABAC_H
+	m_rkIntraPred->m_cabac_rdo = m_cabac_rdo;
+#endif
+
 	m_rkIntraPred->Intra_Proc(&inf_intra,
 								0,
 								depth,
@@ -1021,6 +1030,9 @@ void CU_LEVEL_CALC::intra_proc()
 
 	// calc dist & update the CU Distortion for current depth
 	inf_intra_proc.Distortion += RdoDistCalc(inf_recon.SSE, 0);
+#endif
+#if RK_CABAC_H
+	m_cabac_rdo->cbf_luma = inf_tq.absSum == 0 ? 0 : 1;
 #endif
 #if OUT_8X8
 	// Y
@@ -1090,6 +1102,9 @@ void CU_LEVEL_CALC::intra_proc()
 	// calc dist & update the CU Distortion for current depth
 	inf_intra_proc.Distortion += RdoDistCalc(inf_recon.SSE, 1);
 #endif
+#if RK_CABAC_H
+	m_cabac_rdo->cbf_chroma_u = inf_tq.absSum == 0 ? 0 : 1;
+#endif
     //CABAC();
 #if OUT_8X8
 	// cb
@@ -1150,8 +1165,32 @@ void CU_LEVEL_CALC::intra_proc()
 
 	// calc dist & update the CU Distortion for current depth
 	inf_intra_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);
-#endif
 
+#if RK_CABAC_H
+	m_cabac_rdo->cbf_chroma_v = inf_tq.absSum == 0 ? 0 : 1;
+#endif
+#endif
+#if RK_CABAC_H
+	m_cabac_rdo->quant_finish_flag[1][depth] = 1;
+
+	// 	if (inf_tq.Size == 8)
+	// 	{
+	// 		cabac_est(inf_tq.Size , inf_tq.oriResi);
+	// 	}
+	m_cabac_rdo->TU_Resi_luma = inf_tq_total[0].oriResi;
+	m_cabac_rdo->TU_Resi_chroma_u = inf_tq_total[1].oriResi;
+	m_cabac_rdo->TU_Resi_chroma_v = inf_tq_total[2].oriResi;
+
+	// 	m_cabac_rdo->cbf_luma = inf_tq_total[0].absSum == 0 ? 0 : 1;
+	// 	m_cabac_rdo->cbf_chroma_u = inf_tq_total[1].absSum == 0 ? 0 : 1;
+	// 	m_cabac_rdo->cbf_chroma_v = inf_tq_total[2].absSum == 0 ? 0 : 1;
+
+	m_cabac_rdo->TU_size = inf_tq.Size;
+
+	m_cabac_rdo->cabac_rdo_status(depth,1,0);//TU_EST_WAIT->TU_EST   ×¼±¸¿ªÊ¼TU±ÈÌØ¹À¼Æ
+	m_cabac_rdo->cabac_rdo_status(depth,1,0);//TU_EST->CU_EST_WAIT µÈ´ýÏÂ²ã4¸öCU½áÊø
+	m_cabac_rdo->cabac_rdo_status(depth,1,0);//CU_EST_WAIT->CU_EST_WAIT ×Ô×ªÒ»È¦£¬±íÊ¾µÈ´ýÏÂ²ãCU½áÊø
+#endif
 #if OUT_8X8
 	// cr
 	if (m_size == 8)
@@ -1174,7 +1213,16 @@ void CU_LEVEL_CALC::intra_proc()
 
 	// ---- 4. TODO RDOCostCalc for (Y + U + V) ----
 	// cost = distortion + lambda * bits
+#if RK_CABAC_H
+	if (depth == 3)
+	{
+		assert(((m_cabac_rdo->tu_est_bits[1][3] + m_cabac_rdo->pu_est_bits[1][3])+16384)/32768 == totalBitsDepth);
+	}
+
+	inf_intra_proc.Bits		 = ((m_cabac_rdo->tu_est_bits[1][depth] + m_cabac_rdo->pu_est_bits[1][depth])+16384)/32768;
+#else
 	inf_intra_proc.Bits		 = totalBitsDepth;
+#endif
 	inf_intra_proc.totalCost = RdoCostCalc(inf_intra_proc.Distortion, totalBitsDepth, inf_tq.QP);
 	//=====================================================================================//
 
@@ -1227,6 +1275,9 @@ void CU_LEVEL_CALC::intra_proc()
 		uint32_t totalDist4x4 = 0;
 		for (partIdx = 0 ; partIdx < 4 ; partIdx++ )
 		{
+#if RK_CABAC_H
+			m_cabac_rdo->est_bits_init();
+#endif
 			// assert RK recon data same to g_4x4_total_reconEdge
 			if ( partIdx == 1 )
 			{
@@ -1296,6 +1347,25 @@ void CU_LEVEL_CALC::intra_proc()
 
 			// calc dist
 			totalDist4x4 += RdoDistCalc(inf_recon.SSE, 0);
+#if RK_CABAC_H
+			m_cabac_rdo->quant_finish_flag[1][4] = 1;
+
+			m_cabac_rdo->TU_Resi_luma = inf_tq.oriResi;
+			//			m_cabac_rdo->TU_Resi_chroma_u = inf_tq_total[1].oriResi;
+			//			m_cabac_rdo->TU_Resi_chroma_v = inf_tq_total[2].oriResi;
+			m_cabac_rdo->TU_size = 2;
+			m_cabac_rdo->cbf_luma = inf_tq.absSum == 0 ? 0 : 1;
+
+			//			m_cabac_rdo->est_bits_init();
+
+			if (m_cabac_rdo->tu_luma_4x4_idx !=3)
+			{
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST_WAIT->TU_EST   ×¼±¸¿ªÊ¼TU±ÈÌØ¹À¼Æ
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST->PU_EST_WAIT   PU¼¶½øÐÐÁË×´Ì¬¸üÐÂ¡£    ×îºóÒ»¸öPU£ºTU_EST->CU_EST_WAIT
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  ×¼±¸ºÃ35ÖÖ·½ÏòµÄbit  ×Ô×ª±íÊ¾ÔÚµÈ´ýINTRA¸ø³ö×î¼Ñ·½Ïò¡£    ×îºóÒ»¸öPU£ºCU_EST_WAIT->CU_EST   CU¼¶½øÐÐÁË×´Ì¬¸üÐÂ
+			}
+
+#endif
 #endif
 
 			//CABAC();
@@ -1338,6 +1408,9 @@ void CU_LEVEL_CALC::intra_proc()
 
 		// calc dist
 		totalDist4x4 += RdoDistCalc(inf_recon.SSE, 1);
+#if RK_CABAC_H
+		m_cabac_rdo->cbf_chroma_u = inf_tq.absSum == 0 ? 0 : 1;
+#endif
 #endif
 		//CABAC();
 		//*********************************************************************************//
@@ -1394,6 +1467,38 @@ void CU_LEVEL_CALC::intra_proc()
 			);
 		#endif
 		// compare 8x8 cost vs four 4x4 cost,choose the best.
+#if RK_CABAC_H
+			m_cabac_rdo->TU_Resi_luma = coeff4x4[3];
+			m_cabac_rdo->TU_Resi_chroma_u = coeff4x4[4];
+			m_cabac_rdo->TU_Resi_chroma_v = coeff4x4[5];
+			m_cabac_rdo->TU_size = 2;
+			m_cabac_rdo->cbf_chroma_v = inf_tq.absSum == 0 ? 0 : 1;
+
+			//			m_cabac_rdo->est_bits_init();
+
+			if (m_cabac_rdo->tu_luma_4x4_idx ==3)
+			{
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST_WAIT->TU_EST   ×¼±¸¿ªÊ¼TU±ÈÌØ¹À¼Æ
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST->PU_EST_WAIT   PU¼¶½øÐÐÁË×´Ì¬¸üÐÂ¡£    ×îºóÒ»¸öPU£ºTU_EST->CU_EST_WAIT
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  ×¼±¸ºÃ35ÖÖ·½ÏòµÄbit  ×Ô×ª±íÊ¾ÔÚµÈ´ýINTRA¸ø³ö×î¼Ñ·½Ïò¡£    ×îºóÒ»¸öPU£ºCU_EST_WAIT->CU_EST   CU¼¶½øÐÐÁË×´Ì¬¸üÐÂ
+			}
+
+
+			m_cabac_rdo->cabac_rdo_status(4,1,0);//CU_EST->CU_EST  ×Ô×ªÒ»È¦£¬±íÊ¾ÔÚµÈ´ýÉî¶È3 CU¸üÐÂÍêÉÏÏÂÎÄ
+			m_cabac_rdo->cu_best_mode_flag[3] = 1;
+
+#if RK_CABAC_H
+			assert(((m_cabac_rdo->tu_est_bits[1][4] + m_cabac_rdo->pu_est_bits[1][4])+16384)/32768 == totalBits4x4);
+#endif
+
+			if (inf_intra_proc.totalCost <= totalCost4x4)
+				m_cabac_rdo->cu_best_mode[3] = 1;
+			else 
+				m_cabac_rdo->cu_best_mode[3] = 2;
+
+			// 			m_cabac_rdo->cabac_rdo_status(3,1,0);//CU_EST_WAIT->CU_EST   ¸üÐÂÉÏÏÂÎÄ
+			// 			m_cabac_rdo->cabac_rdo_status(4,1,0);//CU_EST->CU_EST    Ä£·Â²¢ÐÐ  °Ñcu_readyÖÃÎª1  µ±ÊÇÉî¶È3µÄµÚ4¸öcuÊ±²»ÖÃÎª1
+#endif
 		if ( inf_intra_proc.totalCost > totalCost4x4 )
 		{
 			choose4x4split = true; // flag, used to decide whether convet8x8HWCtoX265 in ctu_calc.cpp for comparing
@@ -1539,7 +1644,7 @@ uint32_t CU_LEVEL_CALC::RdoCostCalc(uint32_t dist, uint32_t bits, int qp)
 {
 
 	// RDO formula: cost = dist + lambda * bits
-	int lambda;
+	uint64_t lambda;
 	uint32_t cost;
 
 	/* get Lambda */
@@ -1553,7 +1658,7 @@ uint32_t CU_LEVEL_CALC::RdoCostCalc(uint32_t dist, uint32_t bits, int qp)
 	}
 
 	/* calc  Cost */
-	cost = dist + ((bits * lambda + 32768) >> 16);
+	cost = dist + (((uint64_t)bits * lambda + 32768) >> 16);
 
 	return cost;
 }
@@ -1600,6 +1705,7 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
     }
 
 	begin();
+#if RK_INTER_METEST
 	if (2 != pHardWare->ctu_calc.slice_type)
 	{
 		int offsIdx = 84;
@@ -1609,13 +1715,12 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 			offsIdx = 64 + x_pos / 16 + y_pos / 16 * 4;
 		else if (3 == level)
 			offsIdx = x_pos / 8 + y_pos / 8 * 8;
-	#if RK_INTER_METEST
 		inter_proc(offsIdx);
-	#endif
 	}
+#endif
     intra_proc();
 
-    //RDOCompare();
+    RDOCompare();
 
     cost_intra.predMode = 1;
     cost_best = &cost_intra;
@@ -1645,6 +1750,17 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
     memset(cu_matrix_data[matrix_pos].cuSkipFlag, cost_best->skipFlag, (cu_w/8)*(cu_w/8));
 
     cost = (uint32_t)src_cu->totalCost;
+
+#if RK_CABAC_H
+	if (depth != 0)
+	{
+		int test = RdoCostCalc(inf_intra_proc.Distortion, inf_intra_proc.Bits, inf_tq.QP);
+		assert(cost == test);  
+	}
+
+	cost_best->Bits = inf_intra_proc.Bits;
+	cost_best->Distortion = inf_intra_proc.Distortion;
+#endif
 
 	return cost;
 }
