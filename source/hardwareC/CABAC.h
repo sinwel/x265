@@ -23,33 +23,33 @@ extern unsigned char state_table[3][52][165];
 typedef int Int;
 typedef uint32_t UInt;
 
-extern __int64 g_intra_est_bit_luma_pred_mode_all_case[RDO_MAX_DEPTH][256][35];
+extern uint64_t g_intra_est_bit_luma_pred_mode_all_case[RDO_MAX_DEPTH][256][35];
 
 extern int g_intra_cu_best_mode[RDO_MAX_DEPTH][256];
-extern __int64 g_SplitFlag_bit[RDO_MAX_DEPTH];
+extern uint64_t g_SplitFlag_bit[RDO_MAX_DEPTH];
 
-extern __int64 g_intra_est_bit_coded_sub_block_flag[3][RDO_MAX_DEPTH][256] ;
-extern __int64 g_intra_est_sig_coeff_flag[3][RDO_MAX_DEPTH][256];
-extern __int64 g_intra_est_bit_coeff_abs_level_greater1_flag[3][RDO_MAX_DEPTH][256];
-extern __int64 g_intra_est_bit_coeff_abs_level_greater2_flag[3][RDO_MAX_DEPTH][256];
-extern __int64 g_intra_est_bit_coeff_sign_flag[3][RDO_MAX_DEPTH][256] ;
-extern __int64 g_intra_est_bit_coeff_abs_level_remaining[3][RDO_MAX_DEPTH][256] ;
-extern __int64 g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256];
+extern uint64_t g_intra_est_bit_coded_sub_block_flag[3][RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_sig_coeff_flag[3][RDO_MAX_DEPTH][256];
+extern uint64_t g_intra_est_bit_coeff_abs_level_greater1_flag[3][RDO_MAX_DEPTH][256];
+extern uint64_t g_intra_est_bit_coeff_abs_level_greater2_flag[3][RDO_MAX_DEPTH][256];
+extern uint64_t g_intra_est_bit_coeff_sign_flag[3][RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_bit_coeff_abs_level_remaining[3][RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256];
 
-extern __int64 g_intra_est_bit_cbf[3][RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_bit_cbf[3][RDO_MAX_DEPTH][256] ;
 
-extern __int64 g_intra_est_bit_luma_pred_mode[RDO_MAX_DEPTH][256] ;
-extern __int64 g_intra_est_bit_chroma_pred_mode[RDO_MAX_DEPTH][256] ;
-extern __int64 g_intra_est_bit_part_mode[RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_bit_luma_pred_mode[RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_bit_chroma_pred_mode[RDO_MAX_DEPTH][256] ;
+extern uint64_t g_intra_est_bit_part_mode[RDO_MAX_DEPTH][256] ;
 
-extern __int64 g_est_bit_tu[2][RDO_MAX_DEPTH][256] ;
-extern __int64 g_est_bit_tu_luma_NoCbf[2][RDO_MAX_DEPTH][256];
-extern __int64 g_est_bit_tu_cb_NoCbf[2][RDO_MAX_DEPTH][256];
-extern __int64 g_est_bit_tu_cr_NoCbf[2][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_tu[2][RDO_MAX_DEPTH][256] ;
+extern uint64_t g_est_bit_tu_luma_NoCbf[2][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_tu_cb_NoCbf[2][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_tu_cr_NoCbf[2][RDO_MAX_DEPTH][256];
 
-extern __int64 g_est_bit_cu[2][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_cu[2][RDO_MAX_DEPTH][256];
 
-extern __int64 g_est_bit_cu_split_flag[2][RDO_MAX_DEPTH][256][2];
+extern uint64_t g_est_bit_cu_split_flag[2][RDO_MAX_DEPTH][256][2];
 //Enc_est
 typedef struct
 {
@@ -386,8 +386,8 @@ public:
 // 	static Void buildNextStateTable();
 // 	static Int getEntropyBitsTrm( Int val ) { return m_entropyBits[126 ^ val]; }
 // #endif
-	void setBinsCoded(UINT val)   { m_binsCoded = val;  }
-	UINT getBinsCoded()           { return m_binsCoded;   }
+	void setBinsCoded(uint32_t val)   { m_binsCoded = val;  }
+	uint32_t getBinsCoded()           { return m_binsCoded;   }
 
 	UChar         m_ucState;                                                                  ///< internal state variable
 private:
@@ -397,7 +397,7 @@ private:
 // #if FAST_BIT_EST
 // 	static UChar m_nextState[128][2];
 // #endif
-	UINT          m_binsCoded;
+	uint32_t          m_binsCoded;
 
 };
 
@@ -550,12 +550,12 @@ public:
 		uint32_t est_bit_cbf_chroma[2][RDO_MAX_DEPTH][2][2] ;
 		uint32_t mstate_cbf_chroma[2][RDO_MAX_DEPTH][2][2] ;
 
-		UINT est_bit_sao_merge_left_flag[2];
-		UINT est_bit_sao_merge_up_flag[2];//由于merge left和up使用同一个上下文，up标记都默认先经过一个输入值为0的状态跳转
-		UINT est_bit_sao_type_idx_luma[2];
-		UINT est_bit_sao_type_idx_chroma[2][2];//第一维表示Y分量type是否做SAO，type只有第一个bin是decision。
+		uint32_t est_bit_sao_merge_left_flag[2];
+		uint32_t est_bit_sao_merge_up_flag[2];//由于merge left和up使用同一个上下文，up标记都默认先经过一个输入值为0的状态跳转
+		uint32_t est_bit_sao_type_idx_luma[2];
+		uint32_t est_bit_sao_type_idx_chroma[2][2];//第一维表示Y分量type是否做SAO，type只有第一个bin是decision。
 
-		UINT est_bit_tu[2][RDO_MAX_DEPTH];
+		uint32_t est_bit_tu[2][RDO_MAX_DEPTH];
 
 
 		char			avail_left_up[2][RDO_MAX_DEPTH][32];//分2 * tu_len + 1，-tu_len 到tu_len，其中tu_len点是用不到的，因为 左上角点用不到 
@@ -602,12 +602,12 @@ public:
 	void setAvailSubParts_map( UInt availC, UInt uiAbsPartIdx,UInt depth  , bool IsIntra );//cu level
 
 	//CABAC接口函数
-	UINT Est_bit_cu(UINT  depth , bool  IsIntra , bool  cu_skip_flag);//CU级别某层深度下bit估计
-	UINT Est_bit_pu_luma_dir(UINT  depth , int  dir);//PU级别INTRA 35种方向luma bit估计
-	UINT Est_bit_pu_merge(UINT  depth , UINT  merge_idx);//PU级别INTER  merge模式bit估计
-	UINT Est_bit_pu_fme(UINT  depth , UINT  mvd , UINT  mvp_l0_flag);//PU级别INTER  FME模式bit估计
-	UINT Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type);//SAO级别模式bit估计
-	UINT Est_bit_tu(UINT  depth , bool  IsIntra);//TU级别bit估计
+	uint32_t Est_bit_cu(uint32_t  depth , bool  IsIntra , bool  cu_skip_flag);//CU级别某层深度下bit估计
+	uint32_t Est_bit_pu_luma_dir(uint32_t  depth , int  dir);//PU级别INTRA 35种方向luma bit估计
+	uint32_t Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx);//PU级别INTER  merge模式bit估计
+	uint32_t Est_bit_pu_fme(uint32_t  depth , uint32_t  mvd , uint32_t  mvp_l0_flag);//PU级别INTER  FME模式bit估计
+	uint32_t Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type);//SAO级别模式bit估计
+	uint32_t Est_bit_tu(uint32_t  depth , bool  IsIntra);//TU级别bit估计
 
 
 

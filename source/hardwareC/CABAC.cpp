@@ -7,34 +7,34 @@ unsigned int pu_luma_dir_x265[5][256][35]={0};
 
 CABAC_RDO *g_cabac_rdo_test = new CABAC_RDO;
 int g_intra_cu_best_mode[RDO_MAX_DEPTH][256] = {0};//1±íÊ¾²ÉÓÃµ±Ç°Éî¶ÈÏÂÒ»²ãµÄintra CU
-__int64 g_SplitFlag_bit[RDO_MAX_DEPTH] = {0};
+uint64_t g_SplitFlag_bit[RDO_MAX_DEPTH] = {0};
 
 //TU
-__int64 g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_coded_sub_block_flag[3][RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_sig_coeff_flag[3][RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_coeff_abs_level_greater1_flag[3][RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_coeff_abs_level_greater2_flag[3][RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_coeff_sign_flag[3][RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_coeff_abs_level_remaining[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_coded_sub_block_flag[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_sig_coeff_flag[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_coeff_abs_level_greater1_flag[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_coeff_abs_level_greater2_flag[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_coeff_sign_flag[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_coeff_abs_level_remaining[3][RDO_MAX_DEPTH][256] = {0};
 //CBF
-__int64 g_intra_est_bit_cbf[3][RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_cbf[3][RDO_MAX_DEPTH][256] = {0};
 
 //PU
-__int64 g_intra_est_bit_luma_pred_mode_all_case[RDO_MAX_DEPTH][256][35] = {0};
-__int64 g_intra_est_bit_luma_pred_mode[RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_chroma_pred_mode[RDO_MAX_DEPTH][256] = {0};
-__int64 g_intra_est_bit_part_mode[RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_luma_pred_mode_all_case[RDO_MAX_DEPTH][256][35] = {0};
+uint64_t g_intra_est_bit_luma_pred_mode[RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_chroma_pred_mode[RDO_MAX_DEPTH][256] = {0};
+uint64_t g_intra_est_bit_part_mode[RDO_MAX_DEPTH][256] = {0};
 
 //TU
-__int64 g_est_bit_tu[2][RDO_MAX_DEPTH][256]= {0};
-__int64 g_est_bit_tu_luma_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
-__int64 g_est_bit_tu_cb_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
-__int64 g_est_bit_tu_cr_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu[2][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu_luma_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu_cb_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu_cr_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
 //CU
-__int64 g_est_bit_cu[2][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_cu[2][RDO_MAX_DEPTH][256]= {0};
 
-__int64 g_est_bit_cu_split_flag[2][RDO_MAX_DEPTH][256][2]= {0};
+uint64_t g_est_bit_cu_split_flag[2][RDO_MAX_DEPTH][256][2]= {0};
 
 #pragma region
 const int CABAC_g_entropyBits[128] =
@@ -7995,17 +7995,17 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 }
 
 //CABAC ½Ó¿Úº¯Êý
-UINT CABAC_RDO::Est_bit_cu(UINT  depth , bool  IsIntra , bool  cu_skip_flag)//CU¼¶±ðÄ³²ãÉî¶ÈÏÂbit¹À¼Æ
+uint32_t CABAC_RDO::Est_bit_cu(uint32_t  depth , bool  IsIntra , bool  cu_skip_flag)//CU¼¶±ðÄ³²ãÉî¶ÈÏÂbit¹À¼Æ
 {
 	return 1;//return est_bit_cu[IsIntra][depth] + est_bit_pu[IsIntra][depth] + est_bit_tu[IsIntra][depth];
 }
 
-UINT CABAC_RDO::Est_bit_pu_luma_dir(UINT  depth , int  dir)//PU¼¶±ðINTRA 35ÖÖ·½Ïòluma bit¹À¼Æ
+uint32_t CABAC_RDO::Est_bit_pu_luma_dir(uint32_t  depth , int  dir)//PU¼¶±ðINTRA 35ÖÖ·½Ïòluma bit¹À¼Æ
 {
 	return (est_bit_pu_luma_dir[depth][dir]+16384)>>15;
 }
 
-UINT CABAC_RDO::Est_bit_pu_merge(UINT  depth , UINT  merge_idx)//PU¼¶±ðINTER  mergeÄ£Ê½bit¹À¼Æ
+uint32_t CABAC_RDO::Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx)//PU¼¶±ðINTER  mergeÄ£Ê½bit¹À¼Æ
 {
 	int bit;
 	int MAX_merge_idx;
@@ -8025,7 +8025,7 @@ UINT CABAC_RDO::Est_bit_pu_merge(UINT  depth , UINT  merge_idx)//PU¼¶±ðINTER  me
 	return est_bit_merge_flag[depth][1] + est_bit_cu_skip_flag[0][depth][0] + est_bit_pred_mode_flag[0][depth] + est_bit_pu_part_mode[0][depth][1] + bit;
 }
 
-UINT CABAC_RDO::Est_bit_pu_fme(UINT  depth , UINT  mvd , UINT  mvp_l0_flag)//PU¼¶±ðINTER  FMEÄ£Ê½bit¹À¼Æ
+uint32_t CABAC_RDO::Est_bit_pu_fme(uint32_t  depth , uint32_t  mvd , uint32_t  mvp_l0_flag)//PU¼¶±ðINTER  FMEÄ£Ê½bit¹À¼Æ
 {
 	int temp1 = est_bit_cu_skip_flag[0][depth][0] + est_bit_pred_mode_flag[0][depth] + est_bit_pu_part_mode[0][depth][1] + est_bit_merge_idx[depth][0] + est_bit_rqt_root_cbf[depth][0] + est_bit_mvp_l0_flag[depth][mvp_l0_flag];
 	int temp2 = 0;
@@ -8046,7 +8046,7 @@ UINT CABAC_RDO::Est_bit_pu_fme(UINT  depth , UINT  mvd , UINT  mvp_l0_flag)//PU¼
 	return temp2;
 }
 
-UINT CABAC_RDO::Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type)//SAO¼¶±ðÄ£Ê½bit¹À¼Æ  cIdx 0 1 2·Ö±ð±íÊ¾Y U V
+uint32_t CABAC_RDO::Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type)//SAO¼¶±ðÄ£Ê½bit¹À¼Æ  cIdx 0 1 2·Ö±ð±íÊ¾Y U V
 {
 	int temp1 = 0;//merge left ´øÀ´µÄbitÏûºÄ
 	int temp2 = 0;//merge left up ´øÀ´µÄbitÏûºÄ
@@ -8134,7 +8134,7 @@ UINT CABAC_RDO::Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type)//S
 	}
 }
 
-UINT CABAC_RDO::Est_bit_tu(UINT  depth , bool  IsIntra)//TU¼¶±ðbit¹À¼Æ
+uint32_t CABAC_RDO::Est_bit_tu(uint32_t  depth , bool  IsIntra)//TU¼¶±ðbit¹À¼Æ
 {
 	return est_bit_tu[IsIntra][depth];
 }

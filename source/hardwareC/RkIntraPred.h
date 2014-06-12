@@ -96,14 +96,14 @@ typedef enum Intra4HardwareFile
     INTRA_4_PRED              , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb y y cr y 的顺序打印
     INTRA_4_RECON             , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb y y cr y 的顺序打印
     INTRA_4_BEST_MODE         , //按照8bit一行进行打印, 按照y cb y y cr y的顺序打印
-    INTRA_4_TU_CABAC_BITS   	, //按照一个tu 残差，24bit一行的顺序进行打印按照y cb y y cr y的顺序打印
-    INTRA_4_PU_PRED_MODE_BITS   , //按照8bit一行的数据进行打印,按照y cb y y cr y的顺序进行打印
+    INTRA_4_TU_CABAC_BITS   	, //按照一个tu 残差，32 bit一行的顺序进行打印按照y cb y y cr y的顺序打印 32 bit x 6
+    INTRA_4_PU_PRED_MODE_BITS   , //按照 32 bit一行的数据进行打印,按照y cb y y cr y的顺序进行打印
     INTRA_4_CU_TOTAL_BITS       ,
     INTRA_4_CU_TOTAL_DISTORTION ,
     INTRA_4_CU_TOTAL_COST       ,
     INTRA_4_TU_COST_BITS        ,
-    INTRA_4_TU_CBF_BITS         , //按照 8bit打印 ，y cb y y cr y的顺序打印 一个TU 一行
-    INTRA_4_PU_PART_MODE_BITS	, //按照8bit一行的顺序进行打印,一个PU一行    
+    INTRA_4_TU_CBF_BITS         , //按照 24 bit打印 ，y cb y y cr y的顺序打印 一个TU 一行
+    INTRA_4_PU_PART_MODE_BITS	, //按照 24 bit一行的顺序进行打印,一个PU一行    
     INTRA_4_FILE_NUM
 } Intra4HardwareFile;
 
@@ -123,14 +123,15 @@ typedef enum Intra8HardwareFile
     INTRA_8_PRED              , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb cr的顺序打印 
     INTRA_8_RECON             , //按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15],p[14],p[13]...p[1],p[0];按照y cb cr的顺序打印 
     INTRA_8_BEST_MODE         , //按照8bit一行进行打印;按照y cb cr的顺序打印 
-    INTRA_8_TU_CABAC_BITS   	, //按照一个tu 残差 24bit一行的顺序进行打印;按照y cb cr 的顺序打印 
-    INTRA_8_PU_PRED_MODE_BITS   , //按照8bit一行的数据进行打印,按照y cb&cr的顺序进行打印
+    INTRA_8_TU_CABAC_BITS   	, //按照一个tu 残差 32 bit一行的顺序进行打印;按照y cb cr 的顺序打印 
+    INTRA_8_PU_PRED_MODE_BITS   , //按照 32 bit一行的数据进行打印,按照y cb&cr的顺序进行打印
     INTRA_8_CU_TOTAL_BITS       , //按照24bit一行的顺序进行打印
     INTRA_8_CU_TOTAL_DISTORTION , //按照32bit一行的顺序进行打印
     INTRA_8_CU_TOTAL_COST       , //按照32bit一行的顺序进行打印
     INTRA_8_TU_COST_BITS		, //按照一个Y分量的TU的(sad + sad_lambda * bit)打印;顺序0 cost[0], 1 cost[1], 2 cost[2], 4 cost[4], ... 34 cost[34];cost按32bit打印
-    INTRA_8_TU_CBF_BITS         , //按照 8bit打印 ，y cb cr 的顺序打印 一个TU 一行
-    INTRA_8_PU_SPLIT_FLAG_BIT	, //按照8bit一行的顺序进行打印,一个PU一行
+    INTRA_8_TU_CBF_BITS         , //按照 24 bit打印 ，y cb cr 的顺序打印 一个TU 一行
+    INTRA_8_PU_PART_MODE_BITS	, //按照 24 bit一行的顺序进行打印,一个PU一行
+    INTRA_8_REF_PIXEL_CU_LU_FILTER  ,//8x8 CU的ref pixel lu像素 filter后像素 33个像素一行 打印顺序p[32]p[31]p[23]...p[1]p[0]
     INTRA_8_FILE_NUM
 } Intra8HardwareFile;
 

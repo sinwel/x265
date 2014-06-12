@@ -2053,7 +2053,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			}
 
 			//INTRA_4_TU_CABAC_BITS
-			__int64 tu_cabac_bits[6];
+			uint64_t tu_cabac_bits[6];
 			uint32_t zscan = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
 			tu_cabac_bits[0] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan + 0];
 			tu_cabac_bits[1] = g_est_bit_tu_cb_NoCbf[1][cur_depth][zscan];
@@ -2069,7 +2069,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_4x4[INTRA_4_TU_CABAC_BITS],"\n");
 
 			//INTRA_4_PU_PRED_MODE_BITS
-			__int64 pu_pred_mode_bits[6];
+			uint64_t pu_pred_mode_bits[6];
 			pu_pred_mode_bits[0] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 0];
 			pu_pred_mode_bits[1] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
 			pu_pred_mode_bits[2] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 1];
@@ -2084,7 +2084,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_4x4[INTRA_4_PU_PRED_MODE_BITS],"\n");
 
 			//INTRA_4_TU_CBF_BITS
-			__int64 tu_cbf_bits[6];
+			uint64_t tu_cbf_bits[6];
 			tu_cbf_bits[0] = g_intra_est_bit_cbf[0][cur_depth][zscan + 0];
 			tu_cbf_bits[1] = g_intra_est_bit_cbf[1][cur_depth][zscan + 0];
 			tu_cbf_bits[2] = g_intra_est_bit_cbf[0][cur_depth][zscan + 1];
@@ -2099,7 +2099,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_4x4[INTRA_4_TU_CBF_BITS],"\n");
 
 			//INTRA_4_PU_PART_MODE_BITS
-			__int64 pu_part_mode_bits[6];
+			uint64_t pu_part_mode_bits[6];
 			pu_part_mode_bits[0] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
 			pu_part_mode_bits[1] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
 			pu_part_mode_bits[2] = g_intra_est_bit_part_mode[cur_depth][zscan + 1];
@@ -2137,7 +2137,59 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 				FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_LU],"%02x",fenc[63 - i]);			    
 
 			}
-			FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_LU],"\n");			    
+			FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_LU],"\n");		
+
+
+
+			//INTRA_8_TU_CABAC_BITS
+			uint64_t tu_cabac_bits[3];
+			uint32_t zscan = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			tu_cabac_bits[0] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan];
+			tu_cabac_bits[1] = g_est_bit_tu_cb_NoCbf[1][cur_depth][zscan];
+			tu_cabac_bits[2] = g_est_bit_tu_cr_NoCbf[1][cur_depth][zscan];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_TU_CABAC_BITS],"%08llx",tu_cabac_bits[i]);
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_TU_CABAC_BITS],"\n");
+
+			//INTRA_8_PU_PRED_MODE_BITS
+			uint64_t pu_pred_mode_bits[3];
+			pu_pred_mode_bits[0] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[1] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[2] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_PU_PRED_MODE_BITS],"%08llx",pu_pred_mode_bits[i]);
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_PU_PRED_MODE_BITS],"\n");
+
+			//INTRA_8_TU_CBF_BITS
+			uint64_t tu_cbf_bits[3];
+			tu_cbf_bits[0] = g_intra_est_bit_cbf[0][cur_depth][zscan + 0];
+			tu_cbf_bits[1] = g_intra_est_bit_cbf[1][cur_depth][zscan + 0];
+			tu_cbf_bits[2] = g_intra_est_bit_cbf[2][cur_depth][zscan + 0];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_TU_CBF_BITS],"%06llx",tu_cbf_bits[i]);
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_TU_CBF_BITS],"\n");
+
+			//INTRA_8_PU_PART_MODE_BITS
+			uint64_t pu_part_mode_bits[3];
+			pu_part_mode_bits[0] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[1] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[2] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_8x8[INTRA_8_PU_PART_MODE_BITS],"%06llx",pu_part_mode_bits[i]);
+			}
+			FPRINT(fp_intra_8x8[INTRA_8_PU_PART_MODE_BITS],"\n");
+			
 		}
 		
 	#endif
@@ -2212,6 +2264,19 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 						refAbove + width - 1,
 						refLeftFlt + width - 1,
 						refAboveFlt + width - 1);
+#if OUTPUT_8X8_DATA
+	if((width == 8) && (cur_depth == 3)) // 8x8 CU
+	{
+		// INTRA_8_REF_PIXEL_CU_LU_FILTER
+		for ( uint8_t  i = 0 ; i < 2*width + 1 ; i++ )
+			FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_LU_FILTER],"%02x",refAboveFlt[3*width - 1 - i]);			    
+		for ( uint8_t  i = 0 ; i < 2*width     ; i++ )
+			FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_LU_FILTER],"%02x",refLeftFlt[i + width]);	
+		
+		FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_LU_FILTER],"\n");			    
+	}
+#endif
+		
 #ifdef INTRA_RESULT_STORE_FILE
 		// width - 1 是为了在做pred扩展用的
 		StoreSmoothing(g_fp_result_rk,
@@ -2360,7 +2425,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 	#endif
 
 	#if OUTPUT_8X8_DATA
-		
+		if (width == 8)
+			assert(cur_depth == 3);
 		if((width == 8) && (cur_depth == 3)) // LEVEL 3
 		{
 			// INTRA_8_SAD
