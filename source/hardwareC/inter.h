@@ -31,6 +31,7 @@ const int nRectSize = 5; //refine search window size
 const int nRimeWidth = 8;
 const int nRimeHeight = 6;
 const int nNeightMv = 2; //plus 1 is number of refine search windows
+const int nAllNeighMv = 28;
 const int g_nSearchRangeWidth = 192;
 const int g_nSearchRangeHeight = 192;
 const int nCtuSize = 64;
@@ -163,6 +164,8 @@ extern short g_fmeCoeffU[4][32*32];
 extern short g_fmeCoeffV[4][32*32];
 extern bool  g_fme;
 extern bool	 g_merge;
+extern unsigned int  g_mergeBits[85];
+extern unsigned int  g_fmeBits[85];
 
 class CoarseIntMotionEstimation
 {
@@ -252,7 +255,7 @@ private:
 	int                                              m_nRefPic;
 	Slice_Type                                   m_nSliceType;
 	struct Mv                                    m_mvRefine[nMaxRefPic][3]; //0: CIME output PMV; 1. first neighbor PMV; 2. second neighbor PMV
-	struct Mv                                    m_mvNeigh[nMaxRefPic][36];
+	struct Mv                                    m_mvNeigh[nMaxRefPic][nAllNeighMv];
 	unsigned char                             *m_pOrigPic; //current original picture, for fetching current CTU pixel
 	unsigned char                             *m_pRefPic[nMaxRefPic]; //reference picture
 
@@ -299,7 +302,7 @@ public:
 	unsigned char *getOrigPic(){ return m_pOrigPic; }
 	unsigned char *getCurrCuPel(){ return m_pCurrCuPel; }
 	unsigned char *getCuForFmeInterp(int nRefPicIdx){ return m_pCuForFmeInterp[nRefPicIdx]; }
-	void setPmv(Mv pMvNeigh[36], Mv mvCpmv, int nRefPicIdx);
+	void setPmv(Mv pMvNeigh[nAllNeighMv], Mv mvCpmv, int nRefPicIdx);
 	void getPmv(Mv &tmpMv, int nRefPicIdx, int idx){ tmpMv.x = m_mvRefine[nRefPicIdx][idx].x; tmpMv.y = m_mvRefine[nRefPicIdx][idx].y; }
 	Mv getRimeMv(int nRefPicIdx){ return m_mvRimeOut[nRefPicIdx]; }
 	Mv getFmeMv(int nRefPicIdx){ return m_mvFmeOut[nRefPicIdx]; }
@@ -311,7 +314,7 @@ public:
 	void setQP(char qp){ m_nQP = qp; }
 	char getQP(){ return m_nQP; }
 	unsigned short mvcost(Mv mvp, Mv mv);
-	void setMvp(Mv *mvp, Mv pMvNeigh[36]);
+	void setMvp(Mv *mvp, Mv pMvNeigh[nAllNeighMv]);
 	void setMvpCost();
 
 	//FME calculate

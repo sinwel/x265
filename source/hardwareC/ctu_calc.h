@@ -158,9 +158,12 @@ public:
 
 
     //TODO
-    uint8_t  bs_tu_cbf_flag[256];
-    uint8_t  bs_cu_type[64];
-    MV_INFO  bs_mv[64];
+    uint8_t  cu_depth[64];      //(0, 1, 2, 3)
+    uint8_t  tu_depth[256];     //(0, 1, 2)
+    uint8_t  pu_depth[256];     //(0, 1)
+    uint8_t  intra_bs_flag[256]; //(2:intra, 1:cbf 0:none)
+    MV_INFO  mv_info[64];
+    uint8_t  qp[64];
 
     class CU_LEVEL_CALC cu_level_calc[4];
 

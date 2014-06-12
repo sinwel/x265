@@ -6,10 +6,52 @@ hardwareC G_hardwareC;
 
 hardwareC::hardwareC()
 {
+    uint8_t i;
+    inf_dblk.recon_y = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.recon_u = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.recon_v = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.cu_depth = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.pu_depth = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.tu_depth = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.mv_info = new MV_INFO*[MAX_NUM_CTU_W];
+    inf_dblk.intra_bs_flag = new uint8_t*[MAX_NUM_CTU_W];
+    inf_dblk.qp = new uint8_t*[MAX_NUM_CTU_W];
+    for(i=0; i<MAX_NUM_CTU_W; i++) {
+        inf_dblk.recon_y[i] = new uint8_t[64*64];
+        inf_dblk.recon_u[i] = new uint8_t[32*32];
+        inf_dblk.recon_v[i] = new uint8_t[32*32];
+        inf_dblk.cu_depth[i] = new uint8_t[64];
+        inf_dblk.pu_depth[i] = new uint8_t[256];
+        inf_dblk.tu_depth[i] = new uint8_t[256];
+        inf_dblk.mv_info[i] = new MV_INFO[64];
+        inf_dblk.intra_bs_flag[i] = new uint8_t[256];
+        inf_dblk.qp[i] = new uint8_t[256];
+    }
 }
 
 hardwareC::~hardwareC()
 {
+    uint8_t i;
+    for(i=0; i<MAX_NUM_CTU_W; i++) {
+        delete []inf_dblk.recon_y[i];
+        delete []inf_dblk.recon_u[i];
+        delete []inf_dblk.recon_v[i];
+        delete [] inf_dblk.cu_depth[i];
+        delete [] inf_dblk.pu_depth[i];
+        delete [] inf_dblk.tu_depth[i];
+        delete [] inf_dblk.mv_info[i];
+        delete [] inf_dblk.intra_bs_flag[i];
+        delete [] inf_dblk.qp[i];
+    }
+    delete [] inf_dblk.recon_y;
+    delete [] inf_dblk.recon_u;
+    delete [] inf_dblk.recon_v;
+    delete [] inf_dblk.cu_depth;
+    delete [] inf_dblk.pu_depth;
+    delete [] inf_dblk.tu_depth;
+    delete [] inf_dblk.mv_info;
+    delete [] inf_dblk.intra_bs_flag;
+    delete [] inf_dblk.qp;
 }
 
 void hardwareC::init()
@@ -38,7 +80,7 @@ void hardwareC::proc()
 		assert(Cime.getCimeMv(nRefPic - 1).x == g_leftPMV[nMaxRefPic - 1].x);
 		assert(Cime.getCimeMv(nRefPic - 1).y == g_leftPMV[nMaxRefPic - 1].y);
 		assert(Cime.getCimeMv(nRefPic - 1).nSadCost == g_leftPMV[nMaxRefPic - 1].nSadCost);
-	} 
+	}
 	else
 	{
 		for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
@@ -49,7 +91,7 @@ void hardwareC::proc()
 			assert(Cime.getCimeMv(nRefPicIdx).nSadCost == g_leftPMV[nRefPicIdx].nSadCost);
 		}
 	}
-	
+
 	for (int i = 0; i < 85; i++)
 	{
 		nRefPic = Rime[i].getRefPicNum();

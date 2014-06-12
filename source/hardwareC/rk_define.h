@@ -13,16 +13,17 @@
 
 struct MV_INFO
 {
+	uint32_t mv_x_0      : 12;
+    uint32_t mv_y_0      : 11;
     uint32_t pred_flag_0 : 1;
-    uint32_t pred_flag_1 : 1;
-    uint32_t pic_idx_0   : 4;
-    uint32_t pic_idx_1   : 4;
     uint32_t delta_poc_0 : 5;
-    uint32_t delta_poc_1 : 5;
-    uint32_t mv_x_0      : 12;
-    uint32_t mv_y_0      : 10;
+	uint32_t res0        : 3;
+        
     uint32_t mv_x_1      : 12;
-    uint32_t mv_y_1      : 10;
+    uint32_t mv_y_1      : 11;
+	uint32_t pred_flag_1 : 1;    
+	uint32_t delta_poc_1 : 5;
+	uint32_t res1       : 3;
 };
 
 struct IME_MV
@@ -78,6 +79,7 @@ struct CTU_CMD
 //if (( cu->getWidth(0) != SIZE_64x64) && ( cu->getPartitionSize(0) == SIZE_2Nx2N )) // фа╠н4x4
 #define MATCH_CASE(size,partition) ( (size != SIZE_64x64) && ( partition == 0))
 #endif
+#define MAX_NUM_CTU_W           30
 #define RK_MAX_CU_DEPTH         6                           // log2(LCUSize)
 #define RK_MAX_CU_SIZE          (1 << (RK_MAX_CU_DEPTH))       // maximum allowable size of CU
 #define RK_MIN_PU_SIZE          4

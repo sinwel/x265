@@ -2301,31 +2301,35 @@ void TComDataCU::getInterMergeCandidates(uint32_t absPartIdx, uint32_t puIdx, TC
     numValidMergeCand = arrayAddr;
 }
 
-void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
+void TComDataCU::PrefetchMergeCandidatesInfo(unsigned int offsIdx)
 {
+	MergeCand.setCtuPosInPic(getAddr());
 	MergeCand.setCuPosInCtu(offsIdx);
-	Amvp.setCuPosInCtu(offsIdx);
-	if (offsIdx < 64)
-	{
-		MergeCand.setCuSize(8);
-		Amvp.setCuSize(8);
-	}
-	else if (offsIdx < 80)
-	{
-		MergeCand.setCuSize(16);
-		Amvp.setCuSize(16);
-	}
-	else if (offsIdx < 84)
-	{
-		MergeCand.setCuSize(32);
-		Amvp.setCuSize(32);
-	}
+	MergeCand.setCurrPicPoc(getSlice()->getPOC());
+	MergeCand.setCuSize(getWidth(0));
+	MergeCand.setPicHeight(getSlice()->getSPS()->getPicHeightInLumaSamples());
+	MergeCand.setPicWidth(getSlice()->getSPS()->getPicWidthInLumaSamples());
+	MergeCand.setMergeCandNum(getSlice()->getMaxNumMergeCand());
+	MergeCand.setCheckLDC(getSlice()->getCheckLDC());
+	MergeCand.setFromL0Flag(getSlice()->getColFromL0Flag());
+	int nRefPicNum[2]; 
+	nRefPicNum[0] = getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+	nRefPicNum[1] = getSlice()->getNumRefIdx(REF_PIC_LIST_1);
+	MergeCand.setRefPicNum(nRefPicNum);
+	if (getSlice()->isInterB())
+		MergeCand.setSliceType(b_slice);
+	else if (getSlice()->isInterP())
+		MergeCand.setSliceType(p_slice);
 	else
+		MergeCand.setSliceType(i_slice);
+	int nCurrRefPicPoc[2] = {0};
+	nCurrRefPicPoc[0] = m_slice->getRefPic(REF_PIC_LIST_0, 0)->getPOC();
+	if (getSlice()->isInterB())
 	{
-		MergeCand.setCuSize(64);
-		Amvp.setCuSize(64);
+		nCurrRefPicPoc[1] = m_slice->getRefPic(REF_PIC_LIST_1, 0)->getPOC();
 	}
-
+	MergeCand.setCurrRefPicPoc(nCurrRefPicPoc);
+	
 	SPATIAL_MV mvSpatial;
 	switch (offsIdx)
 	{
@@ -2337,8 +2341,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i+5);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 5);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		break;
 	case 18:
@@ -2348,14 +2350,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i+5);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 5);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
 		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 6);
 		break;
 	//top left is 6
 	case 16:
@@ -2364,8 +2362,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 3);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 3);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		break;
 	case 34:
@@ -2375,12 +2371,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 3);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 3);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
 		break;
 	//top left is 10
 	case 2:
@@ -2390,12 +2383,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 7);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 7);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
 		break;
 	case 38:
 		for (int i = 1; i <= 5; i++)
@@ -2403,14 +2393,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 7);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 7);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
 		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 6);
 		break;
 	//top left is 4
 	case 32:
@@ -2419,8 +2405,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 1);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 1);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		break;
 	case 50:
@@ -2429,14 +2413,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 1);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 1);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
 		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 6);
 		break;
 	//top left is 12
 	case 4:
@@ -2445,8 +2425,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 9);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 9);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		break;
 	case 22:
@@ -2455,14 +2433,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 9);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 9);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
 		MergeCand.setMvSpatialForCu8(mvSpatial, 6);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 6);
 		break;
 	//top left is 2
 	case 48:
@@ -2471,12 +2445,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i - 1);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i - 1);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
 		break;
 	//top left is 14
 	case 6:
@@ -2485,12 +2456,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCtu(mvSpatial, i + 11);
 			MergeCand.setMvSpatialForCu8(mvSpatial, i);
-			Amvp.getMvSpatialForCtu(mvSpatial, i + 11);
-			Amvp.setMvSpatialForCu8(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatialForCu8(mvSpatial, 0);
-		Amvp.setMvSpatialForCu8(mvSpatial, 0);
 		break;
 
 	case 64:
@@ -2501,8 +2469,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i]);
 				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
-				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
-				   Amvp.setMvSpatialForCu16(mvSpatial, i);
 			   }
 	}
 		break;
@@ -2514,12 +2480,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
 				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
-				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
-				   Amvp.setMvSpatialForCu16(mvSpatial, i);
 			   }
 			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			   MergeCand.setMvSpatialForCu16(mvSpatial, 0);
-			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
 	}
 		break;
 	case 72:
@@ -2530,12 +2493,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
 				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
-				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
-				   Amvp.setMvSpatialForCu16(mvSpatial, i);
 			   }
 			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			   MergeCand.setMvSpatialForCu16(mvSpatial, 0);
-			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
 	}
 		break;
 	case 74:
@@ -2546,14 +2506,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
 				   MergeCand.setMvSpatialForCu16(mvSpatial, i);
-				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
-				   Amvp.setMvSpatialForCu16(mvSpatial, i);
 			   }
 			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			   MergeCand.setMvSpatialForCu16(mvSpatial, 0);
 			   MergeCand.setMvSpatialForCu16(mvSpatial, 9);
-			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
-			   Amvp.setMvSpatialForCu16(mvSpatial, 9);
 	}
 		break;
 
@@ -2565,8 +2521,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i]);
 				   MergeCand.setMvSpatialForCu32(mvSpatial, i);
-				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
-				   Amvp.setMvSpatialForCu32(mvSpatial, i);
 			   }
 	}
 		break;
@@ -2579,8 +2533,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				   MergeCand.getMvSpatialForCtu(mvSpatial, idx[i]);
 				   MergeCand.setMvSpatialForCu64(mvSpatial, i);
-				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
-				   Amvp.setMvSpatialForCu64(mvSpatial, i);
 			   }
 	}
 		break;
@@ -2590,7 +2542,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 	{
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 		MergeCand.setMvSpatial(mvSpatial, i);
-		Amvp.setMvSpatial(mvSpatial, i);
 	}
 	
 	if (offsIdx < 64)
@@ -2603,8 +2554,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 		} 
 		else if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 != 0) ) //right top
@@ -2617,12 +2566,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		} 
 		else if ( ((offsIdx / 8) % 2 != 0) && (offsIdx % 2 == 0) ) //left bottom
 		{
@@ -2632,8 +2578,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 		}
 		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 != 0) ) //right bottom
@@ -2646,14 +2590,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu8(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 2);
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 2);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		}
 	}
 	else if (offsIdx < 80)
@@ -2666,8 +2606,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 		}
 		else if ( ((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0 ) //right top
@@ -2680,12 +2618,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		}
 		else if ( ((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0 ) //left bottom
 		{
@@ -2695,8 +2630,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 		}
 		else if ( ((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0 ) //right bottom
@@ -2709,14 +2642,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu16(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 2);
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 2);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		}
 	}
 	else if (offsIdx < 84)
@@ -2729,8 +2658,6 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 		}
 		else if (81 == offsIdx) //right top
@@ -2743,12 +2670,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		}
 		else if (82 == offsIdx) //left bottom
 		{
@@ -2760,12 +2684,9 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		}
 		else if (83 == offsIdx) //right bottom
 		{
@@ -2777,14 +2698,10 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 				MergeCand.getMvSpatialForCu32(mvSpatial, idx[i]);
 				MergeCand.setMvSpatial(mvSpatial, i);
-				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
-				Amvp.setMvSpatial(mvSpatial, i);
 			}
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.setMvSpatial(mvSpatial, 2);
 			MergeCand.setMvSpatial(mvSpatial, 3);
-			Amvp.setMvSpatial(mvSpatial, 2);
-			Amvp.setMvSpatial(mvSpatial, 3);
 		}
 	}
 	else if (offsIdx == 84)
@@ -2797,11 +2714,422 @@ void TComDataCU::PrefetchMergeAmvpCandInfo(unsigned int offsIdx)
 			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			MergeCand.getMvSpatialForCu64(mvSpatial, idx[i]);
 			MergeCand.setMvSpatial(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		MergeCand.setMvSpatial(mvSpatial, 3);
+	}
+}
+
+void TComDataCU::PrefetchAmvpInfo(unsigned int offsIdx, int refIdx)
+{
+	Amvp.setCtuPosInPic(getAddr());
+	Amvp.setCuPosInCtu(offsIdx);
+	Amvp.setCurrPicPoc(getSlice()->getPOC());
+	Amvp.setCuSize(getWidth(0));
+	Amvp.setPicHeight(getSlice()->getSPS()->getPicHeightInLumaSamples());
+	Amvp.setPicWidth(getSlice()->getSPS()->getPicWidthInLumaSamples());
+	Amvp.setCheckLDC(getSlice()->getCheckLDC());
+	Amvp.setFromL0Flag(getSlice()->getColFromL0Flag());
+	if (getSlice()->isInterB())
+		Amvp.setSliceType(b_slice);
+	else if (getSlice()->isInterP())
+		Amvp.setSliceType(p_slice);
+	else
+		Amvp.setSliceType(i_slice);
+	int nCurrRefPicPoc[2] = { 0 };
+	nCurrRefPicPoc[0] = m_slice->getRefPic(0, refIdx)->getPOC();
+	if (getSlice()->isInterB())
+	{
+		nCurrRefPicPoc[1] = m_slice->getRefPic(1, 0)->getPOC();
+	}
+	Amvp.setCurrRefPicPoc(nCurrRefPicPoc);
+
+	SPATIAL_MV mvSpatial;
+	switch (offsIdx)
+	{
+		//top left is 8
+	case 0:
+	case 36:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 5);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 18:
+	case 54:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 5);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 6
+	case 16:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 3);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 34:
+	case 52:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 3);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+		//top left is 10
+	case 2:
+	case 20:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 7);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+	case 38:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 7);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 4
+	case 32:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 1);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 50:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 1);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 12
+	case 4:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 9);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 22:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 9);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		Amvp.setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 2
+	case 48:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i - 1);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+		//top left is 14
+	case 6:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.getMvSpatialForCtu(mvSpatial, i + 11);
+			Amvp.setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatialForCu8(mvSpatial, 0);
+		break;
+
+	case 64:
+	{
+			   int idx[10] = { 3, 4, 5, 6, 8, 9, 10, 11, 12, 13 };
+			   for (int i = 0; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+	}
+		break;
+	case 66:
+	{
+			   int idx[9] = { 8, 9, 10, 12, 13, 14, 15, 16, 17 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 72:
+	{
+			   int idx[9] = { 0, 1, 2, 4, 5, 6, 7, 8, 9 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 74:
+	{
+			   int idx[8] = { 4, 5, 6, 8, 9, 10, 11, 12 };
+			   for (int i = 1; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   Amvp.setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   Amvp.setMvSpatialForCu16(mvSpatial, 0);
+			   Amvp.setMvSpatialForCu16(mvSpatial, 9);
+	}
+		break;
+
+	case 80:
+	{
+			   int idx[9] = { 0, 3, 4, 8, 9, 12, 13, 16, 17 };
+			   for (int i = 0; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   Amvp.setMvSpatialForCu32(mvSpatial, i);
+			   }
+	}
+		break;
+
+	case 84:
+	{
+			   int idx[4] = { 0, 8, 16, 17 };
+			   for (int i = 0; i <= 3; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   Amvp.getMvSpatialForCtu(mvSpatial, idx[i]);
+				   Amvp.setMvSpatialForCu64(mvSpatial, i);
+			   }
+	}
+		break;
+	}
+
+	for (int i = 0; i < 5; i++)
+	{
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		Amvp.setMvSpatial(mvSpatial, i);
+	}
+
+	if (offsIdx < 64)
+	{
+		if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 == 0)) //left top
+		{
+			int idx[5] = { 2, 4, 5, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 != 0)) //right top
+		{
+			int idx[5] = { 3, 5, 6, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 == 0)) //left bottom
+		{
+			int idx[5] = { 1, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 != 0)) //right bottom
+		{
+			int idx[5] = { 2, 4, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu8(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 2);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 80)
+	{
+		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0) //left top
+		{
+			int idx[5] = { 3, 6, 7, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0) //right top
+		{
+			int idx[5] = { 4, 8, 9, 0, 6 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0) //left bottom
+		{
+			int idx[5] = { 1, 4, 5, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0) //right bottom
+		{
+			int idx[5] = { 3, 6, 0, 0, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu16(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 2);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 84)
+	{
+		if (80 == offsIdx) //left top
+		{
+			int idx[5] = { 2, 5, 6, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (81 == offsIdx) //right top
+		{
+			int idx[5] = { 3, 7, 8, 0, 5 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if (82 == offsIdx) //left bottom
+		{
+			int idx[5] = { 0, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+		else if (83 == offsIdx) //right bottom
+		{
+			int idx[5] = { 2, 5, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				Amvp.getMvSpatialForCu32(mvSpatial, idx[i]);
+				Amvp.setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			Amvp.setMvSpatial(mvSpatial, 2);
+			Amvp.setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx == 84)
+	{
+		int idx[5] = { 0, 2, 3, 0, 1 };
+		for (int i = 0; i < 5; i++)
+		{
+			if (3 == i)
+				continue;
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
 			Amvp.getMvSpatialForCu64(mvSpatial, idx[i]);
 			Amvp.setMvSpatial(mvSpatial, i);
 		}
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
-		MergeCand.setMvSpatial(mvSpatial, 3);
 		Amvp.setMvSpatial(mvSpatial, 3);
 	}
 }
@@ -3397,7 +3725,7 @@ void TComDataCU::clipMv(MV& outMV)
 {
     int mvshift = 2;
 #if RK_INTER_METEST
-	int offset = MAX_MINE(g_nSearchRangeHeight, g_nSearchRangeWidth) + 5 + 1; //plus 5 is for RIME, plus 1 is for holding ME
+	int offset = MAX_MINE(g_nSearchRangeHeight, g_nSearchRangeWidth) + MAX_MINE(nRimeWidth, nRimeHeight) + 8;
 #else
 	int offset = 8; //add by hdl for ME
 #endif

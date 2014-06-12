@@ -162,12 +162,14 @@ void CTU_CALC::begin()
 
     /* inter */
     if(pos) {
-        memcpy(L_mv_buf + 8, buf_mv - 1, sizeof(MV));
+        memcpy(L_mv_buf + 8, buf_mv - 1, sizeof(MV_INFO));
     }
 
-    memcpy(L_mv_buf + 9, buf_mv, (ctu_w >> 8)*sizeof(MV));
+    memcpy(L_mv_buf + 9, buf_mv, (ctu_w / 8)*sizeof(MV_INFO));
 
-    memcpy(L_mv_buf + 9 + (ctu_w >> 8), buf_mv + (ctu_w >> 8), (len >> 8)*sizeof(MV));
+    if(!(pos + ctu_w >= pHardWare->pic_w)) {
+        memcpy(L_mv_buf + 9 + (ctu_w / 8), buf_mv + (ctu_w / 8), (ctu_w / 8)*sizeof(MV_INFO));
+    }
 
     /* ctu_valid_flag must be replaced by ENC_CTRL module in ctu_cmd */
 
@@ -257,13 +259,21 @@ void CTU_CALC::end()
     buf_mv = line_mv_buf + (pos/8);
 
     for(i=0; i<(ctu_w/8); i++){
-        buf_mv[i] = L_mv_buf[8 - ctu_w/8 + i];
+        buf_mv[i] = L_mv_buf[i + 1];
     }
 
     /* hor to ver */
     for(i=0; i<(ctu_w/8); i++){
         L_mv_buf[i] = L_mv_buf[8 + i];
     }
+    memcpy(pHardWare->inf_dblk.recon_y[ctu_x], output_recon_y, 64*64);
+    memcpy(pHardWare->inf_dblk.recon_u[ctu_x], output_recon_y, 32*32);
+    memcpy(pHardWare->inf_dblk.recon_v[ctu_x], output_recon_y, 32*32);
+    memcpy(pHardWare->inf_dblk.cu_depth[ctu_x], cu_depth, 64);
+    memcpy(pHardWare->inf_dblk.tu_depth[ctu_x], tu_depth, 256);
+    memcpy(pHardWare->inf_dblk.pu_depth[ctu_x], pu_depth, 256);
+    memcpy(pHardWare->inf_dblk.intra_bs_flag[ctu_x], intra_bs_flag, 256);
+    memcpy(pHardWare->inf_dblk.qp[ctu_x], qp, 256);
 }
 
 
@@ -274,6 +284,7 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
     uint8_t cu_w = cu_level_calc[depth + 1].cu_w;
     uint32_t len = cu_w * cu_w;
     uint32_t pos;
+    uint8_t i, j;
 
     pHardWare->ctu_calc.cu_split_flag[depth*4 + cu_level_calc[depth].ori_pos] = 0;
 
@@ -308,6 +319,30 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
         }
 
         pHardWare->ctu_calc.cu_split_flag[(depth>>1)*5 + (depth&1) + cu_level_calc[depth].ori_pos] = 1;
+    }
+    else {
+        uint8_t cu_x_pos = cu_level_calc[depth].x_pos/8;
+        uint8_t cu_y_pos = cu_level_calc[depth].y_pos/8;
+        for(j=0; j<cu_level_calc[depth].cu_w/8; j++) {
+            for(i=0; i<cu_level_calc[depth].cu_w/8; i++) {
+                pHardWare->inf_dblk.cu_depth[pHardWare->ctu_x][cu_y_pos*8 + cu_x_pos] = depth;
+                pHardWare->inf_dblk.mv_info[pHardWare->ctu_x][cu_y_pos*8 + cu_x_pos]  = cu_level_calc[depth].MV;
+                if (cu_level_calc[depth].cuPredMode == 0) {
+                    for(m=0; m<4; m++) {
+                        pHardWare->inf_dblk.pu_depth[pHardWare->ctu_x][(cu_y_pos*2+ (m>>1))*16 + cu_x_pos*2 + (m&1)] = cu_level_calc[depth].cuPartMode;
+                        pHardWare->inf_dblk.tu_depth[pHardWare->ctu_x][(cu_y_pos*2+ (m>>1))*16 + cu_x_pos*2 + (m&1)] = cu_level_calc[depth].cuPartMode;
+                        pHardWare->inf_dblk.intra_bs_flag[pHardWare->ctu_x][(cu_y_pos*2+ (m>>1))*16 + cu_x_pos*2 + (m&1)] = cu_level_calc[depth].intra_cbfY[m];
+                    }
+                }
+                else {
+                    for(m=0; m<4; m++) {
+                        pHardWare->inf_dblk.pu_depth[pHardWare->ctu_x][(cu_y_pos*2+ (m>>1))*16 + cu_x_pos*2 + (m&1)] = 0;
+                        pHardWare->inf_dblk.tu_depth[pHardWare->ctu_x][(cu_y_pos*2+ (m>>1))*16 + cu_x_pos*2 + (m&1)] = 0;
+                        pHardWare->inf_dblk.intra_bs_flag[pHardWare->ctu_x][(cu_y_pos*2+ (m>>1))*16 + cu_x_pos*2 + (m&1)] = cu_level_calc[depth].inter_cbfY[0];
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -728,14 +763,12 @@ void CTU_CALC::proc()
 #endif
 #if TQ_RUN_IN_HWC_INTRA
 			//compare coeff(after T and Q), and Recon (Y, U, V)
-			//compareCoeffandRecon(cu_level_calc, 1);
+			compareCoeffandRecon(cu_level_calc, 1);
 #endif
         }
 
         totalBits_2 = 0;
         totalDist_2 = 0;
-        if(ctu_w == 16)
-            continue;
         for(n=0; n<4; n++)
         {
             cu_level_calc[2].depth = 2;
@@ -745,8 +778,6 @@ void CTU_CALC::proc()
 
             cost_2 = cu_level_calc[2].proc(2, cu_x_2, cu_y_2);
 
-            if(ctu_w == 32)
-                continue;
 
             if (!(cost_2 & 0x80000000)) {
                 totalBits_2 += cu_level_calc[2].cost_best->Bits;
@@ -757,7 +788,7 @@ void CTU_CALC::proc()
 			#endif
 #if TQ_RUN_IN_HWC_INTRA
 			    //compare coeff(after T and Q), and Recon (Y, U, V)
-			    //compareCoeffandRecon(cu_level_calc, 2);
+			    compareCoeffandRecon(cu_level_calc, 2);
 #endif
             }
 
@@ -779,9 +810,9 @@ void CTU_CALC::proc()
 				#ifdef LOG_INTRA_PARAMS_2_FILE
                     LogIntraParams2File(cu_level_calc[3].inf_intra_proc, cu_x_3, cu_y_3);
 				#endif
-#if 1 //wait for 4x4 intra to be done, added by lks
+#if TQ_RUN_IN_HWC_INTRA //wait for 4x4 intra to be done, added by lks
 				    //compare coeff(after T and Q), and Recon (Y, U, V)
-				    //compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
+				    compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
 #endif
                 }
 

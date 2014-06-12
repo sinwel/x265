@@ -409,7 +409,6 @@ bool mergeFlag = 0;
 	static unsigned int nPrevAddr = MAX_INT;
 	if (nPrevAddr != cu->getAddr())
 	{
-		const int nAllNeighMv = 36;
 		MV tmpMv[nAllNeighMv]; bool isValid[nAllNeighMv];
 		for (int mvIdx = 0; mvIdx < nAllNeighMv; mvIdx++)
 			tmpMv[mvIdx] = MV(0, 0);
@@ -539,7 +538,6 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 	}
 
 	static unsigned int nPrevAddr = MAX_INT;
-	const int nAllNeighMv = 36;
 	static Mv mvNeigh[nAllNeighMv];
 	if (nPrevAddr != cu->getAddr())
 	{
@@ -915,49 +913,6 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 			}
 		}
 	}
-
-	MergeCand.setCtuPosInPic(cu->getAddr());
-	Amvp.setCtuPosInPic(cu->getAddr());
-	MergeCand.setCurrPicPoc(cu->getSlice()->getPOC());
-	Amvp.setCurrPicPoc(cu->getSlice()->getPOC());
-	MergeCand.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
-	Amvp.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
-	MergeCand.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
-	Amvp.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
-	MergeCand.setMergeCandNum(cu->getSlice()->getMaxNumMergeCand());
-	
-	MergeCand.setCheckLDC(cu->getSlice()->getCheckLDC());
-	Amvp.setCheckLDC(cu->getSlice()->getCheckLDC());
-	MergeCand.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
-	Amvp.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
-	int nRefPicNum[2];
-	nRefPicNum[0] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
-	nRefPicNum[1] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
-	MergeCand.setRefPicNum(nRefPicNum);
-
-	if (cu->getSlice()->isInterB())
-	{
-		MergeCand.setSliceType(b_slice);
-		Amvp.setSliceType(b_slice);
-	}
-	else if (cu->getSlice()->isInterP())
-	{
-		MergeCand.setSliceType(p_slice);
-		Amvp.setSliceType(p_slice);
-	}
-	else
-	{
-		MergeCand.setSliceType(i_slice);
-		Amvp.setSliceType(i_slice);
-	}
-	int nCurrRefPicPoc[2] = { 0 };
-	nCurrRefPicPoc[0] = cu->getSlice()->getRefPic(REF_PIC_LIST_0, 0)->getPOC();
-	if (cu->getSlice()->isInterB())
-	{
-		nCurrRefPicPoc[1] = cu->getSlice()->getRefPic(REF_PIC_LIST_1, 0)->getPOC();
-	}
-	MergeCand.setCurrRefPicPoc(nCurrRefPicPoc);
-	Amvp.setCurrRefPicPoc(nCurrRefPicPoc);
 }
 #endif
 
@@ -1026,7 +981,7 @@ void TEncCu::compressCU(TComDataCU* cu)
 	}
 #endif
 
-#if RK_CTU_CALC_PROC_ENABLE 
+#if RK_CTU_CALC_PROC_ENABLE
     this->pHardWare->ctu_calc.proc();
 #endif
 
@@ -1126,6 +1081,7 @@ void copy_cu_data(cuData *p, TComDataCU *CU)
 {
     uint32_t m;
     uint32_t cu_w = CU->m_width[0];
+    int nCurrPoc = CU->getSlice()->getPOC();
     p->totalDistortion = CU->m_totalDistortion;
     p->totalBits       = CU->m_totalBits;
     p->totalCost       = CU->m_totalCost;
@@ -1148,7 +1104,20 @@ void copy_cu_data(cuData *p, TComDataCU *CU)
     p->cuSkipFlag[0]    = CU->m_skipFlag[0];
     p->MergeFlag        = CU->m_bMergeFlags[0];
     p->MergeIndex       = CU->m_mergeIndex[0];
-    p->cuPartSize[0]      = CU->m_partSizes[0];
+    p->cuPartSize[0]    = CU->m_partSizes[0];
+
+    /* inter */
+    p->mv[0].mv_x_0 = CU->m_cuMvField[0].m_mv->x;
+    p->mv[0].mv_y_0 = CU->m_cuMvField[0].m_mv->y;
+
+    p->mv[0].mv_x_1 = CU->m_cuMvField[1].m_mv->x;
+    p->mv[0].mv_y_1 = CU->m_cuMvField[1].m_mv->y;
+
+    p->mv[0].pred_flag_0 = (CU->m_interDir[0]>>1) & 1;
+    p->mv[0].pred_flag_1 = (CU->m_interDir[0]>>2) & 1;
+
+    p->mv[0].delta_poc_0 = nCurrPoc - CU->getSlice()->getRefPOC(0, CU->m_cuMvField[0].m_refIdx[0]);
+    p->mv[0].delta_poc_1 = nCurrPoc - CU->getSlice()->getRefPOC(1, CU->m_cuMvField[1].m_refIdx[0]);
 
     for(m=0; m<cu_w*cu_w; m++) {
         p->CoeffY[m] = CU->m_trCoeffY[m];
@@ -1993,6 +1962,7 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 
 	uint32_t offsIdx = m_search->getOffsetIdx(g_maxCUWidth, outTempCU->getCUPelX(), outTempCU->getCUPelY(), outTempCU->getWidth(0));
 	outTempCU->getInterMergeCandidates(0, 0, mvFieldNeighbours, interDirNeighbours, numValidMergeCand);
+	outTempCU->PrefetchMergeCandidatesInfo(offsIdx);
 	MergeCand.getMergeCandidates();
 	for (int i = 0; i < numValidMergeCand; i ++)
 	{
@@ -2169,6 +2139,11 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 			m_tmpRecoYuv[depth],
 			false);
 	}
+
+	if (0 == nCount)
+		g_mergeBits[offsIdx] = MAX_INT;
+	else
+		g_mergeBits[offsIdx] = outTempCU->m_totalBits;
 	xCheckDQP(outTempCU);
 	xCheckBestMode(outBestCU, outTempCU, depth);
 }
@@ -2225,6 +2200,7 @@ void TEncCu::xCheckRDCostInter(TComDataCU*& outBestCU, TComDataCU*& outTempCU)
 	g_fme = true;
 #endif
 	m_search->encodeResAndCalcRdInterCU(outTempCU, m_origYuv[depth], m_tmpPredYuv[depth], m_tmpResiYuv[depth], m_bestResiYuv[depth], m_tmpRecoYuv[depth], false);
+	g_fmeBits[offsIdx] = outTempCU->m_totalBits;
 	xCheckDQP(outTempCU);
 	xCheckBestMode(outBestCU, outTempCU, depth);
 }
@@ -2277,7 +2253,6 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 	if (!bSliceEnd && bInsidePicture)
 	{
 		outTempCU->initEstData(depth, qp);
-		outTempCU->PrefetchMergeAmvpCandInfo(offsIdx);
 		xCheckRDCostInter(outBestCU, outTempCU);
 		outTempCU->initEstData(depth, qp);
 		xCheckRDCostMerge2Nx2N(outBestCU, outTempCU);

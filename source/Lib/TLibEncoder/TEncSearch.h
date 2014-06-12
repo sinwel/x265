@@ -62,8 +62,6 @@
 namespace x265 {
 // private namespace
 
-// add by zxy 
-#define RK_INTRA_SAD_REPALCE_SATD   
 
 
 class TEncCu;

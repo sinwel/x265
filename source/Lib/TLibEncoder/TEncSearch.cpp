@@ -3680,7 +3680,6 @@ void TEncSearch::predInterSearch(TComYuv* predYuv, TComDataCU* cu)
 		m_me.setSourcePU(pu - fenc->getLumaAddr(), roiWidth, roiHeight);
 
 		/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
-		const int nAllNeighMv = 36;
 		MV tmpMv[nAllNeighMv]; //保存当前CTU周围的18个mv add by hdl
 		static MV TenMv[nMaxRefPic][10];
 		static int nCand[nMaxRefPic] = { 0 };
@@ -3782,7 +3781,7 @@ void TEncSearch::predInterSearch(TComYuv* predYuv, TComDataCU* cu)
 					}
 					/*从36个mv中选择2个用于确定精搜索位置*/
 
-					int MarginX = g_maxCUWidth + g_nSearchRangeWidth + 4 + 12;
+					int MarginX = g_maxCUWidth + g_nSearchRangeWidth + MAX_MINE(nRimeHeight, nRimeWidth) + 24;
 					stride = cu->getSlice()->getSPS()->getPicWidthInLumaSamples() / 4 + MarginX / 2;
 					blockOffset_ds = nCtuPosWidth * g_maxCUWidth / 4 + nCtuPosHeight * g_maxCUWidth / 4 * stride;
 					if (nPicHeight / g_maxCUWidth < numCtuInHeight && nCtuPosHeight == numCtuInHeight - 1)
@@ -3795,7 +3794,6 @@ void TEncSearch::predInterSearch(TComYuv* predYuv, TComDataCU* cu)
 					}
 				}
 				xSetSearchRange(cu, MV(0, 0), merangeX, merangeY, mvmin, mvmax);
-
 				int satdCost = m_me.motionEstimate(m_mref[list][idx], mvmin, mvmax, outmv, pTenMv, nCand[nIdx], isHaveMvd,
 					isSavePmv, offsIdx, cu->getDepth(0), blockOffset_ds, stride, nValidCtuWidth, nValidCtuHeight, nIdx);
 
@@ -4039,215 +4037,109 @@ bool TEncSearch::checkSavePmv(unsigned int nCtu, unsigned int nCuSize, unsigned 
 }
 void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid, int nRefPicIdx, bool isFirst)
 {
-	memset(isValid, 1, 36); //36个位置全赋值为true
+	memset(isValid, 1, nAllNeighMv); //36个位置全赋值为true
 	TComMvField tmpMvField;
-	if (64 == g_maxCUWidth)
+	/*当前ctu的的16个tmvp*/
+	CTU->getTMVP(tmpMv[0], 0, 16);
+	CTU->getTMVP(tmpMv[1], 64, 16);
+	CTU->getTMVP(tmpMv[3], 128, 16);
+	CTU->getTMVP(tmpMv[4], 192, 16);
+	CTU->getTMVP(tmpMv[6], 16, 16);
+	CTU->getTMVP(tmpMv[7], 80, 16);
+	CTU->getTMVP(tmpMv[9], 144, 16);
+	CTU->getTMVP(tmpMv[10], 208, 16);
+	CTU->getTMVP(tmpMv[12], 32, 16);
+	CTU->getTMVP(tmpMv[13], 96, 16);
+	CTU->getTMVP(tmpMv[15], 160, 16);
+	CTU->getTMVP(tmpMv[16], 224, 16);
+	CTU->getTMVP(tmpMv[18], 48, 16);
+	CTU->getTMVP(tmpMv[19], 112, 16);
+	CTU->getTMVP(tmpMv[21], 176, 16);
+	CTU->getTMVP(tmpMv[22], 240, 16);
+	/*当前ctu的的16个tmvp*/
+
+	/*当前ctu左边ctu的4个tmvp*/
+	if (CTU->getCULeft())
 	{
-		/*当前ctu的的16个tmvp*/
-		CTU->getTMVP(tmpMv[0], 0, 16);
-		CTU->getTMVP(tmpMv[1], 64, 16);
-		CTU->getTMVP(tmpMv[3], 128, 16);
-		CTU->getTMVP(tmpMv[4], 192, 16);
-		CTU->getTMVP(tmpMv[6], 16, 16);
-		CTU->getTMVP(tmpMv[7], 80, 16);
-		CTU->getTMVP(tmpMv[9], 144, 16);
-		CTU->getTMVP(tmpMv[10], 208, 16);
-		CTU->getTMVP(tmpMv[12], 32, 16);
-		CTU->getTMVP(tmpMv[13], 96, 16);
-		CTU->getTMVP(tmpMv[15], 160, 16);
-		CTU->getTMVP(tmpMv[16], 224, 16);
-		CTU->getTMVP(tmpMv[18], 48, 16);
-		CTU->getTMVP(tmpMv[19], 112, 16);
-		CTU->getTMVP(tmpMv[21], 176, 16);
-		CTU->getTMVP(tmpMv[22], 240, 16);
-		/*当前ctu的的16个tmvp*/
-
-		/*当前ctu左边ctu的4个tmvp*/
-		if (CTU->getCULeft())
+		/*粗搜索得到的左侧ctu的pmv*/
+		if (isFirst)
 		{
-			CTU->getCULeft()->getTMVP(tmpMv[33], 80, 16);
-			CTU->getCULeft()->getTMVP(tmpMv[29], 112, 16);
-			CTU->getCULeft()->getTMVP(tmpMv[31], 208, 16);
-			CTU->getCULeft()->getTMVP(tmpMv[27], 240, 16);
-			/*粗搜索得到的左侧ctu的pmv*/
-			if (isFirst)
-			{
-				tmpMv[26].x = g_leftPMV[nRefPicIdx].x; tmpMv[26].y = g_leftPMV[nRefPicIdx].y;
-			}
-			else
-			{
-				tmpMv[26].x = g_leftPmv[nRefPicIdx].x; tmpMv[26].y = g_leftPmv[nRefPicIdx].y;
-			}
-			/*粗搜索得到的左侧ctu的pmv*/
+			tmpMv[26].x = g_leftPMV[nRefPicIdx].x; tmpMv[26].y = g_leftPMV[nRefPicIdx].y;
 		}
 		else
 		{
-			isValid[33] = false;
-			isValid[29] = false;
-			isValid[31] = false;
-			isValid[27] = false;
-			isValid[26] = false;
+			tmpMv[26].x = g_leftPmv[nRefPicIdx].x; tmpMv[26].y = g_leftPmv[nRefPicIdx].y;
 		}
-		/*当前ctu左边ctu的4个tmvp*/
-
-		/*当前ctu上方ctu的4个tmvp和8个空间mv*/
-		if (CTU->getCUAbove())
-		{
-			CTU->getCUAbove()->getTMVP(tmpMv[34], 160, 16);
-			CTU->getCUAbove()->getTMVP(tmpMv[30], 176, 16);
-			CTU->getCUAbove()->getTMVP(tmpMv[32], 224, 16);
-			CTU->getCUAbove()->getTMVP(tmpMv[28], 240, 16);
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 168, list, tmpMvField); tmpMv[24] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 172, list, tmpMvField); tmpMv[17] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 184, list, tmpMvField); tmpMv[23] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 188, list, tmpMvField); tmpMv[5] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 232, list, tmpMvField); tmpMv[25] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 236, list, tmpMvField); tmpMv[14] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 248, list, tmpMvField); tmpMv[20] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 252, list, tmpMvField); tmpMv[2] = tmpMvField.mv;
-		}
-		else
-		{
-			isValid[34] = false; isValid[30] = false; isValid[32] = false; isValid[28] = false; isValid[24] = false;
-			isValid[17] = false; isValid[23] = false; isValid[5] = false;  isValid[25] = false; isValid[14] = false;
-			isValid[20] = false; isValid[2] = false;
-		}
-		/*当前ctu上方ctu的4个tmvp和8个空间mv*/
-
-		/*当前ctu左上方ctu的1个空间mv*/
-		if (CTU->getCUAboveLeft())
-		{
-			CTU->getCUAboveLeft()->getMvField(CTU->getCUAboveLeft(), 252, list, tmpMvField); tmpMv[11] = tmpMvField.mv;
-		}
-		else
-		{
-			isValid[11] = false;
-		}
-		/*当前ctu左上方ctu的1个空间mv*/
-
-		/*当前ctu右上方ctu的1个空间mv*/
-		if (CTU->getCUAboveRight()) //右上方CTU存在,找出其中的1个mv add by hdl
-		{
-			CTU->getCUAboveRight()->getMvField(CTU->getCUAboveRight(), 168, list, tmpMvField); tmpMv[8] = tmpMvField.mv;
-		}
-		else
-		{
-			isValid[8] = false;
-		}
-		/*当前ctu右上方ctu的1个空间mv*/
-
-		/*(0,0)点*/
-		tmpMv[35] = MV(0, 0);
-		/*(0,0)点*/
-
-		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
-		for (int i = 0; i < 36; i++)
-		{
-			if (26 == i)
-				continue;
-			tmpMv[i].x /= 4;
-			tmpMv[i].y /= 4;
-		}
-		for (int i = 0; i < 36; i++)
-		{
-			tmpMv[i].x = tmpMv[i].x / 2 * 2; //取偶,为了取chroma的精搜索窗时正确性
-			tmpMv[i].y = tmpMv[i].y / 2 * 2;
-		}
-		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+		/*粗搜索得到的左侧ctu的pmv*/
 	}
-	else if (32 == g_maxCUWidth)
+	else
 	{
-		/*当前ctu的的4个tmvp*/
-		CTU->getTMVP(tmpMv[0], 0, 16);
-		CTU->getTMVP(tmpMv[1], 48, 16);
-		CTU->getTMVP(tmpMv[3], 16, 16);
-		CTU->getTMVP(tmpMv[5], 32, 16);
-		/*当前ctu的的4个tmvp*/
-
-		/*当前ctu左边ctu的2个tmvp*/
-		if (CTU->getCULeft())
-		{
-			CTU->getCULeft()->getTMVP(tmpMv[13], 16, 16);
-			CTU->getCULeft()->getTMVP(tmpMv[11], 48, 16);
-			/*粗搜索得到的左侧ctu的pmv*/
-			if (isFirst)
-			{
-				tmpMv[14].x = g_leftPMV[list].x; tmpMv[14].y = g_leftPMV[list].y;
-			}
-			else
-			{
-				tmpMv[14].x = g_leftPmv[list].x; tmpMv[14].y = g_leftPmv[list].y;
-			}
-			/*粗搜索得到的左侧ctu的pmv*/
-		}
-		else
-		{
-			isValid[11] = false;
-			isValid[13] = false;
-			isValid[14] = false;
-		}
-		/*当前ctu左边ctu的2个tmvp*/
-
-		/*当前ctu上方ctu的2个tmvp和4个空间mv*/
-		if (CTU->getCUAbove())
-		{
-			CTU->getCUAbove()->getTMVP(tmpMv[10], 48, 16);
-			CTU->getCUAbove()->getTMVP(tmpMv[12], 32, 16);
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 40, list, tmpMvField); tmpMv[9] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 44, list, tmpMvField); tmpMv[4] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 56, list, tmpMvField); tmpMv[8] = tmpMvField.mv;
-			CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 60, list, tmpMvField); tmpMv[2] = tmpMvField.mv;
-		}
-		else
-		{
-			isValid[2] = false; isValid[4] = false;   isValid[8] = false;
-			isValid[9] = false; isValid[10] = false;	isValid[12] = false;
-		}
-		/*当前ctu上方ctu的2个tmvp和4个空间mv*/
-
-		/*当前ctu左上方ctu的1个空间mv*/
-		if (CTU->getCUAboveLeft())
-		{
-			CTU->getCUAboveLeft()->getMvField(CTU->getCUAboveLeft(), 60, list, tmpMvField); tmpMv[7] = tmpMvField.mv;
-		}
-		else
-		{
-			isValid[7] = false;
-		}
-		/*当前ctu左上方ctu的1个空间mv*/
-
-		/*当前ctu右上方ctu的1个空间mv*/
-		if (CTU->getCUAboveRight()) //右上方CTU存在,找出其中的1个mv add by hdl
-		{
-			CTU->getCUAboveRight()->getMvField(CTU->getCUAboveRight(), 40, list, tmpMvField); tmpMv[6] = tmpMvField.mv;
-		}
-		else
-		{
-			isValid[6] = false;
-		}
-		/*当前ctu右上方ctu的1个空间mv*/
-
-		/*(0,0)点*/
-		tmpMv[15] = MV(0, 0);
-		/*(0,0)点*/
-		for (int i = 16; i < 36; i++)
-			isValid[i] = false;
-
-		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
-		for (int i = 0; i < 36; i++)
-		{
-			if (14 == i)
-				continue;
-			tmpMv[i].x /= 4;
-			tmpMv[i].y /= 4;
-		}
-		for (int i = 0; i < 36; i++)
-		{
-			tmpMv[i].x = tmpMv[i].x / 2 * 2; //取偶,为了取chroma的精搜索窗时正确性
-			tmpMv[i].y = tmpMv[i].y / 2 * 2;
-		}
-		/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+		isValid[26] = false;
 	}
+	/*当前ctu左边ctu的4个tmvp*/
+
+	/*当前ctu上方ctu的4个tmvp和8个空间mv*/
+	if (CTU->getCUAbove())
+	{
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 168, list, tmpMvField); tmpMv[24] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 172, list, tmpMvField); tmpMv[17] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 184, list, tmpMvField); tmpMv[23] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 188, list, tmpMvField); tmpMv[5] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 232, list, tmpMvField); tmpMv[25] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 236, list, tmpMvField); tmpMv[14] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 248, list, tmpMvField); tmpMv[20] = tmpMvField.mv;
+		CTU->getCUAbove()->getMvField(CTU->getCUAbove(), 252, list, tmpMvField); tmpMv[2] = tmpMvField.mv;
+	}
+	else
+	{
+		isValid[24] = false;	isValid[17] = false; isValid[23] = false; isValid[5] = false; 
+		isValid[25] = false; isValid[14] = false;isValid[20] = false; isValid[2] = false;
+	}
+	/*当前ctu上方ctu的4个tmvp和8个空间mv*/
+
+	/*当前ctu左上方ctu的1个空间mv*/
+	if (CTU->getCUAboveLeft())
+	{
+		CTU->getCUAboveLeft()->getMvField(CTU->getCUAboveLeft(), 252, list, tmpMvField); tmpMv[11] = tmpMvField.mv;
+	}
+	else
+	{
+		isValid[11] = false;
+	}
+	/*当前ctu左上方ctu的1个空间mv*/
+
+	/*当前ctu右上方ctu的1个空间mv*/
+	if (CTU->getCUAboveRight()) //右上方CTU存在,找出其中的1个mv add by hdl
+	{
+		CTU->getCUAboveRight()->getMvField(CTU->getCUAboveRight(), 168, list, tmpMvField); tmpMv[8] = tmpMvField.mv;
+	}
+	else
+	{
+		isValid[8] = false;
+	}
+	/*当前ctu右上方ctu的1个空间mv*/
+
+	/*(0,0)点*/
+	tmpMv[27] = MV(0, 0);
+	/*(0,0)点*/
+
+	/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
+	for (int i = 0; i < nAllNeighMv; i++)
+	{
+		MV mvTemp = MV(tmpMv[i].x << 2, tmpMv[i].y << 2);
+		CTU->clipMv(mvTemp, true);
+		tmpMv[i] = MV(mvTemp.x >> 2, mvTemp.y >> 2);
+		if (26 == i)
+			continue;
+		tmpMv[i].x /= 4;
+		tmpMv[i].y /= 4;
+	}
+	for (int i = 0; i < nAllNeighMv; i++)
+	{
+		tmpMv[i].x = tmpMv[i].x / 2 * 2; //取偶,为了取chroma的精搜索窗时正确性
+		tmpMv[i].y = tmpMv[i].y / 2 * 2;
+	}
+	/*前35个mv清除分数部分, 最后一个因为只有整数部分就不清除了*/
 }
 uint32_t TEncSearch::xSymbolBitsInter(TComDataCU* cu, bool isCalcRDOTwice)
 {
@@ -4703,7 +4595,9 @@ void TEncSearch::xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list,
 	// Fill the MV Candidates
 	cu->fillMvpCand(partIdx, partAddr, list, refIdx, amvpInfo); //amvpInfo最多有两个candidate  add by hdl 
 #if RK_INTER_METEST
+	uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
 	AmvpInfo amvpMine;
+	cu->PrefetchAmvpInfo(offsIdx, refIdx);
 	Amvp.fillMvpCand(list, refIdx, &amvpMine);
 	for (i = 0; i < amvpMine.m_num; i++)
 	{

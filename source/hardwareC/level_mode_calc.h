@@ -101,6 +101,7 @@ public:
     uint8_t curr_cu_v[32*32];
 
     uint8_t cuPredMode; // P:0 I:1
+    uint8_t cuPartMode; // 0 2Nx2N 1 NxN
 
     uint8_t mergeFlag;
     uint8_t mergeIndex;
