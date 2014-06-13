@@ -194,7 +194,8 @@ CoarseIntMotionEstimation::CoarseIntMotionEstimation()
 {
 	m_nCtuSize = 64;
 	m_nDownSampDist = 4;
-	m_nRefPic = 1;
+	m_nRefPic[0] = 1;
+	m_nRefPic[1] = 0;
 }
 
 CoarseIntMotionEstimation::~CoarseIntMotionEstimation()
@@ -214,21 +215,21 @@ void CoarseIntMotionEstimation::Create(int nCimeSwWidth, int nCimeSwHeight, int 
 	assert(RK_NULL != m_pCurrCtu);
 	m_pCurrCtuDS = new short[nCtu / m_nDownSampDist * nCtu / m_nDownSampDist];
 	assert(RK_NULL != m_pCurrCtuDS);
-	m_pRefPicDS = new short *[m_nRefPic];
+	m_pRefPicDS = new short *[m_nRefPic[0]+m_nRefPic[1]];
 	assert(RK_NULL != m_pRefPicDS);
-	for (int nRefPic = 0; nRefPic < m_nRefPic; nRefPic ++)
+	for (int nRefPic = 0; nRefPic < m_nRefPic[0] + m_nRefPic[1]; nRefPic++)
 	{
 		m_pRefPicDS[nRefPic] = new short[(m_nPicWidth / m_nDownSampDist)*(m_nPicHeight / m_nDownSampDist)];
 		assert(RK_NULL != m_pRefPicDS[nRefPic]);
 	}
-	m_mvNeighMv = new Mv*[m_nRefPic];
+	m_mvNeighMv = new Mv*[m_nRefPic[0] + m_nRefPic[1]];
 	assert(RK_NULL != m_mvNeighMv);
-	for (int nRefPic = 0; nRefPic < m_nRefPic; nRefPic ++)
+	for (int nRefPic = 0; nRefPic < m_nRefPic[0] + m_nRefPic[1]; nRefPic++)
 	{
 		m_mvNeighMv[nRefPic] = new Mv[nAllNeighMv];
 		assert(RK_NULL != m_mvNeighMv[nRefPic]);
 	}
-	m_mvCimeOut = new Mv[m_nRefPic];
+	m_mvCimeOut = new Mv[m_nRefPic[0] + m_nRefPic[1]];
 	assert(RK_NULL != m_mvCimeOut);
 	m_pOrigPic = new unsigned char[m_nPicWidth*m_nPicHeight];
 	assert(RK_NULL != m_pOrigPic);
@@ -254,7 +255,7 @@ void CoarseIntMotionEstimation::Destroy()
 		m_pCurrCtuDS = RK_NULL;
 	}
 
-	for (int nRefPic = 0; nRefPic < m_nRefPic; nRefPic++)
+	for (int nRefPic = 0; nRefPic < m_nRefPic[0] + m_nRefPic[1]; nRefPic++)
 	{
 		if (RK_NULL != m_pRefPicDS[nRefPic])
 		{
@@ -265,7 +266,7 @@ void CoarseIntMotionEstimation::Destroy()
 	delete[] m_pRefPicDS;
 	m_pRefPicDS = RK_NULL;
 
-	for (int nRefPic = 0; nRefPic < m_nRefPic; nRefPic ++)
+	for (int nRefPic = 0; nRefPic < m_nRefPic[0] + m_nRefPic[1]; nRefPic++)
 	{
 		if (RK_NULL != m_mvNeighMv[nRefPic])
 		{
@@ -3047,13 +3048,13 @@ void FractionMotionEstimation::CalcResiAndMvd()
 	int nBestPostBits = INT_MAX_MINE;
 	if (b_slice == m_nSliceType)
 	{
-		for (int nRefPicIdx = 0; nRefPicIdx < m_nRefPic - 1; nRefPicIdx++)
+		for (int nRefPicIdx = 0; nRefPicIdx < m_nRefPic[REF_PIC_LIST0]; nRefPicIdx++)
 		{
 			int bitsTemp = 3;
-			if (m_nRefPic > 2) //number of forward reference pictures is more than 1
+			if (m_nRefPic[REF_PIC_LIST0] > 1) //number of forward reference pictures is more than 1
 			{
 				bitsTemp += nRefPicIdx + 1;
-				if (nRefPicIdx == m_nRefPic - 2) bitsTemp--;
+				if (nRefPicIdx == m_nRefPic[REF_PIC_LIST0] - 1) bitsTemp--;
 			}
 			xCalcResiAndMvd(nRefPicIdx, false, false, true);
 			bitsTemp++;
@@ -3068,13 +3069,27 @@ void FractionMotionEstimation::CalcResiAndMvd()
 		}
 		xCalcResiAndMvd(nBestPrevIdx, true, false, false);
 
-		nBestPostIdx = nMaxRefPic - 1;
-		int bitsTemp = 3;
-		xCalcResiAndMvd(nBestPostIdx, true, false, true);
-		bitsTemp++;
-		bitsTemp += (int)bitcost(m_mvAmvp[nBestPostIdx][m_nMvpIdx[nBestPostIdx]], m_mvFmeInput[nBestPostIdx]);
-		nBestPostCost = m_mvFmeInput[nBestPostIdx].nSadCost + getCost(bitsTemp);
-		nBestPostBits = bitsTemp;
+		for (int idx = 0; idx < m_nRefPic[REF_PIC_LIST1]; idx++)
+		{
+			int nRefPicIdx = nMaxRefPic / 2 + idx;
+			int bitsTemp = 3;
+			if (m_nRefPic[REF_PIC_LIST1] > 1) //number of forward reference pictures is more than 1
+			{
+				bitsTemp += idx + 1;
+				if (idx == m_nRefPic[REF_PIC_LIST1] - 1) bitsTemp--;
+			}
+			xCalcResiAndMvd(nRefPicIdx, false, false, true);
+			bitsTemp++;
+			bitsTemp += (int)bitcost(m_mvAmvp[nRefPicIdx][m_nMvpIdx[nRefPicIdx]], m_mvFmeInput[nRefPicIdx]);
+			int costTemp = m_mvFmeInput[nRefPicIdx].nSadCost + getCost(bitsTemp);
+			if (costTemp < nBestPostCost)
+			{
+				nBestPostIdx = nRefPicIdx;
+				nBestPostCost = costTemp;
+				nBestPostBits = bitsTemp;
+			}
+		}
+		xCalcResiAndMvd(nBestPostIdx, true, false, false);
 
 		//processing prev and post 
 		unsigned char *pAvg = new unsigned char[m_nCuSize*m_nCuSize];
@@ -3089,28 +3104,48 @@ void FractionMotionEstimation::CalcResiAndMvd()
 			PredInterBi(nBestPrevIdx);
 			PredInterBi(nBestPostIdx);
 			addAvg(nBestPrevIdx, nBestPostIdx, true, true);
+			m_fmeInfoForCabac.m_interDir = 3;
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y;
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].y;
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = nBestPrevIdx;
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST1] = nBestPostIdx - nMaxRefPic / 2;
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = m_nMvpIdx[REF_PIC_LIST0];
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST1] = m_nMvpIdx[REF_PIC_LIST1];
 		}
 		else if (nBestPrevCost <= nBestPostCost)
 		{
 			xCalcResiAndMvd(nBestPrevIdx, true, true, false);
 			CopyToBest(m_pCurrCuPred[nBestPrevIdx]);
+			m_fmeInfoForCabac.m_interDir = 1;
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y;
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = nBestPrevIdx;
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = -1;
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = m_nMvpIdx[REF_PIC_LIST0];
 		}
 		else
 		{
 			xCalcResiAndMvd(nBestPostIdx, true, true, false);
 			CopyToBest(m_pCurrCuPred[nBestPostIdx]);
+			m_fmeInfoForCabac.m_interDir = 2;
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].y;
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = -1;
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST1] = nBestPostIdx - nMaxRefPic / 2;
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST1] = m_nMvpIdx[REF_PIC_LIST1];
 		}
-
 	}
 	else
 	{
-		for (int nRefPicIdx = 0; nRefPicIdx < m_nRefPic; nRefPicIdx++)
+		for (int nRefPicIdx = 0; nRefPicIdx < m_nRefPic[REF_PIC_LIST0]; nRefPicIdx++)
 		{
 			int bitsTemp = 1;
-			if (m_nRefPic > 1) //number of forward reference pictures is more than 1
+			if (m_nRefPic[REF_PIC_LIST0] > 1) //number of forward reference pictures is more than 1
 			{
 				bitsTemp += nRefPicIdx + 1;
-				if (nRefPicIdx == m_nRefPic - 1) bitsTemp--;
+				if (nRefPicIdx == m_nRefPic[REF_PIC_LIST0] - 1) bitsTemp--;
 			}
 			xCalcResiAndMvd(nRefPicIdx, false, false, true);
 			bitsTemp++;
@@ -3124,6 +3159,12 @@ void FractionMotionEstimation::CalcResiAndMvd()
 		}
 		xCalcResiAndMvd(nBestPrevIdx, true, true, false);
 		CopyToBest(m_pCurrCuPred[nBestPrevIdx]);
+		m_fmeInfoForCabac.m_interDir = 1;
+		m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x;
+		m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y;
+		m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = nBestPrevIdx;
+		m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = -1;
+		m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = m_nMvpIdx[REF_PIC_LIST0];
 	}
 
 }
@@ -5155,13 +5196,16 @@ MergeProc::~MergeProc()
 
 void MergeProc::Create()
 {
-	for (int i = 0; i < 6; i ++)
+	for (int i = 0; i < nMaxRefPic; i ++)
+	{
+		m_pCurrCuResi[i] = new short[m_nCuSize*m_nCuSize * 3 / 2];
+		assert(RK_NULL != m_pCurrCuResi);
+	}
+
+	for (int i = 0; i < 3*2; i++)
 	{
 		m_pMergeSW[i] = new unsigned char[(m_nCuSize + 4 * 2)*(m_nCuSize + 4 * 2) * 3 / 2];
 		assert(RK_NULL != m_pMergeSW[i]);
-
-		m_pCurrCuResi[i] = new short[m_nCuSize*m_nCuSize * 3 / 2];
-		assert(RK_NULL != m_pCurrCuResi);
 	}
 
 	m_pMergePred = new unsigned char[m_nCuSize*m_nCuSize * 3 / 2];
@@ -5176,18 +5220,21 @@ void MergeProc::Create()
 
 void MergeProc::Destroy()
 {
-	for (int i = 0; i < 6; i ++)
+	for (int i = 0; i < nMaxRefPic; i++)
+	{
+		if (RK_NULL != m_pCurrCuResi[i])
+		{
+			delete[] m_pCurrCuResi[i];
+			m_pCurrCuResi[i] = RK_NULL;
+		}
+	}
+
+	for (int i = 0; i < 3*2; i++)
 	{
 		if (RK_NULL != m_pMergeSW[i])
 		{
 			delete[] m_pMergeSW[i];
 			m_pMergeSW[i] = RK_NULL;
-		}
-
-		if (RK_NULL != m_pCurrCuResi[i])
-		{
-			delete[] m_pCurrCuResi[i];
-			m_pCurrCuResi[i] = RK_NULL;
 		}
 	}
 	
@@ -5220,7 +5267,7 @@ void MergeProc::setMergeCand(MvField mvMergeCand[6])
 	}
 }
 
-void MergeProc::setNeighPmv(Mv mvNeighPmv[12])
+void MergeProc::setNeighPmv(Mv mvNeighPmv[nMaxRefPic*2])
 {
 	for (int nRefPicIdx = 0; nRefPicIdx < nMaxRefPic; nRefPicIdx ++)
 	{
@@ -5243,6 +5290,7 @@ void MergeProc::PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsi
 
 	int refIdx0 = m_mvMergeCand[nMergeIdx * 2].refIdx;
 	int refIdx1 = m_mvMergeCand[nMergeIdx * 2 + 1].refIdx;
+	int IdxList1 = nMaxRefPic / 2 + refIdx1;
 	for (int idx = 0; idx < 2; idx++) 
 	{
 		mvmin[idx].x = m_mvNeighPmv[refIdx0*2+idx].x - offsX - Width;//two rime search windows of prev direction
@@ -5251,10 +5299,10 @@ void MergeProc::PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsi
 		mvmax[idx].y = m_mvNeighPmv[refIdx0*2+idx].y + nCtu + Height - offsY - static_cast<unsigned char>(m_nCuSize);
 		if (refIdx1 >= 0)
 		{
-			mvmin[idx + 2].x = m_mvNeighPmv[(nMaxRefPic - 1) * 2 + idx].x - offsX - Width;//two rime search windows of post direction
-			mvmin[idx + 2].y = m_mvNeighPmv[(nMaxRefPic - 1) * 2 + idx].y - offsY - Height;
-			mvmax[idx + 2].x = m_mvNeighPmv[(nMaxRefPic - 1) * 2 + idx].x + nCtu + Width - offsX - static_cast<unsigned char>(m_nCuSize);
-			mvmax[idx + 2].y = m_mvNeighPmv[(nMaxRefPic - 1) * 2 + idx].y + nCtu + Height - offsY - static_cast<unsigned char>(m_nCuSize);
+			mvmin[idx + 2].x = m_mvNeighPmv[IdxList1 * 2 + idx].x - offsX - Width;//two rime search windows of post direction
+			mvmin[idx + 2].y = m_mvNeighPmv[IdxList1 * 2 + idx].y - offsY - Height;
+			mvmax[idx + 2].y = m_mvNeighPmv[IdxList1 * 2 + idx].y + nCtu + Height - offsY - static_cast<unsigned char>(m_nCuSize);
+			mvmax[idx + 2].x = m_mvNeighPmv[IdxList1 * 2 + idx].x + nCtu + Width - offsX - static_cast<unsigned char>(m_nCuSize);
 		}
 	}
 	bool isAddPrev = false;
@@ -5328,8 +5376,8 @@ void MergeProc::PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsi
 	if (refIdx1 >= 0 && ((tmpMv.x >> 2) >= mvmin[2].x && (tmpMv.y >> 2) >= mvmin[2].y) && 
 		((tmpMv.x >> 2) <= mvmax[2].x && (tmpMv.y >> 2) <= mvmax[2].y))
 	{
-		short offset_x = (tmpMv.x >> 2) - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 0].x + offsX + Width;
-		short offset_y = (tmpMv.y >> 2) - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 0].y + offsY + Height;
+		short offset_x = (tmpMv.x >> 2) - m_mvNeighPmv[IdxList1 * 2 + 0].x + offsX + Width;
+		short offset_y = (tmpMv.y >> 2) - m_mvNeighPmv[IdxList1 * 2 + 0].y + offsY + Height;
 		unsigned char *pNeigbPmv0 = src_post0 + offset_x + offset_y*stride_post0;
 		for (int i = 0; i < (m_nCuSize + 8); i++)
 		{
@@ -5339,8 +5387,8 @@ void MergeProc::PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsi
 			}
 		}
 		int offset = (nCtu + 2 * (nRimeWidth + 4))*(nCtu + 2 * (nRimeHeight + 4));
-		offset_x = (tmpMv.x >> 3) * 2 - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 0].x + offsX + Width;
-		offset_y = (tmpMv.y >> 3) - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 0].y / 2 + offsY / 2 + Height / 2;
+		offset_x = (tmpMv.x >> 3) * 2 - m_mvNeighPmv[IdxList1 * 2 + 0].x + offsX + Width;
+		offset_y = (tmpMv.y >> 3) - m_mvNeighPmv[IdxList1 * 2 + 0].y / 2 + offsY / 2 + Height / 2;
 		pNeigbPmv0 = src_post0 + offset;
 		pNeigbPmv0 += offset_x + offset_y*stride_post0;
 		unsigned char *pMergeSw = m_pMergeSW[nMergeIdx*2+1] + (m_nCuSize + 8)*(m_nCuSize + 8);
@@ -5360,8 +5408,8 @@ void MergeProc::PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsi
 	if (!isAddPost && refIdx1 >= 0 && ((tmpMv.x >> 2) >= mvmin[3].x && (tmpMv.y >> 2) >= mvmin[3].y) &&
 		((tmpMv.x >> 2) <= mvmax[3].x && (tmpMv.y >> 2) <= mvmax[3].y))
 	{
-		short offset_x = (tmpMv.x >> 2) - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 1].x + offsX + Width;
-		short offset_y = (tmpMv.y >> 2) - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 1].y + offsY + Height;
+		short offset_x = (tmpMv.x >> 2) - m_mvNeighPmv[IdxList1 * 2 + 1].x + offsX + Width;
+		short offset_y = (tmpMv.y >> 2) - m_mvNeighPmv[IdxList1 * 2 + 1].y + offsY + Height;
 		unsigned char *pNeigbPmv1 = src_post1 + offset_x + offset_y*stride_post1;
 		for (int i = 0; i < (m_nCuSize + 8); i++)
 		{
@@ -5371,8 +5419,8 @@ void MergeProc::PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsi
 			}
 		}
 		int offset = (nCtu + 2 * (nRimeWidth + 4))*(nCtu + 2 * (nRimeHeight + 4));
-		offset_x = (tmpMv.x >> 3) * 2 - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 1].x + offsX + Width;
-		offset_y = (tmpMv.y >> 3) - m_mvNeighPmv[(nMaxRefPic - 1) * 2 + 1].y / 2 + offsY / 2 + Height / 2;
+		offset_x = (tmpMv.x >> 3) * 2 - m_mvNeighPmv[IdxList1 * 2 + 1].x + offsX + Width;
+		offset_y = (tmpMv.y >> 3) - m_mvNeighPmv[IdxList1 * 2 + 1].y / 2 + offsY / 2 + Height / 2;
 		pNeigbPmv1 = src_post1 + offset;
 		pNeigbPmv1 += offset_x + offset_y*stride_post1;
 		unsigned char *pMergeSw = m_pMergeSW[nMergeIdx*2+1] + (m_nCuSize + 8)*(m_nCuSize + 8);
@@ -5471,6 +5519,8 @@ void MergeProc::CalcMergeResi()
 			}
 		}
 	}
+	m_mergeInfoForCabac.m_mergeIdx = nBestMergeCand;
+	m_mergeInfoForCabac.m_bSkipFlag = false;
 	delete[] pMergePred; pMergePred = RK_NULL;
 	if (!m_bMergeSwValid[nBestMergeCand])
 		return;

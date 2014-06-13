@@ -45,6 +45,7 @@
 #include <math.h>
 #include "RK_HEVC_ENC_MACRO.h"
 #include "hardwareC/inter.h"
+#include "CABAC.h"
 
 using namespace x265;
 
@@ -2518,6 +2519,10 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 
 	//===== loop over partitions =====
 	uint32_t partOffset = 0;
+#if INTRA_PU_4x4_MODIFY
+	m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+	m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_TEMP_BEST]);
+#endif
 	for (uint32_t pu = 0; pu < numPU; pu++, partOffset += qNumParts)
 	{
 		//===== init pattern for luma prediction =====
@@ -2671,20 +2676,27 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 			// Find N least cost modes. N = numModesForFullRD
 			for (uint32_t mode = 0; mode < numModesAvailable; mode++)
 			{
-				
-				
-#ifdef RK_INTRA_SAD_REPALCE_SATD
-				uint32_t nSad = modeCosts_SAD[mode];
-#else
-				uint32_t nSad = modeCosts[mode];
-#endif
-
-				uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
-#ifdef RK_CABAC
-				if (depth != 0)
+				// only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+				if (INTRA_REDUCE_DIR(mode, width))
 				{
-					g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
-				}
+#ifdef RK_INTRA_SAD_REPALCE_SATD
+					uint32_t nSad = modeCosts_SAD[mode];
+#else
+					uint32_t nSad = modeCosts[mode];
+#endif
+					uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
+#if RK_CABAC_H
+					if (depth != 0)
+					{
+						g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
+						uint64_t temp = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+						g_intra_est_bit_luma_pred_mode_all_case[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = temp;
+					}
+#else
+					if (depth != 0)
+					{
+						g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
+					}
 #endif
 #if 0
 				for(int j=0; j<numCand_sad; j++)
@@ -2715,7 +2727,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 #else
 				candNum += xUpdateCandList(mode, cost, numModesForFullRD, rdModeList, candCostList);
 #endif
-				
+				}
 			}
 
 			int preds[3] = { -1, -1, -1 };
@@ -2823,7 +2835,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 
 				// set context models
 				m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
-
+#if INTRA_PU_4x4_MODIFY
+				m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_TEMP_BEST]);
+#endif
 				// determine residual for partition
 				uint32_t puDistY = 0;
 				uint32_t puDistC = 0;
@@ -2859,7 +2873,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 
 			// set context models
 			m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
-
+#if INTRA_PU_4x4_MODIFY
+			m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_TEMP_BEST]);
+#endif
 			// determine residual for partition
 			uint32_t puDistY = 0;
 			uint32_t puDistC = 0;
@@ -2889,7 +2905,9 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 			}
 #endif
 			xRecurIntraCodingQT(cu, initTrDepth, partOffset, bLumaOnly, fencYuv, predYuv, resiYuv, puDistY, puDistC, false, puCost);
-
+#if INTRA_PU_4x4_MODIFY
+			m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_TEMP_BEST]);
+#endif
 #ifdef X265_INTRA_DEBUG
 			//if ( cu->getWidth(0) != SIZE_64x64)
 			if ( MATCH_CASE(cu->getWidth(0),cu->getPartitionSize(0)) )
@@ -3700,13 +3718,13 @@ void TEncSearch::predInterSearch(TComYuv* predYuv, TComDataCU* cu)
 				MV& outmv = mvTemp[list][idx];
 				/*用来实现4抽+CTU周围18个mv+7x7块全搜  add by hdl*/
 				MV mvmin, mvmax;
-				short merangeX = cu->getSlice()->getSPS()->getMeRangeX() / 2;
-				short merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 2;
+				short merangeX = cu->getSlice()->getSPS()->getMeRangeX() / 4 * 4;
+				short merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 4 * 4;
 				bool isHaveMvd = true;
 
 				int nIdx = idx;
 				if (list)
-					nIdx = nMaxRefPic - 1;
+					nIdx = nMaxRefPic / 2 + idx;
 				MV *pTenMv = TenMv[nIdx];
 				uint32_t nCtuAddr = cu->getAddr();
 				uint32_t numCtuInWidth = cu->getPic()->getFrameWidthInCU();
@@ -3716,6 +3734,16 @@ void TEncSearch::predInterSearch(TComYuv* predYuv, TComDataCU* cu)
 				uint32_t nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
 				uint32_t nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
 				uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
+				merangeX = MIN_MINE(768, merangeX);
+				merangeY = MIN_MINE(320, merangeY);
+				if (nPicWidth < merangeX + 60 || nPicWidth <= 352)
+				{
+					merangeX = MIN_MINE(nPicWidth, merangeX) / 4 * 2;
+				}
+				if (nPicHeight < merangeY + 60 || nPicHeight <= 288)
+				{
+					merangeY = MIN_MINE(nPicHeight, merangeY) / 4 * 2;
+				}
 				intptr_t blockOffset_ds = 0;
 				int stride = 0;
 				int nValidCtuWidth = g_maxCUWidth;
@@ -4040,22 +4068,22 @@ void TEncSearch::getNeighMvs(TComDataCU* CTU, MV *tmpMv, int list, bool *isValid
 	memset(isValid, 1, nAllNeighMv); //36个位置全赋值为true
 	TComMvField tmpMvField;
 	/*当前ctu的的16个tmvp*/
-	CTU->getTMVP(tmpMv[0], 0, 16);
-	CTU->getTMVP(tmpMv[1], 64, 16);
-	CTU->getTMVP(tmpMv[3], 128, 16);
-	CTU->getTMVP(tmpMv[4], 192, 16);
-	CTU->getTMVP(tmpMv[6], 16, 16);
-	CTU->getTMVP(tmpMv[7], 80, 16);
-	CTU->getTMVP(tmpMv[9], 144, 16);
-	CTU->getTMVP(tmpMv[10], 208, 16);
-	CTU->getTMVP(tmpMv[12], 32, 16);
-	CTU->getTMVP(tmpMv[13], 96, 16);
-	CTU->getTMVP(tmpMv[15], 160, 16);
-	CTU->getTMVP(tmpMv[16], 224, 16);
-	CTU->getTMVP(tmpMv[18], 48, 16);
-	CTU->getTMVP(tmpMv[19], 112, 16);
-	CTU->getTMVP(tmpMv[21], 176, 16);
-	CTU->getTMVP(tmpMv[22], 240, 16);
+	CTU->getTMVP(tmpMv[0], 0, 16, list);
+	CTU->getTMVP(tmpMv[1], 64, 16, list);
+	CTU->getTMVP(tmpMv[3], 128, 16, list);
+	CTU->getTMVP(tmpMv[4], 192, 16, list);
+	CTU->getTMVP(tmpMv[6], 16, 16, list);
+	CTU->getTMVP(tmpMv[7], 80, 16, list);
+	CTU->getTMVP(tmpMv[9], 144, 16, list);
+	CTU->getTMVP(tmpMv[10], 208, 16, list);
+	CTU->getTMVP(tmpMv[12], 32, 16, list);
+	CTU->getTMVP(tmpMv[13], 96, 16, list);
+	CTU->getTMVP(tmpMv[15], 160, 16, list);
+	CTU->getTMVP(tmpMv[16], 224, 16, list);
+	CTU->getTMVP(tmpMv[18], 48, 16, list);
+	CTU->getTMVP(tmpMv[19], 112, 16, list);
+	CTU->getTMVP(tmpMv[21], 176, 16, list);
+	CTU->getTMVP(tmpMv[22], 240, 16, list);
 	/*当前ctu的的16个tmvp*/
 
 	/*当前ctu左边ctu的4个tmvp*/
@@ -4164,7 +4192,8 @@ uint32_t TEncSearch::xSymbolBitsInter(TComDataCU* cu, bool isCalcRDOTwice)
 void TEncSearch::xSetSearchRange(TComDataCU* cu, MV mvp, int merange_x, int merange_y, MV& mvmin, MV& mvmax)
 {
 	cu->clipMv(mvp, true);
-
+	merange_x /= 2;
+	merange_y /= 2;
 	MV dist(merange_x << 2, merange_y << 2);
 	mvmin = mvp - dist;
 	mvmax = mvp + dist - MV(4, 4); //去除最右边的点 add by hdl
@@ -4174,6 +4203,15 @@ void TEncSearch::xSetSearchRange(TComDataCU* cu, MV mvp, int merange_x, int mera
 
 	mvmin >>= 2;
 	mvmax >>= 2;
+
+	mvmin.x /= 4;
+	mvmin.y /= 4;
+	mvmax.x /= 4;
+	mvmax.y /= 4;
+	mvmin.x = -X265_MIN(abs(mvmin.x), mvmax.x) * 4;
+	mvmin.y = -X265_MIN(abs(mvmin.y), mvmax.y) * 4;
+	mvmax.x = (X265_MIN(abs(mvmin.x), mvmax.x) - 1) * 4;
+	mvmax.y = (X265_MIN(abs(mvmin.y), mvmax.y) - 1) * 4;
 
 	/* conditional clipping for frame parallelism */
 	mvmin.y = X265_MIN(mvmin.y, m_refLagPixels);
@@ -6391,7 +6429,9 @@ uint32_t TEncSearch::xModeBitsIntra(TComDataCU* cu, uint32_t mode, uint32_t part
 {
 	// Reload only contexts required for coding intra mode information
 	m_rdGoOnSbacCoder->loadIntraDirModeLuma(m_rdSbacCoders[depth][CI_CURR_BEST]);
-
+#if INTRA_PU_4x4_MODIFY
+	m_rdGoOnSbacCoder->loadIntraDirModeLuma(m_rdSbacCoders[depth][CI_TEMP_BEST]);
+#endif
 	cu->setLumaIntraDirSubParts(mode, partOffset, depth + initTrDepth);
 
 	m_entropyCoder->resetBits();

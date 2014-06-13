@@ -10,6 +10,7 @@
 #include "macro.h"
 #include "qt.h"
 #include "rk_define.h"
+#include "CABAC.h"
 
 #include <stdio.h>
 #include <assert.h>
@@ -81,6 +82,9 @@ typedef struct RkIntraPred_35
 class Rk_IntraPred
 {
 public:
+#if RK_CABAC_H
+	CABAC_RDO* m_cabac_rdo;
+#endif
     FILE *rk_logIntraPred[20];
 
     uint8_t             rk_LineBufTmp[129]; // 数据靠前存储 左下到左上到右上，corner点在中间

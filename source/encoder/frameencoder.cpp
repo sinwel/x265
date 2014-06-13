@@ -33,6 +33,7 @@
 #include "common.h"
 #include "RK_HEVC_ENC_MACRO.h"
 #include <math.h>
+#include "../hardwareC/CABAC.h"
 
 using namespace x265;
 
@@ -180,6 +181,9 @@ void FrameEncoder::init(Encoder *top, int numRows)
 
 int FrameEncoder::getStreamHeaders(NALUnitEBSP **nalunits)
 {
+#if (RK_CABAC_H||RK_CABAC_TEST)
+	read_Sps_Pps_to_sps_struct( &m_sps , &m_pps ,  sps_pps_struct);
+#endif
     TEncEntropy* entropyCoder = getEntropyCoder(0);
 
     entropyCoder->setEntropyCoder(&m_sbacCoder, NULL);
@@ -533,6 +537,14 @@ void FrameEncoder::compressFrame()
     // Analyze CTU rows, most of the hard work is done here
     // frame is compressed in a wave-front pattern if WPP is enabled. Loop filter runs as a
     // wave-front behind the CU compression and reconstruction
+#if (RK_CABAC_H||RK_CABAC_TEST)
+	slice_header_struct.Slice_deblocking_filter_disabled_flag=1;
+	slice_header_struct.Slice_qp_delta = slice->getSliceQp() - 26;
+	slice_header_struct.slice_sao_chroma_flag = 1;
+	slice_header_struct.slice_sao_luma_flag = 1;
+	slice_header_struct.slice_type = 2;
+	slice_header_struct.First_slice_segment_in_pic_flag = 1;
+#endif
     compressCTURows();
 
     if (m_cfg->param.bEnableWavefront)
@@ -619,6 +631,10 @@ void FrameEncoder::compressFrame()
     OutputNALUnit nalu(slice->getNalUnitType(), 0);
     entropyCoder->setBitstream(&nalu.m_bitstream);
     entropyCoder->encodeSliceHeader(slice);
+
+#if (RK_CABAC_H||RK_CABAC_TEST)
+	CABAC_codeSliceHeader( slice ,  slice_header_struct);
+#endif
 
     // is it needed?
     if (!sliceSegment)
@@ -970,6 +986,9 @@ void FrameEncoder::determineSliceBounds()
 
 void FrameEncoder::compressCTURows()
 {
+#if RK_CABAC_H
+	G_hardwareC.ctu_calc.m_cabac_rdo.init_data();
+#endif
     PPAScopeEvent(FrameEncoder_compressRows);
     TComSlice* slice = m_pic->getSlice();
 
@@ -1082,6 +1101,9 @@ void FrameEncoder::compressCTURows()
             {
                 processRow((i - m_filterRowDelay) * 2 + 1);
             }
+#if RK_CABAC_H
+			G_hardwareC.ctu_calc.m_cabac_rdo.update_L_buffer_y();
+#endif
         }
     }
     m_pic->m_frameTime = (double)m_totalTime / 1000000;

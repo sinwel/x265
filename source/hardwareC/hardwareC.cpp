@@ -66,24 +66,28 @@ void hardwareC::init()
 
 void hardwareC::proc()
 {
-	int nRefPic = Cime.getRefPicNum();
+	int nRefPicList0 = Cime.getRefPicNum(REF_PIC_LIST0);
+	int nRefPicList1 = Cime.getRefPicNum(REF_PIC_LIST1);
 	if (Cime.getSliceType() == b_slice)
 	{
-		for (int nRefPicIdx = 0; nRefPicIdx < nRefPic - 1; nRefPicIdx++)
+		for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 		{
 			Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPicIdx), nRefPicIdx);
 			assert(Cime.getCimeMv(nRefPicIdx).x == g_leftPMV[nRefPicIdx].x);
 			assert(Cime.getCimeMv(nRefPicIdx).y == g_leftPMV[nRefPicIdx].y);
 			assert(Cime.getCimeMv(nRefPicIdx).nSadCost == g_leftPMV[nRefPicIdx].nSadCost);
 		}
-		Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPic - 1), nRefPic - 1);
-		assert(Cime.getCimeMv(nRefPic - 1).x == g_leftPMV[nMaxRefPic - 1].x);
-		assert(Cime.getCimeMv(nRefPic - 1).y == g_leftPMV[nMaxRefPic - 1].y);
-		assert(Cime.getCimeMv(nRefPic - 1).nSadCost == g_leftPMV[nMaxRefPic - 1].nSadCost);
+		for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList1; nRefPicIdx++)
+		{
+			Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPicIdx + nRefPicList0), nRefPicIdx + nRefPicList0);
+			assert(Cime.getCimeMv(nRefPicIdx + nRefPicList0).x == g_leftPMV[nMaxRefPic / 2 + nRefPicIdx].x);
+			assert(Cime.getCimeMv(nRefPicIdx + nRefPicList0).y == g_leftPMV[nMaxRefPic / 2 + nRefPicIdx].y);
+			assert(Cime.getCimeMv(nRefPicIdx + nRefPicList0).nSadCost == g_leftPMV[nMaxRefPic / 2 + nRefPicIdx].nSadCost);
+		}
 	}
 	else
 	{
-		for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+		for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 		{
 			Cime.CIME(Cime.getOrigPic(), Cime.getRefPicDS(nRefPicIdx), nRefPicIdx);
 			assert(Cime.getCimeMv(nRefPicIdx).x == g_leftPMV[nRefPicIdx].x);
@@ -94,10 +98,9 @@ void hardwareC::proc()
 
 	for (int i = 0; i < 85; i++)
 	{
-		nRefPic = Rime[i].getRefPicNum();
 		if (b_slice == Rime[i].getSliceType())
 		{
-			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic-1; nRefPicIdx++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 			{
 				if (Rime[i].PrefetchCuInfo(nRefPicIdx))
 				{
@@ -113,22 +116,26 @@ void hardwareC::proc()
 				}
 				//Rime[i].DestroyCuInfo();
 			}
-			if (Rime[i].PrefetchCuInfo(nMaxRefPic - 1))
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList1; nRefPicIdx++)
 			{
-				Rime[i].RimeAndFme(nMaxRefPic - 1);
-				//RIME compare
-				assert(Rime[i].getRimeMv(nMaxRefPic - 1).x == g_RimeMv[nMaxRefPic - 1][i].x);
-				assert(Rime[i].getRimeMv(nMaxRefPic - 1).y == g_RimeMv[nMaxRefPic - 1][i].y);
-				assert(Rime[i].getRimeMv(nMaxRefPic - 1).nSadCost == g_RimeMv[nMaxRefPic - 1][i].nSadCost);
-				//FME compare
-				assert(Rime[i].getFmeMv(nMaxRefPic - 1).x == g_FmeMv[nMaxRefPic - 1][i].x);
-				assert(Rime[i].getFmeMv(nMaxRefPic - 1).y == g_FmeMv[nMaxRefPic - 1][i].y);
-				assert(Rime[i].getFmeMv(nMaxRefPic - 1).nSadCost == g_FmeMv[nMaxRefPic - 1][i].nSadCost);
+				int idx = nMaxRefPic / 2 + nRefPicIdx;
+				if (Rime[i].PrefetchCuInfo(idx))
+				{
+					Rime[i].RimeAndFme(idx);
+					//RIME compare
+					assert(Rime[i].getRimeMv(idx).x == g_RimeMv[idx][i].x);
+					assert(Rime[i].getRimeMv(idx).y == g_RimeMv[idx][i].y);
+					assert(Rime[i].getRimeMv(idx).nSadCost == g_RimeMv[idx][i].nSadCost);
+					//FME compare
+					assert(Rime[i].getFmeMv(idx).x == g_FmeMv[idx][i].x);
+					assert(Rime[i].getFmeMv(idx).y == g_FmeMv[idx][i].y);
+					assert(Rime[i].getFmeMv(idx).nSadCost == g_FmeMv[idx][i].nSadCost);
+				}
 			}
 		}
 		else
 		{
-			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 			{
 				if (Rime[i].PrefetchCuInfo(nRefPicIdx))
 				{

@@ -49,6 +49,7 @@
 #include "../../hardwareC/rk_define.h"
 #include "hardwareC/inter.h"
 #include "hardwareC/level_mode_calc.h"
+#include "CABAC.h"
 
 #include "macro.h"
 
@@ -362,15 +363,19 @@ bool mergeFlag = 0;
  	/*fetch reference and original picture, neighbor mv*/
 	 pHardWare->Cime.setCtuPosInPic(cu->getAddr());
 	 pHardWare->Cime.setQP(nQp);
-	 int nRefPic = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+	 int nRefPicList0 = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+	 int nRefPicList1 = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
+	 pHardWare->Cime.setRefPicNum(nRefPicList0, REF_PIC_LIST_0);
 	 if (cu->getSlice()->isInterB())
 	 {
-		 nRefPic += cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
+		 pHardWare->Cime.setRefPicNum(nRefPicList1, REF_PIC_LIST_1);
 		 pHardWare->Cime.setSliceType(b_slice);
 	 }
 	 else
+	 {
+		 pHardWare->Cime.setRefPicNum(0, REF_PIC_LIST_1);
 		 pHardWare->Cime.setSliceType(p_slice);
-	 pHardWare->Cime.setRefPicNum(nRefPic);
+	 }
 
  	static int nPrevPoc = MAX_UINT;
  	int nCurrPoc = cu->getSlice()->getPOC();
@@ -379,26 +384,44 @@ bool mergeFlag = 0;
  	{
  		isPocChange = true;
  		nPrevPoc = nCurrPoc;
-		pHardWare->Cime.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
-		pHardWare->Cime.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
- 		short merangeX = cu->getSlice()->getSPS()->getMeRangeX() / 4 + g_maxCUWidth / 4;
- 		short merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 4 + g_maxCUWidth / 4;
+		int nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
+		int nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
+		pHardWare->Cime.setPicHeight(nPicHeight);
+		pHardWare->Cime.setPicWidth(nPicWidth);
+		int merangeX = cu->getSlice()->getSPS()->getMeRangeX() / 4 * 4;
+		int merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 4 * 4;
+		merangeX = MIN_MINE(768, merangeX);
+		merangeY = MIN_MINE(320, merangeY);
+		if (nPicWidth < merangeX + 60 || nPicWidth <= 352)
+		{
+			merangeX = MIN_MINE(nPicWidth, merangeX) / 4 * 2;
+		}
+		if (nPicHeight < merangeY + 60 || nPicHeight <= 288)
+		{
+			merangeY = MIN_MINE(nPicHeight, merangeY) / 4 * 2;
+		}
+		setSearchRange(merangeX, merangeY);
+		merangeX = merangeX / 4 + g_maxCUWidth / 4;
+		merangeY = merangeY / 4 + g_maxCUWidth / 4;
 		pHardWare->Cime.Create(merangeX, merangeY);
 		pHardWare->Cime.setOrigPic(cu->getSlice()->getPic()->getPicYuvOrg()->getLumaAddr(0, 0),
  			cu->getSlice()->getPic()->getPicYuvOrg()->getStride());
 		if (cu->getSlice()->isInterB())
 		{
-			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic - 1; nRefPicIdx ++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx ++)
 			{
 				pHardWare->Cime.setDownSamplePic(cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvOrg()->getLumaAddr(0, 0),
 					cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvOrg()->getStride(), nRefPicIdx);
 			}
-			pHardWare->Cime.setDownSamplePic(cu->getSlice()->getRefPic(1, 0)->getPicYuvOrg()->getLumaAddr(0, 0),
-				cu->getSlice()->getRefPic(1, 0)->getPicYuvOrg()->getStride(), nRefPic - 1);
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList1; nRefPicIdx++)
+			{
+				pHardWare->Cime.setDownSamplePic(cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvOrg()->getLumaAddr(0, 0),
+					cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvOrg()->getStride(), nRefPicIdx + nRefPicList0);
+			}
 		}
 		else
 		{
-			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 			{
 				pHardWare->Cime.setDownSamplePic(cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvOrg()->getLumaAddr(0, 0),
 					cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvOrg()->getStride(), nRefPicIdx);
@@ -415,7 +438,7 @@ bool mergeFlag = 0;
 		nPrevAddr = cu->getAddr();
 		if (cu->getSlice()->isInterB())
 		{
-			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic - 1; nRefPicIdx++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 			{
 				m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_0, isValid, nRefPicIdx, false);
 				for (int i = 0; i < nAllNeighMv; i++)
@@ -424,16 +447,19 @@ bool mergeFlag = 0;
 					pHardWare->Cime.setNeighMv(tmpOneMv, nRefPicIdx, i);
 				}
 			}
-			m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_1, isValid, nMaxRefPic - 1, false);
-			for (int i = 0; i < nAllNeighMv; i++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList1; nRefPicIdx++)
 			{
-				Mv tmpOneMv; tmpOneMv.x = tmpMv[i].x; tmpOneMv.y = tmpMv[i].y;
-				pHardWare->Cime.setNeighMv(tmpOneMv, nRefPic - 1, i);
+				m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_1, isValid, nRefPicIdx + nMaxRefPic / 2, false);
+				for (int i = 0; i < nAllNeighMv; i++)
+				{
+					Mv tmpOneMv; tmpOneMv.x = tmpMv[i].x; tmpOneMv.y = tmpMv[i].y;
+					pHardWare->Cime.setNeighMv(tmpOneMv, nRefPicIdx + nRefPicList0, i);
+				}
 			}
 		}
 		else
 		{
-			for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+			for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 			{
 				m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_0, isValid, nRefPicIdx, false);
 				for (int i = 0; i < nAllNeighMv; i++)
@@ -465,20 +491,40 @@ bool mergeFlag = 0;
 		 isCuOutPic = true;
 	 return isCuOutPic;
  }
+ void TEncCu::setSearchRange(int &merangex, int &merangey)
+ {
+	 int merange_x = merangex / 2;
+	 int merange_y = merangey / 2;
+	 int mxneg = ((-(merange_x << 2)) >> 2) / 4;
+	 int myneg = ((-(merange_y << 2)) >> 2) / 4;
+	 int mxpos = (((merange_x << 2) - 4) >> 2) / 4;
+	 int mypos = (((merange_y << 2) - 4) >> 2) / 4;
+
+	 mxneg = MIN_MINE(abs(mxneg), mxpos) * 4;
+	 myneg = MIN_MINE(abs(myneg), mypos) * 4;
+
+	 merangex = mxneg * 2;
+	 merangey = myneg * 2;
+ }
 void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 {//add by HDL for RIME verification
 	/*fetch reference and original picture, neighbor mv*/
+	int nRefPicList0 = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+	int nRefPicList1 = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
 	for (int cuIdx = 0; cuIdx < 85; cuIdx++)
 	{
-		int nRefPic = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+		pHardWare->Rime[cuIdx].setRefPicNum(nRefPicList0, REF_PIC_LIST_0);
 		if (cu->getSlice()->isInterB())
 		{
-			nRefPic += cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
+			pHardWare->Rime[cuIdx].setRefPicNum(nRefPicList1, REF_PIC_LIST_1);
 			pHardWare->Rime[cuIdx].setSliceType(b_slice);
 		}
 		else
+		{
+			pHardWare->Rime[cuIdx].setRefPicNum(0, REF_PIC_LIST_1);
 			pHardWare->Rime[cuIdx].setSliceType(p_slice);
-		pHardWare->Rime[cuIdx].setRefPicNum(nRefPic);
+		}
+		
 	}
 	static int nPrevPoc = MAX_UINT;
 	int nCurrPoc = cu->getSlice()->getPOC();
@@ -500,10 +546,9 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 				cu->getSlice()->getRefPic(0, 0)->getPicYuvRec()->getCStride(),
 				cu->getSlice()->getPic()->getPicYuvOrg()->getCrAddr(0, 0),
 				cu->getSlice()->getRefPic(0, 0)->getPicYuvRec()->getCStride());
-			int nRefPic = pHardWare->Rime[cuIdx].getRefPicNum();
 			if (pHardWare->Rime[cuIdx].getSliceType() == b_slice)
 			{
-				for (int nRefPicIdx = 0; nRefPicIdx < nRefPic - 1; nRefPicIdx ++)
+				for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 				{
 					pHardWare->Rime[cuIdx].setRefPic(cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvRec()->getLumaAddr(0, 0),
 						cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvRec()->getStride(),
@@ -513,17 +558,20 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 						cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvRec()->getCStride(),
 						nRefPicIdx);
 				}
-				pHardWare->Rime[cuIdx].setRefPic(cu->getSlice()->getRefPic(1, 0)->getPicYuvRec()->getLumaAddr(0, 0),
-					cu->getSlice()->getRefPic(1, 0)->getPicYuvRec()->getStride(),
-					cu->getSlice()->getRefPic(1, 0)->getPicYuvRec()->getCbAddr(0, 0),
-					cu->getSlice()->getRefPic(1, 0)->getPicYuvRec()->getCStride(),
-					cu->getSlice()->getRefPic(1, 0)->getPicYuvRec()->getCrAddr(0, 0),
-					cu->getSlice()->getRefPic(1, 0)->getPicYuvRec()->getCStride(),
-					nMaxRefPic - 1);
+				for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList1; nRefPicIdx++)
+				{
+					pHardWare->Rime[cuIdx].setRefPic(cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvRec()->getLumaAddr(0, 0),
+						cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvRec()->getStride(),
+						cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvRec()->getCbAddr(0, 0),
+						cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvRec()->getCStride(),
+						cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvRec()->getCrAddr(0, 0),
+						cu->getSlice()->getRefPic(1, nRefPicIdx)->getPicYuvRec()->getCStride(),
+						nMaxRefPic / 2 + nRefPicIdx);
+				}
 			}
 			else
 			{
-				for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+				for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 				{
 					pHardWare->Rime[cuIdx].setRefPic(cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvRec()->getLumaAddr(0, 0),
 						cu->getSlice()->getRefPic(0, nRefPicIdx)->getPicYuvRec()->getStride(),
@@ -547,10 +595,9 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 			pHardWare->Rime[cuIdx].setCtuSize(g_maxCUWidth);
 			pHardWare->Rime[cuIdx].setCtuPosInPic(cu->getAddr());
 			pHardWare->Rime[cuIdx].setQP(nQp);
-			int nRefPic = pHardWare->Rime[cuIdx].getRefPicNum();
 			if (pHardWare->Rime[cuIdx].getSliceType() == b_slice)
 			{
-				for (int nRefPicIdx = 0; nRefPicIdx < nRefPic-1; nRefPicIdx ++)
+				for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 				{
 					MV tmpMv[nAllNeighMv]; bool isValid[nAllNeighMv];
 					m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_0, isValid, nRefPicIdx, false);
@@ -563,20 +610,24 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 					pHardWare->Rime[cuIdx].PrefetchCtuLumaInfo(nRefPicIdx);
 					pHardWare->Rime[cuIdx].PrefetchCtuChromaInfo(nRefPicIdx);
 				}
-				MV tmpMv[nAllNeighMv]; bool isValid[nAllNeighMv];
-				m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_1, isValid, nMaxRefPic - 1, false);
-				for (int i = 0; i < nAllNeighMv; i++)
+				for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList1; nRefPicIdx++)
 				{
-					mvNeigh[i].x = tmpMv[i].x;
-					mvNeigh[i].y = tmpMv[i].y;
+					int idx = nMaxRefPic / 2 + nRefPicIdx;
+					MV tmpMv[nAllNeighMv]; bool isValid[nAllNeighMv];
+					m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_1, isValid, idx, false);
+					for (int i = 0; i < nAllNeighMv; i++)
+					{
+						mvNeigh[i].x = tmpMv[i].x;
+						mvNeigh[i].y = tmpMv[i].y;
+					}
+					pHardWare->Rime[cuIdx].setPmv(mvNeigh, g_leftPMV[idx], idx);
+					pHardWare->Rime[cuIdx].PrefetchCtuLumaInfo(idx);
+					pHardWare->Rime[cuIdx].PrefetchCtuChromaInfo(idx);
 				}
-				pHardWare->Rime[cuIdx].setPmv(mvNeigh, g_leftPMV[nMaxRefPic - 1], nMaxRefPic - 1);
-				pHardWare->Rime[cuIdx].PrefetchCtuLumaInfo(nMaxRefPic - 1);
-				pHardWare->Rime[cuIdx].PrefetchCtuChromaInfo(nMaxRefPic - 1);
 			}
 			else
 			{
-				for (int nRefPicIdx = 0; nRefPicIdx < nRefPic; nRefPicIdx++)
+				for (int nRefPicIdx = 0; nRefPicIdx < nRefPicList0; nRefPicIdx++)
 				{
 					MV tmpMv[nAllNeighMv]; bool isValid[nAllNeighMv];
 					m_search->getNeighMvs(cu->getPic()->getCU(cu->getAddr()), tmpMv, REF_PIC_LIST_0, isValid, nRefPicIdx, false);
@@ -610,46 +661,25 @@ void TEncCu::RimeAndFmePrepare(TComDataCU* cu, int nQp)
 			continue;
 		int nCuSize = g_maxCUWidth;
 		int depth = 0;
-		if (64 == g_maxCUWidth)
+		if (idx[i] < 64)
 		{
-			if (idx[i] < 64)
-			{
-				nCuSize = 8;
-				depth = 3;
-			}
-			else if (idx[i] < 80)
-			{
-				nCuSize = 16;
-				depth = 2;
-			}
-			else if (idx[i] < 84)
-			{
-				nCuSize = 32;
-				depth = 1;
-			}
-			else
-			{
-				nCuSize = 64;
-				depth = 0;
-			}
+			nCuSize = 8;
+			depth = 3;
+		}
+		else if (idx[i] < 80)
+		{
+			nCuSize = 16;
+			depth = 2;
+		}
+		else if (idx[i] < 84)
+		{
+			nCuSize = 32;
+			depth = 1;
 		}
 		else
 		{
-			if (idx[i] < 16)
-			{
-				nCuSize = 8;
-				depth = 2;
-			}
-			else if (idx[i] < 20)
-			{
-				nCuSize = 16;
-				depth = 1;
-			}
-			else
-			{
-				nCuSize = 32;
-				depth = 0;
-			}
+			nCuSize = 64;
+			depth = 0;
 		}
 
 		pHardWare->Rime[idx[i]].setCuPosInCtu(idx[i]);
@@ -972,6 +1002,12 @@ void TEncCu::compressCU(TComDataCU* cu)
 #if RK_INTER_METEST
 	SaveTemporalMv(m_bestCU[0]);
 #endif
+
+#if RK_CABAC_H
+	//	memset(g_cabac_rdo_test->inx_in_tu,0,sizeof(g_cabac_rdo_test->inx_in_tu));
+	//	memset(g_cabac_rdo_test->inx_in_cu,0,sizeof(g_cabac_rdo_test->inx_in_cu));
+	memset(pHardWare->ctu_calc.m_cabac_rdo.next_status , CTU_EST , sizeof(pHardWare->ctu_calc.m_cabac_rdo.next_status));
+#endif
 #if RK_CTU_CALC_PROC_ENABLE && RK_INTER_METEST
 	if (m_bestCU[0]->getSlice()->getSliceType() != I_SLICE)
 	{
@@ -996,6 +1032,10 @@ void TEncCu::compressCU(TComDataCU* cu)
 				pHardWare->Rime[i].DestroyPicInfo();
 		}
 	}
+#endif
+
+#if RK_CABAC_H
+	this->pHardWare->ctu_calc.m_cabac_rdo.update_L_buffer_x();
 #endif
 }
 
@@ -1224,7 +1264,9 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         }
 
         m_entropyCoder->resetBits();
-        m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+# if !INTRA_SPLIT_FLAG_MODIFY
+		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+#endif
         outBestCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); // split bits
         outBestCU->m_totalCost  = m_rdCost->calcRdCost(outBestCU->m_totalDistortion, outBestCU->m_totalBits);
 
@@ -1299,7 +1341,19 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
             {
                 if (0 == partUnitIdx) //initialize RD with previous depth buffer
                 {
-                    m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+# if INTRA_SPLIT_FLAG_MODIFY
+					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+					m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
+					if (depth == 0 || depth == 1)
+					{
+						m_entropyCoder->encodeSplitFlag(subTempPartCU[partUnitIdx], 0, depth  , true);
+					}
+
+					m_entropyCoder->resetBits();
+					m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
+#else
+					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+#endif
                 }
                 else
                 {
@@ -1321,10 +1375,20 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         if (!bBoundary)
         {
             m_entropyCoder->resetBits();
-            m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+# if INTRA_SPLIT_FLAG_MODIFY
+			m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+			m_entropyCoder->resetBits();
+			//            m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+			m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+#else
+			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+#endif
 
             outTempCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); //split bits
-        }
+#if RK_CABAC_H
+			g_est_bit_cu_split_flag[0][depth ][outTempCU->getZorderIdxInCU()][1] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+#endif
+		}
         outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
 
         //curr sublevel CU Cost¡¢Bits¡¢Distortion
@@ -2010,10 +2074,11 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 		int refIdx1 = mvFieldNeighbours[i * 2 + 1].refIdx;
 		if (refIdx1 >= 0)
 		{
-			isPost = (((tmpMv.x >> 2) >= g_Mvmin[nMaxRefPic - 1][1].x) && ((tmpMv.x >> 2) <= g_Mvmax[nMaxRefPic - 1][1].x)
-				&& ((tmpMv.y >> 2) >= g_Mvmin[nMaxRefPic - 1][1].y) && ((tmpMv.y >> 2) <= g_Mvmax[nMaxRefPic - 1][1].y))
-				|| (((tmpMv.x >> 2) >= g_Mvmin[nMaxRefPic - 1][2].x) && ((tmpMv.x >> 2) <= g_Mvmax[nMaxRefPic - 1][2].x)
-				&& ((tmpMv.y >> 2) >= g_Mvmin[nMaxRefPic - 1][2].y) && ((tmpMv.y >> 2) <= g_Mvmax[nMaxRefPic - 1][2].y));
+			int idx = nMaxRefPic / 2 + refIdx1;
+			isPost = (((tmpMv.x >> 2) >= g_Mvmin[idx][1].x) && ((tmpMv.x >> 2) <= g_Mvmax[idx][1].x)
+				&& ((tmpMv.y >> 2) >= g_Mvmin[idx][1].y) && ((tmpMv.y >> 2) <= g_Mvmax[idx][1].y))
+				|| (((tmpMv.x >> 2) >= g_Mvmin[idx][2].x) && ((tmpMv.x >> 2) <= g_Mvmax[idx][2].x)
+				&& ((tmpMv.y >> 2) >= g_Mvmin[idx][2].y) && ((tmpMv.y >> 2) <= g_Mvmax[idx][2].y));
 		}
 
 		bool isInPmv = false;
@@ -2870,6 +2935,25 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
     m_search->estIntraPredChromaQT(outTempCU, m_origYuv[depth], m_tmpPredYuv[depth], m_tmpResiYuv[depth], m_tmpRecoYuv[depth], preCalcDistC);
 
     m_entropyCoder->resetBits();
+
+# if INTRA_SPLIT_FLAG_MODIFY
+	//	m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+#endif
+#if RK_CABAC_H
+	UChar depth_temp = depth;
+	if (*outTempCU->getPartitionSize() == SIZE_NxN)
+	{
+		depth_temp+=1;
+	}
+
+	if (depth == 0 || depth == 1 || depth ==2)
+	{
+		g_est_bit_cu_split_flag[0][depth ][outTempCU->getZorderIdxInCU()][0] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+	}
+	int64_t temp = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+#endif
+
+
     if (outTempCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
     {
         m_entropyCoder->encodeCUTransquantBypassFlag(outTempCU, 0, true);
@@ -2882,7 +2966,56 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 
     // Encode Coefficients
     bool bCodeDQP = getdQPFlag();
-    m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+#if RK_CABAC_H
+
+
+	for (int i = 0 ; i < 3 ; i++)
+	{
+		g_intra_est_bit_coded_sub_block_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_sig_coeff_flag[i][depth_temp][outTempCU->getZorderIdxInCU()]= 0;
+		g_intra_est_bit_coeff_abs_level_greater1_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_coeff_abs_level_greater2_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_coeff_sign_flag[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_coeff_abs_level_remaining[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_intra_est_bit_last_sig_coeff_xy[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+
+		g_intra_est_bit_cbf[i][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_est_bit_tu_luma_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_est_bit_tu_cb_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		g_est_bit_tu_cr_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU()] = 0;
+		if (depth_temp == 4)
+		{
+			for (int j = 1 ; j < 4 ; j++)
+			{
+				g_intra_est_bit_coded_sub_block_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_sig_coeff_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j]= 0;
+				g_intra_est_bit_coeff_abs_level_greater1_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_coeff_abs_level_greater2_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_coeff_sign_flag[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_coeff_abs_level_remaining[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_intra_est_bit_last_sig_coeff_xy[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+
+				g_intra_est_bit_cbf[i][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_est_bit_tu_luma_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_est_bit_tu_cb_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+				g_est_bit_tu_cr_NoCbf[1][depth_temp][outTempCU->getZorderIdxInCU() + j] = 0;
+			}
+		}
+	}
+
+#endif
+#if RK_CABAC_H
+	int64_t temp0 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+	int64_t temp1 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+
+	g_est_bit_tu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp0);
+
+	g_est_bit_cu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp);
+
+#else
+	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+#endif
     setdQPFlag(bCodeDQP);
 
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_TEMP_BEST]);

@@ -1582,7 +1582,7 @@ void RK_CheckSad(uint64_t* cost1, uint64_t* cost2, int width)
 	for ( i = 0 ; i < 35 ; i++ )
 	{
  	  // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
- 	  //if (INTRA_REDUCE_DIR(i, width))
+ 	  if (INTRA_REDUCE_DIR(i, width))
  	  {
 	    if(cost1[i] != cost2[i])
 		{
@@ -2086,6 +2086,9 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		uint64_t costTotal[35];
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
+   		  // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+   		  if (INTRA_REDUCE_DIR(dirMode, width))
+   		  {
 	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 
@@ -2125,19 +2128,19 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 					puStride,
 					width);
 			//
-		#ifdef RK_CABAC
+#if RK_CABAC_H
+			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			uint32_t bits_x265 = g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode];
+			uint32_t bits = m_cabac_rdo->Est_bit_pu_luma_dir(cur_depth,dirMode);
+			assert(bits_x265 == bits);
+#else
 			uint32_t zscan_idx = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
 			uint32_t bits = g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode];
-		#else
-			uint32_t bits = 0;
-		#endif
+#endif
 
 			//setLambda(30, 2);
 			costTotal[dirMode] =  costSad[dirMode] + ((bits * m_rklambdaMotionSAD + 32768) >> 16);
-			// To ensure some direction cost be MAX. fix bug with linux platform
-			// by init with zero.
-			if (!INTRA_REDUCE_DIR(dirMode,width))
-				costTotal[dirMode] = MAX_INT64;
+	  	  }
 
 		}
 
@@ -2156,7 +2159,17 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		BubbleSort(index,costTotal, 35);
 
 		int bestMode = index[0];
-
+#if RK_CABAC_H
+		m_cabac_rdo->pu_best_mode_flag[1][cur_depth] = 1;
+		m_cabac_rdo->intra_pu_depth_luma_bestDir[cur_depth] = bestMode;
+		if ( (cur_depth == 4 && partOffset == 0) || cur_depth!=4 )
+		{
+			m_cabac_rdo->intra_pu_depth_chroma_bestDir[cur_depth] = bestMode;
+		}
+		m_cabac_rdo->cabac_rdo_status(cur_depth,1,0);//PU_EST_WAIT->PU_EST  根据最优的方向选择prev_intra_luma_pred_flag的上下文
+		m_cabac_rdo->cabac_rdo_status(cur_depth,1,0);//PU_EST->TU_EST_WAIT  等待QT结束
+		m_cabac_rdo->cabac_rdo_status(cur_depth,1,0);//TU_EST_WAIT->TU_EST_WAIT  自转一圈 表示等待QT结束
+#endif
 		pInterface_Intra->DirMode = (uint8_t)bestMode;
 
 		// step 6 //
@@ -2448,6 +2461,9 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 		uint64_t costTotal[35];
 		for ( dirMode = 0 ; dirMode < 35 ; dirMode++ )
 		{
+		  // only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
+   		  if (INTRA_REDUCE_DIR(dirMode, width))
+   		  {
 	    	int 	diff		= std::min<int>(abs((int)dirMode - HOR_IDX), abs((int)dirMode - VER_IDX));
 			uint8_t filterIdx 	= diff > RK_intraFilterThreshold[log2BlkSize - 2] ? 1 : 0;
 
@@ -2501,8 +2517,9 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 			    RK_HEVC_PRINT("%d ",g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode]);
 				RK_HEVC_PRINT("%d \n",rk_bits[partOffset][dirMode]);
 			}
-			assert(g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode] == rk_bits[partOffset][dirMode]);
+			//assert(g_intra_pu_lumaDir_bits[cur_depth][zscan_idx + partOffset][dirMode] == rk_bits[partOffset][dirMode]);
 		#endif
+   		  }
 		}
 
 		RK_CheckSad(costTotal, rk_modeCostsSadAndCabacCorrect, width);

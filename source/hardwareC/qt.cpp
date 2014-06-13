@@ -2216,7 +2216,7 @@ void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra)
 
 	// output
 	uint8_t	 size = m_infoForQT->size;
-	inf_tq->absSum = m_infoForQT->absSum;
+	inf_tq->absSum = m_infoForQT->absSum > 0;
 	inf_tq->lastPosX = m_infoForQT->lastPos % size;
 	inf_tq->lastPosY = m_infoForQT->lastPos / size;
 	for (uint8_t k = 0; k < size; k++)
@@ -2244,7 +2244,7 @@ void hevcQT::setForHWC(INTERFACE_TQ* inf_tq, INTERFACE_ME* inf_me)
 
 	// output
 	uint8_t	 size = m_infoForQT->size;
-	inf_tq->absSum = m_infoForQT->absSum;
+	inf_tq->absSum = m_infoForQT->absSum > 0;
 	inf_tq->lastPosX = m_infoForQT->lastPos % size;
 	inf_tq->lastPosY = m_infoForQT->lastPos / size;
 	for (uint8_t k = 0; k < size; k++)

@@ -636,10 +636,16 @@ void x265_print_params(x265_param *param)
 #endif
     x265_log(param, X265_LOG_INFO, "CU size                             : %d\n", param->maxCUSize);
     x265_log(param, X265_LOG_INFO, "Max RQT depth inter / intra         : %d / %d\n", param->tuQTMaxInterDepth, param->tuQTMaxIntraDepth);
-
+#if RK_INTER_METEST
+	x265_log(param, X265_LOG_INFO, "ME / merangex / merangey            : %s / %d / %d\n",
+		"rk_full", param->meRangeX, param->meRangeY);
+	x265_log(param, X265_LOG_INFO, "subpel / merge                      : %d / %d\n",
+		param->subpelRefine, param->maxNumMergeCand);
+#else
     x265_log(param, X265_LOG_INFO, "ME / range / subpel / merge         : %s / %d / %d / %d\n",
              x265_motion_est_names[param->searchMethod], param->searchRange, param->subpelRefine, param->maxNumMergeCand);
-    x265_log(param, X265_LOG_INFO, "Keyframe min / max                  : %d / %d\n", param->keyframeMin, param->keyframeMax);
+#endif
+	x265_log(param, X265_LOG_INFO, "Keyframe min / max                  : %d / %d\n", param->keyframeMin, param->keyframeMax);
     switch (param->rc.rateControlMode)
     {
     case X265_RC_ABR:

@@ -38,6 +38,7 @@
 #include "TEncEntropy.h"
 #include "TLibCommon/TypeDef.h"
 #include "TLibCommon/TComSampleAdaptiveOffset.h"
+#include "CABAC.h"
 
 using namespace x265;
 
@@ -215,6 +216,14 @@ void TEncEntropy::encodeIPCMInfo(TComDataCU* cu, uint32_t absPartIdx, bool bRD)
 
 void TEncEntropy::xEncodeTransform(TComDataCU* cu, uint32_t offsetLuma, uint32_t offsetChroma, uint32_t absPartIdx, uint32_t depth, uint32_t width, uint32_t height, uint32_t trIdx, bool& bCodeDQP)
 {
+#if RK_CABAC_H
+	int depth_temp = depth;
+	if (cu->getDepth(absPartIdx)==0)
+	{
+		depth_temp = 0;
+	}
+
+#endif
     const uint32_t subdiv = cu->getTransformIdx(absPartIdx) + cu->getDepth(absPartIdx) > depth;
     const uint32_t log2TrafoSize = g_convertToBit[cu->getSlice()->getSPS()->getMaxCUWidth()] + 2 - depth;
     uint32_t cbfY = cu->getCbf(absPartIdx, TEXT_LUMA, trIdx);
@@ -279,11 +288,29 @@ void TEncEntropy::xEncodeTransform(TComDataCU* cu, uint32_t offsetLuma, uint32_t
     {
         if (bFirstCbfOfCU || cu->getCbf(absPartIdx, TEXT_CHROMA_U, trDepthCurr - 1))
         {
-            m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_CHROMA_U, trDepthCurr);
+#if RK_CABAC_H
+			int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_CHROMA_U, trDepthCurr);
+
+			int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+			g_intra_est_bit_cbf[1][depth_temp + subdiv][cu->getZorderIdxInCU() + absPartIdx] += (temp1 - temp0);
+#else
+			m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_CHROMA_U, trDepthCurr);
+#endif
         }
         if (bFirstCbfOfCU || cu->getCbf(absPartIdx, TEXT_CHROMA_V, trDepthCurr - 1))
         {
-            m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_CHROMA_V, trDepthCurr);
+#if RK_CABAC_H
+			int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_CHROMA_V, trDepthCurr);
+
+			int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+			g_intra_est_bit_cbf[2][depth_temp + subdiv][cu->getZorderIdxInCU() + absPartIdx] += (temp1 - temp0);
+#else
+			m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_CHROMA_V, trDepthCurr);
+#endif
         }
     }
     else if (log2TrafoSize == 2)
@@ -339,7 +366,19 @@ void TEncEntropy::xEncodeTransform(TComDataCU* cu, uint32_t offsetLuma, uint32_t
         }
         else
         {
-            m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_LUMA, cu->getTransformIdx(absPartIdx));
+#if RK_CABAC_H
+
+			int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_LUMA, cu->getTransformIdx(absPartIdx));
+
+			int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+			g_intra_est_bit_cbf[0][depth_temp ][cu->getZorderIdxInCU() + absPartIdx] += (temp1 - temp0);
+
+
+#else
+			m_entropyCoderIf->codeQtCbf(cu, absPartIdx, TEXT_LUMA, cu->getTransformIdx(absPartIdx));
+#endif
         }
 
         if (cbfY || cbfU || cbfV)
@@ -356,7 +395,16 @@ void TEncEntropy::xEncodeTransform(TComDataCU* cu, uint32_t offsetLuma, uint32_t
         }
         if (cbfY)
         {
-            m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffY() + offsetLuma), absPartIdx, width, height, depth, TEXT_LUMA);
+#if RK_CABAC_H
+			int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffY() + offsetLuma), absPartIdx, width, height, depth, TEXT_LUMA);
+
+			int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+			//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+			g_est_bit_tu_luma_NoCbf[1][depth_temp + subdiv][cu->getZorderIdxInCU() + absPartIdx] = (temp1 - temp0);
+#else
+			m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffY() + offsetLuma), absPartIdx, width, height, depth, TEXT_LUMA);
+#endif
         }
         if (log2TrafoSize > 2)
         {
@@ -364,11 +412,29 @@ void TEncEntropy::xEncodeTransform(TComDataCU* cu, uint32_t offsetLuma, uint32_t
             int trHeight = height >> 1;
             if (cbfU)
             {
-                m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCb() + offsetChroma), absPartIdx, trWidth, trHeight, depth, TEXT_CHROMA_U);
+#if RK_CABAC_H
+				int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+				m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCb() + offsetChroma), absPartIdx, trWidth, trHeight, depth, TEXT_CHROMA_U);
+
+				int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+				//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+				g_est_bit_tu_cb_NoCbf[1][depth_temp + subdiv][cu->getZorderIdxInCU() + absPartIdx] = (temp1 - temp0);
+#else
+				m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCb() + offsetChroma), absPartIdx, trWidth, trHeight, depth, TEXT_CHROMA_U);
+#endif
             }
             if (cbfV)
             {
-                m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCr() + offsetChroma), absPartIdx, trWidth, trHeight, depth, TEXT_CHROMA_V);
+#if RK_CABAC_H
+				int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+				m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCr() + offsetChroma), absPartIdx, trWidth, trHeight, depth, TEXT_CHROMA_V);
+
+				int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+				//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+				g_est_bit_tu_cr_NoCbf[1][depth_temp + subdiv][cu->getZorderIdxInCU() + absPartIdx] = (temp1 - temp0);
+#else
+				m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCr() + offsetChroma), absPartIdx, trWidth, trHeight, depth, TEXT_CHROMA_V);
+#endif
             }
         }
         else
@@ -378,11 +444,29 @@ void TEncEntropy::xEncodeTransform(TComDataCU* cu, uint32_t offsetLuma, uint32_t
             {
                 if (cbfU)
                 {
-                    m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCb() + m_bakChromaOffset), m_bakAbsPartIdx, width, height, depth, TEXT_CHROMA_U);
+#if RK_CABAC_H
+					int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+					m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCb() + m_bakChromaOffset), m_bakAbsPartIdx, width, height, depth, TEXT_CHROMA_U);
+
+					int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+					//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+					g_est_bit_tu_cb_NoCbf[1][depth_temp + subdiv][cu->getZorderIdxInCU() ] = (temp1 - temp0);
+#else
+					m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCb() + m_bakChromaOffset), m_bakAbsPartIdx, width, height, depth, TEXT_CHROMA_U);
+#endif
                 }
                 if (cbfV)
                 {
-                    m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCr() + m_bakChromaOffset), m_bakAbsPartIdx, width, height, depth, TEXT_CHROMA_V);
+#if RK_CABAC_H
+					int64_t temp0 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+					m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCr() + m_bakChromaOffset), m_bakAbsPartIdx, width, height, depth, TEXT_CHROMA_V);
+
+					int64_t temp1 = m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+					//			int64_t temp1 = ((x265::TEncSbac*)(m_entropyCoderIf))->m_binIf->m_fracBits;
+					g_est_bit_tu_cr_NoCbf[1][depth_temp + subdiv][cu->getZorderIdxInCU() ] = (temp1 - temp0);
+#else
+					m_entropyCoderIf->codeCoeffNxN(cu, (cu->getCoeffCr() + m_bakChromaOffset), m_bakAbsPartIdx, width, height, depth, TEXT_CHROMA_V);
+#endif
                 }
             }
         }

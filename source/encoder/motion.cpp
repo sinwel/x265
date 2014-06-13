@@ -1266,7 +1266,7 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	size_t stride = ref->lumaStride;
 	pixel *fref = ref->fpelPlane + blockOffset;
 	MV bmv;
-	static MV Pmv[6][nNeightMv + 1];
+	static MV Pmv[nMaxRefPic][nNeightMv + 1];
 	int bcost = MAX_INT, tmpCost;
 	
 	if (isSavePmv)
@@ -1325,45 +1325,12 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	default: assert(false);
 	}
 
-	if (32 == g_maxCUWidth)
+	for (int idx = 0; idx <= nNeightMv; idx++)
 	{
-		switch (depth)
-		{
-		case 0: width = 32; height = 32; break;
-		case 1: width = 16; height = 16; break;
-		case 2: width = 8;   height = 8;   break;
-		default: assert(false);
-		}
-		offsX = OffsFromCtu32[offsIdx][0];
-		offsY = OffsFromCtu32[offsIdx][1];
-	}
-
-	if (nNeightMv == nMvNeighBor)
-	{
-		for (int idx = 0; idx <= nNeightMv; idx++)
-		{
-			g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x - offsX - Width;
-			g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y - offsY - Height;
-			g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
-			g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
-		}
-	}
-	else
-	{
-		for (int idx = 0; idx <= nMvNeighBor; idx++)
-		{
-			g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x - offsX - Width;
-			g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y - offsY - Height;
-			g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
-			g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
-		}
-		for (int idx = nMvNeighBor + 1; idx <= nNeightMv; idx++)
-		{
-			g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][1].x - offsX - Width;
-			g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][1].y - offsY - Height;
-			g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][1].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
-			g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][1].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
-		}
+		g_Mvmin[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x - offsX - Width;
+		g_Mvmin[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y - offsY - Height;
+		g_Mvmax[nRefPicIdx][idx].x = Pmv[nRefPicIdx][idx].x + static_cast<short>(g_maxCUWidth)+Width - offsX - width;
+		g_Mvmax[nRefPicIdx][idx].y = Pmv[nRefPicIdx][idx].y + static_cast<short>(g_maxCUWidth)+Height - offsY - height;
 	}
 
 	/*7x7块的每个点都算  add by hdl*/

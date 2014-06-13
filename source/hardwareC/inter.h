@@ -57,6 +57,18 @@ struct Mv
 	Mv() :x(0), y(0), nSadCost(INT_MAX_MINE){}
 };
 
+enum Part_Size
+{
+	size_2Nx2N,         ///< symmetric motion partition,  2Nx2N
+	size_2NxN,          ///< symmetric motion partition,  2Nx N
+	size_Nx2N,          ///< symmetric motion partition,   Nx2N
+	size_NxN,           ///< symmetric motion partition,   Nx N
+	size_2NxnU,         ///< asymmetric motion partition, 2Nx( N/2) + 2Nx(3N/2)
+	size_2NxnD,         ///< asymmetric motion partition, 2Nx(3N/2) + 2Nx( N/2)
+	size_nLx2N,         ///< asymmetric motion partition, ( N/2)x2N + (3N/2)x2N
+	size_nRx2N,         ///< asymmetric motion partition, (3N/2)x2N + ( N/2)x2N
+	size_NONE = 15
+};
 enum Slice_Type
 {
 	b_slice,
@@ -117,7 +129,36 @@ struct MvField
 	}
 };
 
-const int nMaxRefPic = 6; //ref picture number of list0 + ref picture number of list
+struct MergeInfoForCabac 
+{
+	bool                         m_bSkipFlag;
+	bool                         m_bMergeFlags;
+	char                         m_mergeIdx;
+	char                         m_predModes;
+	unsigned char          m_cbfY;
+	unsigned char          m_cbfU;
+	unsigned char          m_cbfV;
+	Part_Size                  m_partSize;	
+	MergeInfoForCabac() : m_bMergeFlags(true), m_predModes(0), m_partSize(size_2Nx2N), m_cbfY(1), m_cbfU(1), m_cbfV(1){}
+};
+
+struct FmeInfoForCabac
+{
+	bool                         m_bSkipFlag;
+	bool                         m_bMergeFlags;
+	char                         m_predModes;
+	char                         m_refIdx[2];
+	char                         m_mvpIdx[2];
+	unsigned char          m_interDir;
+	unsigned char          m_cbfY;
+	unsigned char          m_cbfU;
+	unsigned char          m_cbfV;
+	short                        m_mvdx[2]; //x of mvd
+	short                        m_mvdy[2]; //y of mvd
+	Part_Size                  m_partSize;
+	FmeInfoForCabac() :m_bSkipFlag(false), m_bMergeFlags(false), m_predModes(0), m_partSize(size_2Nx2N), m_cbfY(1), m_cbfU(1), m_cbfV(1){}
+};
+const int nMaxRefPic = 5*2; //ref picture number of list0 + ref picture number of list
 extern Mv g_leftPMV[nMaxRefPic];
 extern Mv g_leftPmv[nMaxRefPic];
 extern Mv g_RimeMv[nMaxRefPic][85];
@@ -184,7 +225,7 @@ private:
 	int                                               m_nCtuPosInPic;  //CTU z scan position in the picture
 	int                                               m_nPicWidth;
 	int                                               m_nPicHeight;
-	int                                               m_nRefPic;
+	int                                               m_nRefPic[2];
 	Slice_Type                                    m_nSliceType;
 	struct Mv**                                  m_mvNeighMv; //list have 2 directions
 
@@ -221,8 +262,8 @@ public:
 	void setOrigPic(unsigned char *pCurrOrigPic, int stride);
 	void setSliceType(Slice_Type nSliceType){ m_nSliceType = nSliceType; }
 	Slice_Type getSliceType(){ return m_nSliceType; }
-	void setRefPicNum(int nRefPic){ m_nRefPic = nRefPic; }
-	int getRefPicNum(){ return m_nRefPic; }
+	void setRefPicNum(int nRefPic, int list){ m_nRefPic[list] = nRefPic; }
+	int getRefPicNum(int list){ return m_nRefPic[list]; }
 	unsigned char *getOrigPic(){ return m_pOrigPic; }
 	short *getRefPicDS(int nRefPicIdx){ return m_pRefPicDS[nRefPicIdx]; }
 	void setNeighMv(Mv pMv, int nRefPicIdx, int idx){ m_mvNeighMv[nRefPicIdx][idx].x = pMv.x; m_mvNeighMv[nRefPicIdx][idx].y = pMv.y; }
@@ -252,7 +293,7 @@ private:
 	int                                              m_nCuPosInCtu;
 	int                                              m_nPicWidth;
 	int                                              m_nPicHeight;
-	int                                              m_nRefPic;
+	int                                              m_nRefPic[2];
 	Slice_Type                                   m_nSliceType;
 	struct Mv                                    m_mvRefine[nMaxRefPic][3]; //0: CIME output PMV; 1. first neighbor PMV; 2. second neighbor PMV
 	struct Mv                                    m_mvNeigh[nMaxRefPic][nAllNeighMv];
@@ -293,8 +334,8 @@ public:
 	void setCuSize(int nCuSize){ m_nCuSize = nCuSize; }
 	void setCtuPosInPic(int nCtuPosInPic){ m_nCtuPosInPic = nCtuPosInPic; }
 	void setCuPosInCtu(int nCuPosInCtu){ m_nCuPosInCtu = nCuPosInCtu; }
-	void setRefPicNum(int nRefPic){ m_nRefPic = nRefPic; }
-	int getRefPicNum(){ return m_nRefPic; }
+	void setRefPicNum(int nRefPic, int list){ m_nRefPic[list] = nRefPic; }
+	int getRefPicNum(int list){ return m_nRefPic[list]; }
 	void setSliceType(Slice_Type nSliceType){ m_nSliceType = nSliceType; }
 	Slice_Type getSliceType(){ return m_nSliceType; }
 	void setRefPic(unsigned char *pRefPicY, int stride_Y, unsigned char *pRefPicU, int stride_U, unsigned char *pRefPicV, int stride_V, int nRefPicIdx);
@@ -346,9 +387,10 @@ private:
 	int                                               m_nCtuSize;
 	int                                               m_nCtuPosInPic;  //CTU z scan position in the picture
 	int                                               m_nCuPosInCtu;
-	int                                               m_nRefPic;
+	int                                               m_nRefPic[2];
 	char                                            m_nQP;
 	Slice_Type                                    m_nSliceType;
+	FmeInfoForCabac                        m_fmeInfoForCabac;
 
 	//FME output
 	short                                           *m_pCurrCuResi[nMaxRefPic];
@@ -390,9 +432,10 @@ public:
 	int getMvpIdx(int nRefPicIdx){ return m_nMvpIdx[nRefPicIdx]; }
 	Slice_Type getSliceType(){ return m_nSliceType; }
 	void setSliceType(Slice_Type nSliceType){ m_nSliceType = nSliceType; }
-	int getRefPicNum(){ return m_nRefPic; }
-	void setRefPicNum(int nRefPic){ m_nRefPic = nRefPic; }
+	int getRefPicNum(int list){ return m_nRefPic[list]; }
+	void setRefPicNum(int nRefPic, int list){ m_nRefPic[list] = nRefPic; }
 	short *getCurrCuResi(){ return m_pBestResi; }
+	FmeInfoForCabac* getFmeInfoForCabac(){ return &m_fmeInfoForCabac; }
 	unsigned char *getCurrCuPred(){ return m_pBestPred; }
 	void setFmeInterpPel(unsigned char *src, int src_stride, int nRefPicIdx);
 	void setCurrCuPel(unsigned char *src, int src_stride);
@@ -441,28 +484,28 @@ class MergeMvpCand
 {
 private:
 	//merge candidate input
-	TEMPORAL_MV    m_mvTemporal[2][16]; //store temporal information of 2 CTU
-	SPATIAL_MV         m_mvSpatial[5]; //store A1,B1,B0,A0,B2
-	SPATIAL_MV         m_mvSpatialForCtu[18];
-	SPATIAL_MV         m_mvSpatialForCu64[4];
-	SPATIAL_MV         m_mvSpatialForCu32[9];
-	SPATIAL_MV         m_mvSpatialForCu16[10];
-	SPATIAL_MV         m_mvSpatialForCu8[7];
-	int                        m_nRefPic[2];
-	int                        m_nMergeCand;
-	int                        m_nCuSize;
-	int                        m_nCtuSize;
-	int                        m_nCuPosInCtu;
-	int                        m_nCtuPosInPic;
-	int                        m_nPicWidth;
-	int                        m_nPicHeight;
-	int                        m_nMergeLevel;
-	int                        m_nCurrPicPoc;
-	int                        m_nCurrRefPicPoc[2];
-	int                        m_nFromL0Flag;
-	bool                     m_bCheckLDC;
-	bool                     m_bTMVPFlag;
-	Slice_Type             m_nSliceType;
+	TEMPORAL_MV                   m_mvTemporal[2][16]; //store temporal information of 2 CTU
+	SPATIAL_MV                        m_mvSpatial[5]; //store A1,B1,B0,A0,B2
+	SPATIAL_MV                        m_mvSpatialForCtu[18];
+	SPATIAL_MV                        m_mvSpatialForCu64[4];
+	SPATIAL_MV                        m_mvSpatialForCu32[9];
+	SPATIAL_MV                        m_mvSpatialForCu16[10];
+	SPATIAL_MV                        m_mvSpatialForCu8[7];
+	int                                       m_nRefPic[2];
+	int                                       m_nMergeCand;
+	int                                       m_nCuSize;
+	int                                       m_nCtuSize;
+	int                                       m_nCuPosInCtu;
+	int                                       m_nCtuPosInPic;
+	int                                       m_nPicWidth;
+	int                                       m_nPicHeight;
+	int                                       m_nMergeLevel;
+	int                                       m_nCurrPicPoc;
+	int                                       m_nCurrRefPicPoc[2];
+	int                                       m_nFromL0Flag;
+	bool                                    m_bCheckLDC;
+	bool                                    m_bTMVPFlag;
+	Slice_Type                           m_nSliceType;
 
 	//merge candidate output
 	MvField                m_mvFieldNeighbours[5*2]; //two directions
@@ -600,9 +643,10 @@ private:
 	int                                               m_nCuSize;
 	int                                               m_nCtuSize;
 	int                                               m_nCuPosInCtu;
+	MergeInfoForCabac                    m_mergeInfoForCabac;
 
 	//merge output
-	short                                            *m_pCurrCuResi[6];
+	short                                            *m_pCurrCuResi[nMaxRefPic];
 	short                                            *m_pMergeResi;
 	unsigned char                              *m_pMergePred;
 	int                                                m_nMergeIdx;
@@ -615,7 +659,7 @@ public:
 	void Destroy();
 
 	//get or set member
-	void setNeighPmv(Mv mvNeighPmv[12]);
+	void setNeighPmv(Mv mvNeighPmv[nMaxRefPic*2]);
 	void setMergeCand(MvField mvMergeCand[6]);
 	void setCuSize(int nCuSize){ m_nCuSize = nCuSize; }
 	void setCtuSize(int nSize){ m_nCtuSize = nSize; }
@@ -624,6 +668,7 @@ public:
 	void PrefetchMergeSW(unsigned char *src_prev0, int stride_prev0, unsigned char *src_prev1, int stride_prev1, 
 		unsigned char *src_post0, int stride_post0, unsigned char *src_post1, int stride_post1, int nMergeIdx);
 	void setCurrCuPel(unsigned char *src, int src_stride);
+	MergeInfoForCabac *getMergeInfoForCabac(){ return &m_mergeInfoForCabac; }
 	short *getMergeResi(){ return m_pMergeResi; }
     unsigned char *getMergePred(){return m_pMergePred;}
 	MvField getMergeCand(int nMergeIdx, bool isPost){ return m_mvMergeCand[nMergeIdx * 2 + isPost]; }

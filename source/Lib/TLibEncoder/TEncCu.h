@@ -145,6 +145,7 @@ public:
 	void CimePrepare(TComDataCU* cu, int nQp);
 	void RimeAndFmePrepare(TComDataCU* cu, int nQp);
 	bool isOutPic(int);
+	void setSearchRange(int &merange_x, int &merange_y);
 	void SaveTemporalMv(TComDataCU* cu);
 	void setMvpCandInfoForCtu(TComDataCU* cu);
 #endif
