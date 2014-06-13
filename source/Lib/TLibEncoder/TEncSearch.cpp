@@ -2676,27 +2676,24 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 			// Find N least cost modes. N = numModesForFullRD
 			for (uint32_t mode = 0; mode < numModesAvailable; mode++)
 			{
-				// only do 0, 1, 2, 4, 6, ..., 34 for 4x4 and 8x8 layer
-				if (INTRA_REDUCE_DIR(mode, width))
-				{
 #ifdef RK_INTRA_SAD_REPALCE_SATD
-					uint32_t nSad = modeCosts_SAD[mode];
+				uint32_t nSad = modeCosts_SAD[mode];
 #else
-					uint32_t nSad = modeCosts[mode];
+				uint32_t nSad = modeCosts[mode];
 #endif
-					uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
+				uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
 #if RK_CABAC_H
-					if (depth != 0)
-					{
-						g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
-						uint64_t temp = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
-						g_intra_est_bit_luma_pred_mode_all_case[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = temp;
-					}
+				if (depth != 0)
+				{
+					g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
+					uint64_t temp = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+					g_intra_est_bit_luma_pred_mode_all_case[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = temp;
+				}
 #else
-					if (depth != 0)
-					{
-						g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
-					}
+				if (depth != 0)
+				{
+					g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
+				}
 #endif
 #if 0
 				for(int j=0; j<numCand_sad; j++)
@@ -2727,7 +2724,6 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 #else
 				candNum += xUpdateCandList(mode, cost, numModesForFullRD, rdModeList, candCostList);
 #endif
-				}
 			}
 
 			int preds[3] = { -1, -1, -1 };
