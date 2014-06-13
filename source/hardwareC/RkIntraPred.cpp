@@ -2342,10 +2342,20 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 							pInterface_Intra->cidx, // 0 is luma NOW only support luma
 							dirMode);
 
-#ifdef INTRA_RESULT_STORE_FILE_
+//#ifdef INTRA_RESULT_STORE_FILE_
+#if 1
+			static uint32_t cu_count = 0;
+			if((width == 8) && (cur_depth == 3))
+			{
+				if ( 0 == dirMode )
+				{
+				    cu_count++;
+				}
+				RK_HEVC_FPRINT(g_fp_result_rk,"num = %d\n", cu_count);
+				RK_HEVC_FPRINT(g_fp_result_rk,"dirMode = %d\n", dirMode);
 
-			StorePredSamples(g_fp_result_rk, predSample, width, height);
-
+				StorePredSamples(g_fp_result_rk, predSample, width, height);
+			}
 #endif
 
 			// step 4 //
@@ -2478,7 +2488,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		for (int i = 0 ; i < 35 ; i++ )
 		{
 		    index[i] = i;
-		}
+		}			
+
 		BubbleSort(index,costTotal, 35);
 
 		int bestMode = index[0];
@@ -3095,8 +3106,13 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 			RK_CheckPredSamples(
 				rk_IntraPred_35.rk_predSampleTmp[dirMode],
 				predSample, width, height);
-#ifdef INTRA_RESULT_STORE_FILE_
-			StorePredSamples(g_fp_result_x265, predSample, width, height);
+//#ifdef INTRA_RESULT_STORE_FILE_
+#if 1
+			if ( width == 8 )
+			{
+				RK_HEVC_FPRINT(g_fp_result_x265,"dirMode = %d\n", dirMode);
+				StorePredSamples(g_fp_result_x265, predSample, width, height);
+			}
 #endif
 
 			// step 4 //
