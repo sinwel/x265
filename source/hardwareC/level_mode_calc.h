@@ -81,14 +81,11 @@ public:
  	uint8_t*                recon4x4[6]; //reon, Y+Y+Y+Y+Cb+Cr, only for intra 4x4, added by lks
     bool                    choose4x4split; // flag, only used when size==8, 1: choose 4x4 split, added by lks
 
-    // for copy resi/recon in ME, in case cu_w==64, added by lks
-    int16_t                 resiCU64Y[64*64];
-    int16_t                 resiCU64U[32*32];    
-       
-    int16_t                 resiCU64V[32*32];    
-    uint8_t                 reconCU64Y[64*64];   
-    uint8_t                 reconCU64U[32*32];    
-    uint8_t                 reconCU64V[32*32];
+    // for copy resi/recon in ME, added by lks
+	uint8_t*  reconFme[3];
+	uint8_t*  reconMerge[3];
+	int16_t*  coeffFme[3];
+	int16_t*  coeffMerge[3];
     
 	hardwareC *pHardWare;
     uint32_t TotalCost;
@@ -156,12 +153,12 @@ public:
     void inter_proc(int offsIdx);
     uint32_t RdoDistCalc(uint32_t SSE, uint8_t yCbCr);
     uint32_t RdoCostCalc(uint32_t dist, uint32_t bits, int qp);
+    void InterRdCompare();
     void RDOCompare();
     void begin();
     void end();
 
     void intra_neighbour_flag_descion();
-
     void recon();
 
     void BS_calc();

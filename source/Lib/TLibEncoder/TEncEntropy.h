@@ -81,7 +81,7 @@ public:
     virtual void resetCoeffCost() = 0;
     virtual uint32_t getNumberOfWrittenBits() = 0;
 
-	virtual uint32_t getNumberOfWrittenBits_fraction() = 0;//ADD BY GSL ÌáÈ¡·ÖÊýbit
+	virtual uint64_t getNumberOfWrittenBits_fraction() = 0;//ADD BY GSL ÌáÈ¡·ÖÊýbit
 
     virtual uint32_t getCoeffCost() = 0;
 

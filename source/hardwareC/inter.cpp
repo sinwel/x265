@@ -4688,6 +4688,14 @@ void AmvpCand::setMvTemporal(TEMPORAL_MV mvTemporal, int cuIdx, int nPos)
 	memcpy(&m_mvTemporal[cuIdx][nPos], &mvTemporal, sizeof(TEMPORAL_MV));
 }
 
+void AmvpCand::setCurrRefPicPoc(int nCurrRefPicPoc[nMaxRefPic/2], int list)
+{
+	for (int i = 0; i < nMaxRefPic / 2; i++)
+	{
+		m_nCurrRefPicPoc[list][i] = nCurrRefPicPoc[i];
+	}
+}
+
 void AmvpCand::fillMvpCand(int picList, int refIdx, AmvpInfo* info)
 {
 	bool bAddedSmvp = false;
@@ -4832,7 +4840,7 @@ void AmvpCand::fillMvpCand(int picList, int refIdx, AmvpInfo* info)
 			}
 		}
 
-		if (lcuIdx >= 0 && xGetColMVP(picList, lcuIdx, absPartAddr, colmv, m_bCheckLDC, m_nFromL0Flag))
+		if (lcuIdx >= 0 && xGetColMVP(picList, lcuIdx, absPartAddr, colmv, refIdx, m_bCheckLDC, m_nFromL0Flag))
 		{
 			info->m_mvCand[info->m_num++] = colmv;
 		}
@@ -4841,7 +4849,7 @@ void AmvpCand::fillMvpCand(int picList, int refIdx, AmvpInfo* info)
 			unsigned int partIdxCenter;
 			unsigned int curLCUIdx = m_nCtuPosInPic;
 			xDeriveCenterIdx(partIdxCenter);
-			if (xGetColMVP(picList, curLCUIdx, partIdxCenter, colmv, m_bCheckLDC, m_nFromL0Flag))
+			if (xGetColMVP(picList, curLCUIdx, partIdxCenter, colmv, refIdx, m_bCheckLDC, m_nFromL0Flag))
 			{
 				info->m_mvCand[info->m_num++] = colmv;
 			}
@@ -4861,7 +4869,7 @@ void AmvpCand::fillMvpCand(int picList, int refIdx, AmvpInfo* info)
 	}
 }
 
-bool AmvpCand::xAddMVPCand(AmvpInfo* info, int picList, int /*refIdx*/, AMVP_DIR dir)
+bool AmvpCand::xAddMVPCand(AmvpInfo* info, int picList, int refIdx, AMVP_DIR dir)
 {
 	bool PicWidthNotDivCtu = m_nPicWidth / m_nCtuSize*m_nCtuSize < m_nPicWidth;
 	int numCtuInPicWidth = m_nPicWidth / m_nCtuSize + (PicWidthNotDivCtu ? 1 : 0);
@@ -4902,7 +4910,7 @@ bool AmvpCand::xAddMVPCand(AmvpInfo* info, int picList, int /*refIdx*/, AMVP_DIR
 		return false;
 	}
 
-	int currDeltaPoc = m_nCurrPicPoc - m_nCurrRefPicPoc[picList];
+	int currDeltaPoc = m_nCurrPicPoc - m_nCurrRefPicPoc[picList][refIdx];
 	if ((m_mvSpatial[idx].ref_idx[picList] >= 0 && m_mvSpatial[idx].pred_flag[picList]) && currDeltaPoc == m_mvSpatial[idx].delta_poc[picList])
 	{
 		Mv mvp = m_mvSpatial[idx].mv[picList];
@@ -4933,7 +4941,7 @@ bool AmvpCand::xAddMVPCand(AmvpInfo* info, int picList, int /*refIdx*/, AMVP_DIR
 	return false;
 }
 
-bool AmvpCand::xAddMVPCandOrder(AmvpInfo* info, int picList, int /*refIdx*/, AMVP_DIR dir)
+bool AmvpCand::xAddMVPCandOrder(AmvpInfo* info, int picList, int refIdx, AMVP_DIR dir)
 {
 	bool PicWidthNotDivCtu = m_nPicWidth / m_nCtuSize*m_nCtuSize < m_nPicWidth;
 	int numCtuInPicWidth = m_nPicWidth / m_nCtuSize + (PicWidthNotDivCtu ? 1 : 0);
@@ -4984,7 +4992,7 @@ bool AmvpCand::xAddMVPCandOrder(AmvpInfo* info, int picList, int /*refIdx*/, AMV
 		refPicList2nd = REF_PIC_LIST0;
 	}
 
-	int currDeltaPoc = m_nCurrPicPoc - m_nCurrRefPicPoc[picList];
+	int currDeltaPoc = m_nCurrPicPoc - m_nCurrRefPicPoc[picList][refIdx];
 	bool bIsCurrRefLongTerm = false;
 	bool bIsNeibRefLongTerm = false;
 
@@ -5111,7 +5119,7 @@ int AmvpCand::zscanToPos(unsigned int zscan)
 	return nPos;
 }
 
-bool AmvpCand::xGetColMVP(int picList, int cuAddr, unsigned int partUnitIdx, Mv& outMV, bool isCheckLDC, int colFromL0Flag)
+bool AmvpCand::xGetColMVP(int picList, int cuAddr, unsigned int partUnitIdx, Mv& outMV, int refIdx, bool isCheckLDC, int colFromL0Flag)
 {
 	unsigned int absPartAddr = partUnitIdx & 0xFFFFFFF0;
 	int colRefPicList;
@@ -5127,7 +5135,7 @@ bool AmvpCand::xGetColMVP(int picList, int cuAddr, unsigned int partUnitIdx, Mv&
 	}
 
 	curPOC = m_nCurrPicPoc;
-	curRefPOC = m_nCurrRefPicPoc[picList];
+	curRefPOC = m_nCurrRefPicPoc[picList][refIdx];
 
 	colRefPicList = isCheckLDC ? picList : colFromL0Flag;
 	bool isListValid = colRefPicList ? m_mvTemporal[idx][nPos].pred_l1 : m_mvTemporal[idx][nPos].pred_l0;

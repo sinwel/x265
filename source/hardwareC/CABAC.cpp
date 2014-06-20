@@ -5611,7 +5611,7 @@ UInt	scan_coeff_block[3][4][64] =  //¹âÕ¤µ½É¨ÃèµÄ×ª»»±í¸ñ
 #define BYP_MODE_2	6
 #define BYP_MODE_3	7
 #define	EST_CABAC	1
-#define ST_CTU 							EST_CABAC + 1	
+//#define ST_CTU 							EST_CABAC + 1	
 
 
 #define ST_CTU_IDLE                                       	EST_CABAC														+ 1				  //2
@@ -6055,15 +6055,15 @@ int get_coeff_len(int coeff_value,int riceparam,int value[3], int len[3])
 	return len[0] + len[1];
 
 }
-bool read_from_fifo(int mSize, uint64_t data)
-{
-
-	return true;
-}
-void	enc_bins(int bin, int len,int mode =0)
-{
-	return;
-}
+// bool read_from_fifo(int mSize, uint64_t data)
+// {
+// 
+// 	return true;
+// }
+// void	enc_bins(int bin, int len,int mode =0)
+// {
+// 	return;
+// }
 int	get_num_bit(int data, int offset,int num)
 {
 	int	mMask;
@@ -6080,18 +6080,18 @@ int	set_bit(int data,int val, int offset)
 	mMask ^= 1 << offset;
 	return (data & mMask)  | (val << offset);
 }
-void	enc_bypass(int val, int len,int mode = 0)
-{
-	return;
-}
-void	enc_ori(int val, int len)
-{
-	return;
-}
-void enc_bin1(int *ctxinc,int *Case,int len)
-{
-	return;
-}
+// void	enc_bypass(int val, int len,int mode = 0)
+// {
+// 	return;
+// }
+// void	enc_ori(int val, int len)
+// {
+// 	return;
+// }
+// void enc_bin1(int *ctxinc,int *Case,int len)
+// {
+// 	return;
+// }
 
 #pragma  endregion
 
@@ -6179,7 +6179,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 	//	int tu_scan_table[4][64];
 	
 	
-	int only_dc_flag = 0 ;
+//	int only_dc_flag  ;
 	int find_last_sub_block = 0 ;
 	int subnum_icnt_r = 0 ;
 	int codedsub_xs = 0 ;
@@ -6190,12 +6190,12 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 	int last_sig_coeff_x_prefix_r = 0 , last_sig_coeff_y_prefix_r = 0;
 	int lastsubblock_num = 0 ;
 	int lastsubblock_tilenum = 0 ;
-	int lastcoeff_num = 0 ;
+	int lastcoeff_num  ;
 	int lastcoeff_tilenum = 0 ;
 	int first_sig_coeff_cycle = 1 ;
 	int subnum_lastone_flag_r = 0;
 	int ru_luma_flag = 0 ,ru_cb_flag = 0  ,ru_cr_flag = 0 ;
-	int cbf_cb_exist = 0 , cbf_cr_exist = 0 , cbf_luma_exist = 0 ;
+//////	int cbf_cb_exist = 0 , cbf_cr_exist = 0 , cbf_luma_exist = 0 ;
 	int tu_loop_cnt_r = 0 ,max_tu_cnr = 0 ;
 	int cbf_cb_val = 0 , cbf_cr_val = 0 ,cbf_luma_r = 1 ;
 	int	cbf_cb_r[4] = { 0 },cbf_cr_r[4] = { 0 };
@@ -6231,7 +6231,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 	int cofgreater2_flag_found = 0 ;
 	int cofgreater0_flag_pos_r[16] = { 0 };
 	int cofgreater1_flag_pos_r[16] = { 0 };
-	int cofgreater1_flag_pos[16] = { 0 };
+//	int cofgreater1_flag_pos[16] = { 0 };
 	int coeff_abs_level_remaining_pos_r[16] = { 0 };
 
 
@@ -6241,10 +6241,10 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 
 
 	int inferSbDcSigCoeffFlag = 0 , inferSbDcSigCoeffFlag_r = 0 ;
-	int ru_subblock_parameter = 0 ;
+//	int ru_subblock_parameter  ;
 	int ru_subblock_parameter_len_r = 0 ;
 	int ru_subblock_parameter_r = 0 ;
-	int i;
+//	int i;
 	//	int coeff_value[16];//enc_out len
 
 	int val_len_r = 0 ;//enc_out len
@@ -6254,21 +6254,21 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 	int val_len_coeff_abs_level_greater2_flag_r = 0 ;
 	int val_len_sig_coeff_flag = 0 ;
 	int val_len_coeff_abs_level_remaining = 0 ;
-	int val_len_coeff_sign_flag = 0 ;
-	int val_len_last_sig_coeff_x_prefix = 0 ;
+//	int val_len_coeff_sign_flag  ;
+//	int val_len_last_sig_coeff_x_prefix ;
 	int val_len_last_sig_coeff_xy_prefix = 0 ;
-	int val_len_last_sig_coeff_y_prefix = 0 ;
-	int valbin_ecs_last_sig_coeff_y_prefix = 0 ;
-	int valbin_ecs_last_sig_coeff_x_prefix = 0 ;
+//	int val_len_last_sig_coeff_y_prefix  ;
+//	int valbin_ecs_last_sig_coeff_y_prefix  ;
+//	int valbin_ecs_last_sig_coeff_x_prefix  ;
 	int valbin_ecs_last_sig_coeff_xy_prefix = 0 ;
 	int valbin_ecs_sig_coeff_flag = 0 ;//×î¶àÁ¬Ðø4¸ösig_coeff_flag×é³ÉµÄbin
 	int valbin_ecs_coeff_abs_level_greater1_flag = 0 ;
 	int valbin_ecs_coeff_abs_level_greater2_flag = 0 ;
 	int valbin_ecs_coeff_abs_level_greater2_flag_r = 0 ;
 	int valbin_ecs_codec_block_flag = 0 ;
-	int valbin_ecs_coeff_sign_flag = 0 ;
+//	int valbin_ecs_coeff_sign_flag  ;
 	int64_t valbin_ecs_coeff_abs_level_remaining = 0 ;
-	int valbin_ecs = 0 ;
+//	int valbin_ecs  ;
 	int valbin_r = 0 ;//enc_out data
 	int prevcsbf = 0 ;
 	int csbfCtx = 0 ;
@@ -6313,10 +6313,10 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 
 
 	int 	cofgreater0_cnt_idx_r = 0 ;//sig_coeff_flag_r == 1 's num
-	int cofgreater1_cnt_idx_ff1_r = 0 ;//delay 1 cycle of cofgreater0_cnt_idx_r
+//	int cofgreater1_cnt_idx_ff1_r = 0 ;//delay 1 cycle of cofgreater0_cnt_idx_r
 	int cofgreater0_cnt_idx_minus[4] = { 0 };//sig_coeff_flag_r == 1 's num
 	int 	cofgreater1_cnt_r = 0 ;//sig_coeff_flag_r == 1 's num
-	int 	cofgreater1_cnt = 0 ;//sig_coeff_flag_r == 1 's num
+//	int 	cofgreater1_cnt = 0 ;//sig_coeff_flag_r == 1 's num
 	int cofgreater1_cnt_plus[4] = { 0 };
 
 	int cofgreater0_cnt = 0 ;
@@ -6330,20 +6330,22 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 
 	int coeff_sign_flag_cnt_r = 0 ;
 	int coeff_sign_flag_cnt_idx_r = 0 ;
-	int coeff_sign_flag_cnt_idx = 0 ;
-	int coeff_sign_flag_cnt_idx_ff1_r = 0 ;
-	int coeff_sign_flag_cnt_idx_minus[4] = { 0 };
+//	int coeff_sign_flag_cnt_idx = 0 ;
+//	int coeff_sign_flag_cnt_idx_ff1_r = 0 ;
+//	int coeff_sign_flag_cnt_idx_minus[4] = { 0 };
 
 	int lastGreater1Ctx = 0 ;
 	int Greater1Flag[4] = {0} ;
-	int Greater1Flag_for_cnt[4] = {0} ;
+//	int Greater1Flag_for_cnt[4]  ;
 	int lastGreater1Flag_r, lastGreater1Ctx_r = 0 ;
 
 	int numGreater1Flag_solved_r = 0 ;//ÓÃÀ´±íÊ¾´óÓÚ1¸öÏµÊýÒÑ¾­¹ÀËãÁË¼¸¸önumGreater1Flag_for_cnt_solved_r
 	int greater1_avail_pos = 0 ;//ÓÃÀ´Óëgreater1ÏàÓë È¡³öÓÐÐ§µÄbit
-	int	Greater1Flag_equal_1_num = 0 ,Greater1Flag_equal_1_num_ff1 = 0 ,Greater1Flag_num_avail = 0 ;
+//	int	Greater1Flag_equal_1_num  ,Greater1Flag_equal_1_num_ff1  l;
+	int Greater1Flag_num_avail = 0 ;
 	int firstSigScanPos = 0 , firstSigScanPos_r  = 0 ;
-	int	lastSigScanPos = 0 , lastSigScanPos_r = 0 ;
+	int	lastSigScanPos = 0 ;
+//	int lastSigScanPos_r  ;
 	int lastGreater1ScanPos = 0 , lastGreater1ScanPos_r = 0 ;
 	int sign_data_hiding_enabled_flag = 0 ;
 	int signHidden = 0 ;
@@ -6358,7 +6360,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 	int cAbsLevel[8] = { 0 };
 	int cLastRiceParam_r = 0 ;
 	int cLastAbsLevel_r = 0 ;
-	int prefixVal[4] = { 0 };
+//	int prefixVal[4] ;
 
 //	scanorder_mode	  = 0;//DIAG,HOR,VER;
 	find_last_sub_block = 0;
@@ -6438,7 +6440,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 		
 		if(log2TrafoSize == 2)
 		{
-			for(i = 0; i < 3; i++)
+			for(int i = 0; i < 3; i++)
 			{
 				last_sig_coeff_prefix_ctx_inc[i ] = i ;//¶Ô4*4 Ç°×ºÖµÖ»ÓÐ0 1 2 3
 			}
@@ -6692,7 +6694,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 #pragma  region
 		if( (cabac_cs == ST_SIG_COEFF_FLAG) && (sig_coeff_flag_r_cnt_idx_ff1_r < 4 && !(subnum_icnt_r==0 && lastsubblock_num>0 && !sig_coeff_flag_blk0_zero_r)) || cabac_ns == ST_COEFF_ABS_LEVEL_GREATER1_FLAG)// Ô­Ê¼Ìõ¼þ  cabac_ns == ST_COEFF_ABS_LEVEL_GREATER1_FLAG)
 		{
-			for(i = 0; i < 4; i++)
+			for(int i = 0; i < 4; i++)
 			{
 				Greater1Flag[i] =	coeff_abs_level_greater1_flag_r[cofgreater0_flag_pos_r[i + numGreater1Flag_solved_r]];
 //				Greater1Flag[i] =	coeff_abs_level_greater1_flag_r[cofgreater1_flag_pos_r[cofgreater1_cnt_r - cofgreater1_cnt_idx_minus[i]]];
@@ -6741,7 +6743,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 		}
 		else
 		{
-			for(i = 0; i <= coeff_abs_level_remaining_cnt_idx_r; i++)
+			for(int i = 0; i <= coeff_abs_level_remaining_cnt_idx_r; i++)
 			{
 				if( coeff_abs_level_remaining_r[coeff_abs_level_remaining_cnt_r - coeff_abs_level_remaining_cnt_idx_minus[i]] > 0)
 					valbin_ecs_coeff_abs_level_remaining = coeff_abs_level_remaining_r[
@@ -7108,7 +7110,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 // 				est_bins(valbin_r, val_len_r,valbin_ctxInc_r , COEFF_ABS_LEVEL_GREATER2_FLAG_OFFSET);
 // 			}
 
-			for( i = 0; i < (coeff_abs_level_remaining_cnt_ff1_r >= 8 ? 8 : coeff_abs_level_remaining_cnt_ff1_r); i++)
+			for(int  i = 0; i < (coeff_abs_level_remaining_cnt_ff1_r >= 8 ? 8 : coeff_abs_level_remaining_cnt_ff1_r); i++)
 			{
 				est_bypass(coeff_abs_level_remaining_len_r[i] , 3);
 //				printf("%d ,\n" ,est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu]);
@@ -7464,7 +7466,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 			}
 			
 			//ÒÔÏÂÓ¦¸ÃÊÇºÍenc_outÓÐ¹Ø
-			for(i = 0; i < 4; i++)
+			for(int i = 0; i < 4; i++)
 			{
 				int idx = sig_coeff_flag_r_cnt_idx_minus[i];//»ñÈ¡Î´´¦ÀíµÄµ¹ÊýµÚi¸öÏµÊýµÄÉ¨ÃèÐòºÅ
 				int base = coeff_abs_level_greater1_flag_r[idx] + sig_coeff_flag_r[idx];//ÕâÀï»¹Ã»¿¼ÂÇcoeff_abs_level_greater2_flag_r
@@ -7586,12 +7588,12 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 						last_sig_coeff_y_suffix_len_r = get_coeff_suffix_len(last_sig_coeff_y_prefix);//»ñÈ¡yºó×º³¤¶È
 						if (last_sig_coeff_x_prefix > 3)
 						{
-							uint32_t count = (last_sig_coeff_x_prefix - 2) >> 1;//£¿¸ÉÊ²Ã´ÓÃ
+//							uint32_t count = (last_sig_coeff_x_prefix - 2) >> 1;//£¿¸ÉÊ²Ã´ÓÃ
 							last_sig_coeff_x_suffix       = last_sig_coeff_x - g_minInGroup[last_sig_coeff_x_prefix];//×îºóÒ»¸öÏµÊý²»Îª0µÄx×ø±ê ºó×º   ¸úÉÏÃæµÄÇó·¨ÖØ¸´ÁË
 						}
 						if (last_sig_coeff_y_prefix > 3)
 						{
-							uint32_t count = (last_sig_coeff_y_prefix - 2) >> 1;
+//							uint32_t count = (last_sig_coeff_y_prefix - 2) >> 1;
 							last_sig_coeff_y_suffix       = last_sig_coeff_y - g_minInGroup[last_sig_coeff_y_prefix];//×îºóÒ»¸öÏµÊý²»Îª0µÄy×ø±ê ºó×º   ¸úÉÏÃæµÄÇó·¨ÖØ¸´ÁË
 						}
 
@@ -7735,7 +7737,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 
 					}
 
-					for(i = 1; i < cofgreater1_cnt_r; i++)
+					for(int i = 1; i < cofgreater1_cnt_r; i++)
 					{
 						coeff_abs_level_remaining_pos_r[i - (valbin_ecs_coeff_abs_level_greater2_flag == 0)] 	= cofgreater1_flag_pos_r[i];//Êµ¼ÊÉÏ²»ÓÃ¼ÇÂ¼Î»ÖÃÒ²¿ÉÒÔµÄ£¬ÒòÎªcoeff_abs_level_remaining_rµÄ´æ´¢ºÍÎ»ÖÃÎÞ¹Ø
 						coeff_abs_level_remaining_r[i - (valbin_ecs_coeff_abs_level_greater2_flag==0)]			= coeff_value_r[cofgreater1_flag_pos_r[i]] - 2;//?coeff_abs_level_remaining_r[i - coeff_abs_level_greater2_flag_r]  ¸ÄÎªcoeff_abs_level_remaining_r[i - (coeff_abs_level_greater2_flag_r == 0) ]  
@@ -7753,7 +7755,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 						coeff_abs_level_remaining_r[0] = coeff_value_r[cofgreater1_flag_pos_r[0]] - 3;//£¿ÒòÎªÏµÊý´óÓÚ2£¬¼õ3Ö®ºó¾ÍÊÇÊ£ÏÂµÄÒª¹ÀËãµÄÏµÊýÖµ  coeff_abs_level_remaining_pos_r ¸ÄÎªcoeff_abs_level_remaining_rÂð  Î»ÖÃºÍÊ£ÏÂµÄÏµÊýÖµÓ¦¸Ã¶¼¼ÇÂ¼
 					}
 
-					for(i = 1; i < cofgreater1_cnt_r ; i++)//cofgreater1_cnt_rÖ»Õë¶Ô×îºó8¸ö´óÓÚ0µÄÏµÊýµÄÍ³¼Æ
+					for(int i = 1; i < cofgreater1_cnt_r ; i++)//cofgreater1_cnt_rÖ»Õë¶Ô×îºó8¸ö´óÓÚ0µÄÏµÊýµÄÍ³¼Æ
 					{
 						coeff_abs_level_remaining_pos_r[i - (valbin_ecs_coeff_abs_level_greater2_flag == 0)] 	= cofgreater1_flag_pos_r[i];
 						coeff_abs_level_remaining_r[i - (valbin_ecs_coeff_abs_level_greater2_flag == 0)]			= coeff_value_r[cofgreater1_flag_pos_r[i]] - 2;//?coeff_abs_level_remaining_r[i - coeff_abs_level_greater2_flag_r]  ¸ÄÎªcoeff_abs_level_remaining_r[i - (coeff_abs_level_greater2_flag_r == 0) ]  »òÕßÕâÀïÏëÕâÃ´±í´ïµÄ»°£¬ÉÏÃæ¾ÍÎ»ÖÃµÄ¸³ÖµÒª¸ü¸Ä
@@ -7803,7 +7805,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 				coeff_abs_level_remaining_cnt_ff1_r = coeff_abs_level_remaining_cnt_idx_r + 1;
 				if(coeff_abs_level_remaining_cnt_idx_r	 >= 7)
 				{//?Ó¦¸Ã¼ÓÒ»¸öiµÄforÑ­»·
-					for(i = 0; i < 8; i++)
+					for(int i = 0; i < 8; i++)
 					{
 						coeff_abs_level_remaining_len_r[i] =
 							get_coeff_len(coeff_abs_level_remaining_r[i + coeff_abs_level_remaining_cnt_r - 1 - coeff_abs_level_remaining_cnt_idx_r], cRiceParam[i]);//est len of coeff_abs_level_remaining  //?coeff_abs_level_remaining_rµÄ´æ´¢ÊÇ°´Ë³ÐòµÄ  ¸Ä³Écoeff_abs_level_remaining_r[i]
@@ -7814,7 +7816,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 				}
 				else
 				{
-					for(i = 0; i < (coeff_abs_level_remaining_cnt_idx_r+1); i++)
+					for(int i = 0; i < (coeff_abs_level_remaining_cnt_idx_r+1); i++)
 						coeff_abs_level_remaining_len_r[i] =
 						get_coeff_len(coeff_abs_level_remaining_r[i + coeff_abs_level_remaining_cnt_r - 1 - coeff_abs_level_remaining_cnt_idx_r], cRiceParam[i]);//est len of coeff_abs_level_remaining  //?coeff_abs_level_remaining_rµÄ´æ´¢ÊÇ°´Ë³ÐòµÄ  ¸Ä³Écoeff_abs_level_remaining_r[i]
 
@@ -7973,7 +7975,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 
 
 
-		for(i = 0; i < 4; i++)
+		for(int i = 0; i < 4; i++)
 			last_sig_coeff_xy_prefix_ctx_inc_ff1[i] = last_sig_coeff_xy_prefix_ctx_inc[i];//log2TrafoSize == 2Çé¿öÏÂÆð×÷ÓÃ
 		for(int i = 0; i < 4; i++)
 			cofgreater1_ctxinc_ff1[i] =cofgreater1_ctxinc[i];
@@ -7995,10 +7997,10 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 }
 
 //CABAC ½Ó¿Úº¯Êý
-uint32_t CABAC_RDO::Est_bit_cu(uint32_t  depth , bool  IsIntra , bool  cu_skip_flag)//CU¼¶±ðÄ³²ãÉî¶ÈÏÂbit¹À¼Æ
-{
-	return 1;//return est_bit_cu[IsIntra][depth] + est_bit_pu[IsIntra][depth] + est_bit_tu[IsIntra][depth];
-}
+// uint32_t CABAC_RDO::Est_bit_cu(uint32_t  depth , bool  IsIntra , bool  cu_skip_flag)//CU¼¶±ðÄ³²ãÉî¶ÈÏÂbit¹À¼Æ
+// {
+// 	return 1;//return est_bit_cu[IsIntra][depth] + est_bit_pu[IsIntra][depth] + est_bit_tu[IsIntra][depth];
+// }
 
 uint32_t CABAC_RDO::Est_bit_pu_luma_dir(uint32_t  depth , int  dir)//PU¼¶±ðINTRA 35ÖÖ·½Ïòluma bit¹À¼Æ
 {
@@ -8008,7 +8010,7 @@ uint32_t CABAC_RDO::Est_bit_pu_luma_dir(uint32_t  depth , int  dir)//PU¼¶±ðINTRA
 uint32_t CABAC_RDO::Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx)//PU¼¶±ðINTER  mergeÄ£Ê½bit¹À¼Æ
 {
 	int bit;
-	int MAX_merge_idx;
+	int MAX_merge_idx = 0;
 	if (MAX_merge_idx==1)
 	{
 		bit = 0;
@@ -8027,8 +8029,9 @@ uint32_t CABAC_RDO::Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx)//PU¼
 
 uint32_t CABAC_RDO::Est_bit_pu_fme(uint32_t  depth , uint32_t  mvd , uint32_t  mvp_l0_flag)//PU¼¶±ðINTER  FMEÄ£Ê½bit¹À¼Æ
 {
-	int temp1 = est_bit_cu_skip_flag[0][depth][0] + est_bit_pred_mode_flag[0][depth] + est_bit_pu_part_mode[0][depth][1] + est_bit_merge_idx[depth][0] + est_bit_rqt_root_cbf[depth][0] + est_bit_mvp_l0_flag[depth][mvp_l0_flag];
+//	int temp1 = est_bit_cu_skip_flag[0][depth][0] + est_bit_pred_mode_flag[0][depth] + est_bit_pu_part_mode[0][depth][1] + est_bit_merge_idx[depth][0] + est_bit_rqt_root_cbf[depth][0] + est_bit_mvp_l0_flag[depth][mvp_l0_flag];
 	int temp2 = 0;
+	mvp_l0_flag = 0 ;//ÎªÁËÏû³ý¾¯¸æ
 
 	float x = abs((float)mvd);
 	if (x ==0)
@@ -8053,9 +8056,9 @@ uint32_t CABAC_RDO::Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type
 	int temp3 = 0;// offset sign  band_position  eo_class´øÀ´µÄbitÏûºÄ
 	int temp4 = 0;//temp4+1 ±íÊ¾×ö²»×öSAO´øÀ´µÄbitÏûºÄ
 
-	int sao_merge_left_flag_enable;//Í¨¹ýÎ¬»¤µÄ×´Ì¬ÅÐ¶ÏÊÇ·ñÔÊÐí×ömerge
-	int sao_merge_up_flag_enable;
-	int MAX_sao_offset_abs;
+	int sao_merge_left_flag_enable = 0;//Í¨¹ýÎ¬»¤µÄ×´Ì¬ÅÐ¶ÏÊÇ·ñÔÊÐí×ömerge
+	int sao_merge_up_flag_enable = 0;
+	int MAX_sao_offset_abs = 0;
 
 	if (cIdx == 0)//merge¶ÔYUVÊÇÍ¬Ê±ÉúÐ§µÄ
 	{
@@ -8464,7 +8467,6 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 					mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
 				else
 					mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_0[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-				int i =0;
 			}
 			//			pu_mode_bit_ready[IsIntra][depth]=1;
 			end_of_cabac_rdo_status =1; 

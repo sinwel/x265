@@ -92,7 +92,7 @@ void CTURow::processCU(TComDataCU *cu, TComSlice *slice, TEncSbac *bufferSbac, b
     m_entropyCoder.setBitstream(&m_bitCounter);
     m_cuCoder.setBitCounter(&m_bitCounter);
     m_bitCounter.resetBits();
-
+	
     m_cuCoder.encodeCU(cu);  // Count bits
 
     if (bSaveSBac)

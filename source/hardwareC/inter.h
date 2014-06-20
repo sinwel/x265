@@ -576,7 +576,7 @@ private:
 	int                        m_nPicWidth;
 	int                        m_nPicHeight;
 	int                        m_nCurrPicPoc;
-	int                        m_nCurrRefPicPoc[2];
+	int                        m_nCurrRefPicPoc[2][nMaxRefPic/2]; //support 5 reference picture of each list
 	int                        m_nFromL0Flag;
 	bool                     m_bTMVPFlag;
 	bool                     m_bCheckLDC;
@@ -598,7 +598,7 @@ public:
 	void setPicWidth(int nPicWidth){ m_nPicWidth = nPicWidth; }
 	void setPicHeight(int nPicHeight){ m_nPicHeight = nPicHeight; }
 	void setCurrPicPoc(int nCurrPicPoc){ m_nCurrPicPoc = nCurrPicPoc; }
-	void setCurrRefPicPoc(int nCurrRefPicPoc[2]){ m_nCurrRefPicPoc[0] = nCurrRefPicPoc[0]; m_nCurrRefPicPoc[1] = nCurrRefPicPoc[1]; }
+	void setCurrRefPicPoc(int nCurrRefPicPoc[nMaxRefPic/2], int list);
 	void setTMVPFlag(bool isTMVP = true){ m_bTMVPFlag = isTMVP; }
 	void setCheckLDC(bool isCheckLDC){ m_bCheckLDC = isCheckLDC; }
 	void setFromL0Flag(bool isFromL0Flag){ m_nFromL0Flag = isFromL0Flag; }
@@ -625,7 +625,7 @@ public:
 	void deriveRightBottomIdx(unsigned int& outPartIdxRB);
 	void xDeriveCenterIdx(unsigned int& outPartIdxCenter);
 	bool hasEqualMotion(SPATIAL_MV mvFirst, SPATIAL_MV mvSecond);
-	bool xGetColMVP(int picList, int cuAddr, unsigned int partUnitIdx, Mv& outMV, bool bCheckLDC, int colFromL0Flag);
+	bool xGetColMVP(int picList, int cuAddr, unsigned int partUnitIdx, Mv& outMV, int refIdx, bool bCheckLDC, int colFromL0Flag);
 	int zscanToPos(unsigned int zscan);
 	int xGetDistScaleFactor(int diffPocB, int diffPocD);
 	Mv scaleMv(Mv mv, int scale);

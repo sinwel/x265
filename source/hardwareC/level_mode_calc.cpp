@@ -1,4 +1,4 @@
-﻿#include <stdio.h>
+#include <stdio.h>
 #include "level_mode_calc.h"
 #include "hardwareC.h"
 #include "inter.h"
@@ -82,6 +82,17 @@ void CU_LEVEL_CALC::init(uint8_t size)
 	}
 #endif
 
+#if TQ_RUN_IN_HWC_ME //added by lks
+	for(int k=0; k<3; k++)
+	{
+		int tmpSize = k==0 ? m_size: (m_size/2);
+		reconFme[k] = (uint8_t*)malloc(tmpSize*tmpSize);
+		reconMerge[k] = (uint8_t*)malloc(tmpSize*tmpSize);
+		coeffFme[k] = (int16_t*)malloc(tmpSize*tmpSize*2);
+		coeffMerge[k] = (int16_t*)malloc(tmpSize*tmpSize*2);
+	}
+#endif
+
     inf_intra.pred = (uint8_t *)malloc(m_size*m_size);
     inf_intra.resi = (int16_t *)malloc(m_size*m_size*2);
 
@@ -149,6 +160,16 @@ void CU_LEVEL_CALC::deinit()
 		free(coeff4x4[i]); 	coeff4x4[i] = NULL;
 		free(resi4x4[i]); 	resi4x4[i] = NULL;
 		free(recon4x4[i]); 	recon4x4[i] = NULL;
+	}
+#endif
+#if TQ_RUN_IN_HWC_ME //added by lks
+
+	for(int k=0; k<3; k++)
+	{	
+		free(reconFme[k]);		reconFme[k]=NULL;
+		free(reconMerge[k]);	reconMerge[k]=NULL;
+		free(coeffFme[k]); 		coeffFme[k]=NULL;
+		free(coeffMerge[k]);	coeffMerge[k]=NULL;
 	}
 #endif
 
@@ -489,6 +510,8 @@ void CU_LEVEL_CALC::inter_qt(uint8_t nPart, uint8_t mode, uint8_t textType)
 	int  strideX265 = textType==0? 64 : 32;
 	int16_t *resiHWC = mode == 0 ? Fme.getCurrCuResi() : Merge.getMergeResi(); // output from hwc
 	uint8_t *predHWC = mode == 0 ? Fme.getCurrCuPred() : Merge.getMergePred(); // output from hwc
+	int16_t *coeffHWC = mode==0 ? coeffFme[textType] : coeffMerge[textType];
+	
 	if(textType==0) // Y
 	{
 		ctuSize = pHardWare->ctu_w;
@@ -526,7 +549,6 @@ void CU_LEVEL_CALC::inter_qt(uint8_t nPart, uint8_t mode, uint8_t textType)
 	uint8_t tuSize;
 	if(cu_w==64)
 	{
-
 		tuSize = cuSize/2;
 		inf_me.size = tuSize;
 		pos = part2pos[nPart];
@@ -536,9 +558,13 @@ void CU_LEVEL_CALC::inter_qt(uint8_t nPart, uint8_t mode, uint8_t textType)
 			memcpy(inf_me.resi+k*tuSize, resiHWC+pos+k*cuSize, tuSize*2); // copy resi
 			memcpy(inf_me.pred+k*tuSize, predHWC+pos+k*cuSize, tuSize); // copy pred
 		}
-#if TQ_RUN_IN_HWC_ME
+		
 		m_hevcQT->proc(&inf_tq, &inf_me, textType, qp, sliceType);
-#endif
+
+		for(int k=0; k<tuSize; k++)
+		{
+			memcpy(&coeffHWC[pos+k*strideX265], &inf_tq.oriResi[k*tuSize], tuSize*2); // copy coeff(after Q and T)
+		}
 
 		// compare
 		for (int k = 0; k < tuSize; k++)
@@ -555,10 +581,9 @@ void CU_LEVEL_CALC::inter_qt(uint8_t nPart, uint8_t mode, uint8_t textType)
 		memcpy(inf_me.resi, resiHWC, tuSize*tuSize*2); // copy resi
 		memcpy(inf_me.pred, predHWC, tuSize*tuSize); // copy pred
 
-#if TQ_RUN_IN_HWC_ME
 		m_hevcQT->proc(&inf_tq, &inf_me, textType, qp, sliceType); // Y
-#endif
-
+		memcpy(coeffHWC, inf_tq.oriResi, tuSize*tuSize*2); // copy coeff(after Q and T)
+		
 		// compare
 		for(int k=0; k<tuSize; k++)
 		{
@@ -607,8 +632,10 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 	inf_inter_fme_proc.Distortion = 0;
 	inf_inter_fme_proc.Bits= g_fmeBits[offsIdx];// to do
 	inf_inter_merge_proc.Distortion = 0;
-	inf_inter_merge_proc.Bits= g_mergeBits[offsIdx];// to do
+	inf_inter_merge_proc.Bits= g_mergeBits[offsIdx];
 
+	uint8_t ori_data[32*32];
+	
 	if (!isCuOutPic)
 	{
 		//Fme residual and MVD MVP index compare
@@ -665,8 +692,8 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 		}
 
 		uint8_t nPart = 0;
-
-		/* FME TQ */
+		
+		//=================== TQ  for FME ===================
 		unsigned char cbfY = 0;
 		unsigned char cbfU = 0;
 		unsigned char cbfV = 0;
@@ -676,133 +703,162 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 			int k, pos;
 			for(nPart=0; nPart<4; nPart++)
 			{
-				// Y
-				inter_qt(nPart, 0, 0);
+				//-------- Y ---------
+				// TQ proc
+				inter_qt(nPart, 0, 0); 
 				cbfY |= (inf_tq.absSum == 0 ? 0:1);
 
 				inf_recon.size = inf_me.size;
-    			inf_recon.pred = inf_me.pred;
+    			inf_recon.pred = inf_me.pred; 
     			inf_recon.resi = inf_tq.outResi;
-				inf_recon.ori = curr_cu_y;
     			inf_recon.Recon = cost_inter.recon_y;
 
-				recon();
 				pos = lumaPart2pos[nPart];
 				for(k=0; k<32; k++)
 				{
-					memcpy(resiCU64Y+pos+k*64, inf_recon.resi+k*inf_recon.size, 32*2);
-					memcpy(reconCU64Y+pos+k*64, inf_recon.Recon+k*inf_recon.size, 32);
+					memcpy(ori_data + k*32, curr_cu_y+pos+k*64, 32);
+				}	
+				inf_recon.ori = ori_data;
+
+				// reconstruct
+				recon();
+
+				for(k=0; k<32; k++)
+				{
+					memcpy(reconFme[0]+pos+k*64, inf_recon.Recon+k*inf_recon.size, 32);				
 				}
 
 				inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 0);
 
-				// U
-				inter_qt(nPart, 0, 1);
+				//-------- U ---------
+				// TQ proc
+				inter_qt(nPart, 0, 1); 	
 				cbfU |= (inf_tq.absSum == 0 ? 0:1);
-
+				
 				inf_recon.size = inf_me.size;
-				inf_recon.pred = inf_me.pred;
-	    		inf_recon.resi = inf_tq.outResi;
-				inf_recon.ori = curr_cu_u;
+				inf_recon.pred = inf_me.pred; 
+	    		inf_recon.resi = inf_tq.outResi; 
 				inf_recon.Recon = cost_inter.recon_u;
 
-				recon();
 				pos = chromaPart2pos[nPart];
 				for(k=0; k<16; k++)
 				{
-					memcpy(resiCU64U+pos+k*32, inf_recon.resi+k*inf_recon.size, 16*2);
-					memcpy(reconCU64U+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+					memcpy(ori_data+k*16, curr_cu_u+pos+k*32, 16);
 				}
+				inf_recon.ori = ori_data;
 
-				inf_inter_fme_proc.ReconU 	= inf_recon.Recon;
-	   			inf_inter_fme_proc.ResiU 	= inf_recon.resi;
+				// reconstruct
+				recon();
 
+				for(k=0; k<16; k++)
+				{		
+					memcpy(reconFme[1]+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+				}						
+
+				// calc dist
 				inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 1);
 
-				// V
-				inter_qt(nPart, 0, 2);
+				//-------- V ---------
+				// TQ proc
+				inter_qt(nPart, 0, 2); 	
 				cbfV |= (inf_tq.absSum == 0 ? 0:1);
-
+				
 				inf_recon.size = inf_me.size;
-				inf_recon.pred = inf_me.pred;
+				inf_recon.pred = inf_me.pred; 
 		    	inf_recon.resi = inf_tq.outResi;
-				inf_recon.ori = curr_cu_v;
 		 		inf_recon.Recon = cost_inter.recon_v;
 
-				recon();
 				for(k=0; k<16; k++)
 				{
-					memcpy(resiCU64V+pos+k*32, inf_recon.resi+k*inf_recon.size, 16*2);
-					memcpy(reconCU64V+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+					memcpy(ori_data+k*16, curr_cu_v+pos+k*32, 16);
 				}
+				inf_recon.ori = ori_data;
 
-			    inf_inter_fme_proc.ReconV 	= inf_recon.Recon;
-		   		inf_inter_fme_proc.ResiV 	= inf_recon.resi;
+				// reconstruct
+				recon();
+				
+				for(k=0; k<16; k++)
+				{		
+					memcpy(reconFme[2]+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+				}								
 
-				inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);
+				// calc dist
+				inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);					
 			}
-
-			Fme.getFmeInfoForCabac()->m_cbfY = cbfY;
-			Fme.getFmeInfoForCabac()->m_cbfU = cbfU;
-			Fme.getFmeInfoForCabac()->m_cbfV = cbfV;
-			inf_inter_fme_proc.ReconY = reconCU64Y;
-			inf_inter_fme_proc.ReconU = reconCU64U;
-			inf_inter_fme_proc.ReconV = reconCU64V;
-
-			inf_inter_fme_proc.ResiY = resiCU64Y;
-			inf_inter_fme_proc.ResiU = resiCU64U;
-			inf_inter_fme_proc.ResiV = resiCU64V;
-
+			
+			inf_inter_fme_proc.ReconY = reconFme[0];
+			inf_inter_fme_proc.ReconU = reconFme[1];
+			inf_inter_fme_proc.ReconV = reconFme[2];
+			
+			inf_inter_fme_proc.ResiY = coeffFme[0];
+			inf_inter_fme_proc.ResiU = coeffFme[1];
+			inf_inter_fme_proc.ResiV = coeffFme[2];	
+			
 			// Calc Cost
 			inf_inter_fme_proc.totalCost = RdoCostCalc(inf_inter_fme_proc.Distortion, inf_inter_fme_proc.Bits, inf_tq.QP);
 		}
 		else // cu_w < 64
 		{
-			// Y
+			//-------- Y ---------
+			// TQ proc
 			inter_qt(0, 0, 0);
 			Fme.getFmeInfoForCabac()->m_cbfY = cbfY;
+			
 			inf_recon.size = inf_me.size;
-    		inf_recon.pred = inf_me.pred;
+    		inf_recon.pred = inf_me.pred; 
     		inf_recon.resi = inf_tq.outResi;
 			inf_recon.ori = curr_cu_y;
-    		inf_recon.Recon = cost_inter.recon_y;
+    		inf_recon.Recon = reconFme[0];
 
-			recon();
-	  		inf_inter_fme_proc.ReconY 	= inf_recon.Recon;
-   			inf_inter_fme_proc.ResiY 	= inf_recon.resi;
+			// reconstruct
+			recon();	
+			
+	  		inf_inter_fme_proc.ReconY = inf_recon.Recon;
+			inf_inter_fme_proc.ResiY = coeffFme[0];
 
+			// calc dist
 			inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 0);
 
-			// U
+			//-------- U ---------
+			// TQ proc
 			inter_qt(0, 0, 1);
 			Fme.getFmeInfoForCabac()->m_cbfU=cbfU;
+			
 			inf_recon.size = inf_me.size;
-			inf_recon.pred = inf_me.pred;
+			inf_recon.pred = inf_me.pred; 
     		inf_recon.resi = inf_tq.outResi;
-			inf_recon.ori = curr_cu_u;
-			inf_recon.Recon = cost_inter.recon_u;
+			inf_recon.ori = curr_cu_u;		
+			inf_recon.Recon = reconFme[1];
 
+			// reconstruct
 			recon();
+			
 	    	inf_inter_fme_proc.ReconU 	= inf_recon.Recon;
-   			inf_inter_fme_proc.ResiU 	= inf_recon.resi;
+			inf_inter_fme_proc.ResiU = coeffFme[1];
 
+			// calc dist
 			inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 1);
 
-			// V
+			//-------- V ---------
+			// TQ proc
 			inter_qt(0, 0, 2);
 			Fme.getFmeInfoForCabac()->m_cbfV=cbfV;
+			
 			inf_recon.size = inf_me.size;
-			inf_recon.pred = inf_me.pred;
-	    	inf_recon.resi = inf_tq.outResi;
-			inf_recon.ori = curr_cu_v;
-	 		inf_recon.Recon = cost_inter.recon_v;
+			inf_recon.pred = inf_me.pred; 
+    		inf_recon.resi = inf_tq.outResi;
+			inf_recon.ori = curr_cu_v;		
+	 		inf_recon.Recon = reconFme[2];
 
+			// reconstruct
 			recon();
+			
 		    inf_inter_fme_proc.ReconV 	= inf_recon.Recon;
-	   		inf_inter_fme_proc.ResiV 	= inf_recon.resi;
+			inf_inter_fme_proc.ResiV = coeffFme[2];
 
-			inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);
-
+			// calc dist
+			inf_inter_fme_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);		
+			
 			// Calc Cost
 			inf_inter_fme_proc.totalCost = RdoCostCalc(inf_inter_fme_proc.Distortion, inf_inter_fme_proc.Bits, inf_tq.QP);
 		}
@@ -840,73 +896,98 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 					assert(g_MergeResiV[depth][(n + offset_x / 2) + (m + offset_y / 2) * 32] == Merge.getMergeResi()[n + m*nCuSize / 2 + nCuSize*nCuSize * 5 / 4]);
 				}
 			}
-		/* Merge TQ */
-#if TQ_RUN_IN_HWC_ME
-			cbfY = cbfU = cbfV = false;
+			
+		//=================== TQ  for Merge ===================
+#if TQ_RUN_IN_HWC_ME	
+	    cbfY = cbfU = cbfV = false;
 		if(cu_w==64)
 		{
 			int k, pos;
 			for(nPart=0; nPart<4; nPart++)
 			{
-				// Y
-				inter_qt(nPart, 1, 0);
+				//-------- Y ---------
+				// TQ proc
+				inter_qt(nPart, 1, 0); 	
 				cbfY |= (inf_tq.absSum == 0 ? 0:1);
+				
 				inf_recon.size = inf_me.size;
-    			inf_recon.pred = inf_me.pred;
+    			inf_recon.pred = inf_me.pred; 
     			inf_recon.resi = inf_tq.outResi;
-				inf_recon.ori = curr_cu_y;
     			inf_recon.Recon = cost_inter.recon_y;
-
-				recon();
-				pos  = lumaPart2pos[nPart];
+				
+				pos = lumaPart2pos[nPart];
 				for(k=0; k<32; k++)
 				{
-					memcpy(resiCU64Y+pos+k*64, inf_recon.resi+k*inf_recon.size, 32*2);
-					memcpy(reconCU64Y+pos+k*64, inf_recon.Recon+k*inf_recon.size, 32);
-				}
+					memcpy(ori_data + k*32, curr_cu_y+pos+k*64, 32);
+				}	
+				inf_recon.ori = ori_data;
 
+				// reconstruct
+				recon();
+				
+				for(k=0; k<32; k++)
+				{
+					memcpy(reconMerge[0]+pos+k*64, inf_recon.Recon+k*inf_recon.size, 32);				
+				}	
+
+				// calc dist
 				inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 0);
 
-				// U
-				inter_qt(nPart, 1, 1);
+				//-------- U ---------
+				// TQ proc
+				inter_qt(nPart, 1, 1); 	
 				cbfU |= (inf_tq.absSum == 0 ? 0:1);
+				
 				inf_recon.size = inf_me.size;
-				inf_recon.pred = inf_me.pred;
-	    		inf_recon.resi = inf_tq.outResi;
-				inf_recon.ori = curr_cu_u;
+				inf_recon.pred = inf_me.pred; 
+	    		inf_recon.resi = inf_tq.outResi; 
 				inf_recon.Recon = cost_inter.recon_u;
 
-				recon();
-				pos  = chromaPart2pos[nPart];
+				pos = chromaPart2pos[nPart];
 				for(k=0; k<16; k++)
 				{
-					memcpy(resiCU64U+pos+k*32, inf_recon.resi+k*inf_recon.size, 16*2);
-					memcpy(reconCU64U+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+					memcpy(ori_data+k*16, curr_cu_u+pos+k*32, 16);
 				}
+				inf_recon.ori = ori_data;
 
+				// reconstruct
+				recon();	
+
+				for(k=0; k<16; k++)
+				{		
+					memcpy(reconMerge[1]+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+				}	
+
+				// calc dist
 				inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 1);
 
-				// V
-				inter_qt(nPart, 1, 2);
+				//-------- V ---------
+				// TQ proc
+				inter_qt(nPart, 1, 2); 	
 				cbfV |= (inf_tq.absSum == 0 ? 0:1);
+				
 				inf_recon.size = inf_me.size;
-				inf_recon.pred = inf_me.pred;
+				inf_recon.pred = inf_me.pred; 
 		    	inf_recon.resi = inf_tq.outResi;
-				inf_recon.ori = curr_cu_v;
 		 		inf_recon.Recon = cost_inter.recon_v;
 
-				recon();
 				for(k=0; k<16; k++)
 				{
-					memcpy(resiCU64V+pos+k*32, inf_recon.resi+k*inf_recon.size, 16*2);
-					memcpy(reconCU64V+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+					memcpy(ori_data+k*16, curr_cu_v+pos+k*32, 16);
 				}
+				inf_recon.ori = ori_data;
 
-			    inf_inter_merge_proc.ReconV = inf_recon.Recon;
-		   		inf_inter_merge_proc.ResiV 	= inf_recon.resi;
+				// reconstruct
+				recon();
+				
+				for(k=0; k<16; k++)
+				{		
+					memcpy(reconMerge[2]+pos+k*32, inf_recon.Recon+k*inf_recon.size, 16);
+				}				
 
-				inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);
-
+				// calc dist
+				inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);	
+				
 			}
 
 			Merge.getMergeInfoForCabac()->m_cbfY = cbfY;
@@ -917,75 +998,90 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 			{
 				Merge.getMergeInfoForCabac()->m_bSkipFlag = true;
 			}
-			inf_inter_merge_proc.ReconY = reconCU64Y;
-			inf_inter_merge_proc.ReconU = reconCU64U;
-			inf_inter_merge_proc.ReconV = reconCU64V;
-
-			inf_inter_merge_proc.ResiY = resiCU64Y;
-			inf_inter_merge_proc.ResiU = resiCU64U;
-			inf_inter_merge_proc.ResiV = resiCU64V;
-
+			inf_inter_merge_proc.ReconY = reconMerge[0];
+			inf_inter_merge_proc.ReconU = reconMerge[1];
+			inf_inter_merge_proc.ReconV = reconMerge[2];
+			
+			inf_inter_merge_proc.ResiY = coeffMerge[0];
+			inf_inter_merge_proc.ResiU = coeffMerge[1];
+			inf_inter_merge_proc.ResiV = coeffMerge[2];
+			
 			// Calc Cost
 			inf_inter_merge_proc.totalCost = RdoCostCalc(inf_inter_merge_proc.Distortion, inf_inter_merge_proc.Bits, inf_tq.QP);
 
 		}
 		else // cu_w < 64
 		{
-			// Y
+			//-------- Y ---------
+			// TQ proc
 			inter_qt(0, 1, 0);
 			Merge.getMergeInfoForCabac()->m_cbfY = cbfY;
+			
 			inf_recon.size = inf_me.size;
-    		inf_recon.pred = inf_me.pred;
+    		inf_recon.pred = inf_me.pred; 
     		inf_recon.resi = inf_tq.outResi;
 			inf_recon.ori = curr_cu_y;
-    		inf_recon.Recon = cost_inter.recon_y;
+    		inf_recon.Recon = reconMerge[0];
 
+			// reconstruct
 			recon();
+			
 	  		inf_inter_merge_proc.ReconY = inf_recon.Recon;
-   			inf_inter_merge_proc.ResiY 	= inf_recon.resi;
+   			inf_inter_merge_proc.ResiY 	= coeffMerge[0];		
 
+			// calc dist
 			inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 0);
 
-			// U
+			//-------- U ---------
+			// TQ proc
 			inter_qt(0, 1, 1);
 			Merge.getMergeInfoForCabac()->m_cbfU = cbfU;
+			
 			inf_recon.size = inf_me.size;
 			inf_recon.pred = inf_me.pred;
     		inf_recon.resi = inf_tq.outResi;
 			inf_recon.ori = curr_cu_u;
 			inf_recon.Recon = cost_inter.recon_u;
 
+			// reconstruct
 			recon();
+			
 	    	inf_inter_merge_proc.ReconU = inf_recon.Recon;
-   			inf_inter_merge_proc.ResiU 	= inf_recon.resi;
+			inf_inter_merge_proc.ResiU = coeffMerge[1];
 
+			// calc dist
 			inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 1);
 
-			// V
+			//-------- V ---------
+			// TQ proc
 			inter_qt(0, 1, 2);
 			Merge.getMergeInfoForCabac()->m_cbfV = cbfV;
-						
 			Merge.getMergeInfoForCabac()->m_bSkipFlag = false;
+			
 			if (!(cbfY || cbfU || cbfV))
 			{
 				Merge.getMergeInfoForCabac()->m_bSkipFlag = true;
 			}
 			inf_recon.size = inf_me.size;
-			inf_recon.pred = inf_me.pred;
-	    	inf_recon.resi = inf_tq.outResi;
-			inf_recon.ori = curr_cu_v;
-	 		inf_recon.Recon = cost_inter.recon_v;
+			inf_recon.pred = inf_me.pred; 
+    		inf_recon.resi = inf_tq.outResi;
+			inf_recon.ori = curr_cu_v;		
+	 		inf_recon.Recon = reconMerge[2];
 
+			// reconstruct
 			recon();
+			
 		    inf_inter_merge_proc.ReconV = inf_recon.Recon;
-	   		inf_inter_merge_proc.ResiV 	= inf_recon.resi;
+			inf_inter_merge_proc.ResiV = coeffMerge[2];
 
-			inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);
-
+			// calc dist
+			inf_inter_merge_proc.Distortion += RdoDistCalc(inf_recon.SSE, 2);	
+			
 			// Calc Cost
 			inf_inter_merge_proc.totalCost = RdoCostCalc(inf_inter_merge_proc.Distortion, inf_inter_merge_proc.Bits, inf_tq.QP);
-		}
+		}		
 #endif
+
 		}
 		else
 			inf_inter_merge_proc.totalCost = MAX_INT;
@@ -1224,9 +1320,9 @@ void CU_LEVEL_CALC::intra_proc()
 
 	m_cabac_rdo->TU_size = inf_tq.Size;
 
-	m_cabac_rdo->cabac_rdo_status(depth,1,0);//TU_EST_WAIT->TU_EST   ׼����ʼTU���ع���
-	m_cabac_rdo->cabac_rdo_status(depth,1,0);//TU_EST->CU_EST_WAIT �ȴ��²�4��CU����
-	m_cabac_rdo->cabac_rdo_status(depth,1,0);//CU_EST_WAIT->CU_EST_WAIT ��תһȦ����ʾ�ȴ��²�CU����
+	m_cabac_rdo->cabac_rdo_status(depth,1,0);//TU_EST_WAIT->TU_EST   ×¼±¸¿ªÊ¼TU±ÈÌØ¹À¼Æ
+	m_cabac_rdo->cabac_rdo_status(depth,1,0);//TU_EST->CU_EST_WAIT µÈ´ýÏÂ²ã4¸öCU½áÊø
+	m_cabac_rdo->cabac_rdo_status(depth,1,0);//CU_EST_WAIT->CU_EST_WAIT ×Ô×ªÒ»È¦£¬±íÊ¾µÈ´ýÏÂ²ãCU½áÊø
 #endif
 
     //CABAC();
@@ -1237,9 +1333,9 @@ void CU_LEVEL_CALC::intra_proc()
 	// ---- 4. TODO RDOCostCalc for (Y + U + V) ----
 	// cost = distortion + lambda * bits
 #if RK_CABAC_H
-	if (depth == 3)
+	//if (depth == 3)
 	{
-		assert(((m_cabac_rdo->tu_est_bits[1][3] + m_cabac_rdo->pu_est_bits[1][3])+16384)/32768 == totalBitsDepth);
+		assert(((m_cabac_rdo->tu_est_bits[1][depth] + m_cabac_rdo->pu_est_bits[1][depth])+16384)/32768 == totalBitsDepth);
 	}
 
 	inf_intra_proc.Bits		 = ((m_cabac_rdo->tu_est_bits[1][depth] + m_cabac_rdo->pu_est_bits[1][depth])+16384)/32768;
@@ -1364,9 +1460,9 @@ void CU_LEVEL_CALC::intra_proc()
 
 			if (m_cabac_rdo->tu_luma_4x4_idx !=3)
 			{
-				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST_WAIT->TU_EST   ׼����ʼTU���ع���
-				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST->PU_EST_WAIT   PU��������״̬���¡�    ���һ��PU��TU_EST->CU_EST_WAIT
-				m_cabac_rdo->cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  ׼����35�ַ����bit  ��ת��ʾ�ڵȴ�INTRA������ѷ���    ���һ��PU��CU_EST_WAIT->CU_EST   CU��������״̬����
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST_WAIT->TU_EST   ×¼±¸¿ªÊ¼TU±ÈÌØ¹À¼Æ
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST->PU_EST_WAIT   PU¼¶½øÐÐÁË×´Ì¬¸üÐÂ¡£    ×îºóÒ»¸öPU£ºTU_EST->CU_EST_WAIT
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  ×¼±¸ºÃ35ÖÖ·½ÏòµÄbit  ×Ô×ª±íÊ¾ÔÚµÈ´ýINTRA¸ø³ö×î¼Ñ·½Ïò¡£    ×îºóÒ»¸öPU£ºCU_EST_WAIT->CU_EST   CU¼¶½øÐÐÁË×´Ì¬¸üÐÂ
 			}
 
 #endif
@@ -1460,7 +1556,14 @@ void CU_LEVEL_CALC::intra_proc()
 		totalCost4x4 = RdoCostCalc(totalDist4x4, totalBits4x4, inf_tq.QP); // 4x4
 
 		#if 0//def INTRA_RESULT_STORE_FILE
-		    RK_HEVC_FPRINT(g_fp_result_rk,
+			if (sliceType == 2) 
+			{
+				RK_HEVC_FPRINT(g_fp_result_rk,"intra \n");
+			}
+			else
+				RK_HEVC_FPRINT(g_fp_result_rk,"intraForInter \n");
+
+			RK_HEVC_FPRINT(g_fp_result_rk,
 				"bits4x4 = %d dist4x4 = %d cost4x4 = %d \n bits8x8 = %d dist8x8 = %d cost8x8 = %d \n\n",
 				totalBits4x4,
 				totalDist4x4,
@@ -1470,6 +1573,7 @@ void CU_LEVEL_CALC::intra_proc()
 				inf_intra_proc.totalCost
 			);
 		#endif
+
 		// compare 8x8 cost vs four 4x4 cost,choose the best.
 #if RK_CABAC_H
 			m_cabac_rdo->TU_Resi_luma = coeff4x4[3];
@@ -1482,13 +1586,13 @@ void CU_LEVEL_CALC::intra_proc()
 
 			if (m_cabac_rdo->tu_luma_4x4_idx ==3)
 			{
-				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST_WAIT->TU_EST   ׼����ʼTU���ع���
-				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST->PU_EST_WAIT   PU��������״̬���¡�    ���һ��PU��TU_EST->CU_EST_WAIT
-				m_cabac_rdo->cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  ׼����35�ַ����bit  ��ת��ʾ�ڵȴ�INTRA������ѷ���    ���һ��PU��CU_EST_WAIT->CU_EST   CU��������״̬����
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST_WAIT->TU_EST   ×¼±¸¿ªÊ¼TU±ÈÌØ¹À¼Æ
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//TU_EST->PU_EST_WAIT   PU¼¶½øÐÐÁË×´Ì¬¸üÐÂ¡£    ×îºóÒ»¸öPU£ºTU_EST->CU_EST_WAIT
+				m_cabac_rdo->cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  ×¼±¸ºÃ35ÖÖ·½ÏòµÄbit  ×Ô×ª±íÊ¾ÔÚµÈ´ýINTRA¸ø³ö×î¼Ñ·½Ïò¡£    ×îºóÒ»¸öPU£ºCU_EST_WAIT->CU_EST   CU¼¶½øÐÐÁË×´Ì¬¸üÐÂ
 			}
 
 
-			m_cabac_rdo->cabac_rdo_status(4,1,0);//CU_EST->CU_EST  ��תһȦ����ʾ�ڵȴ����3 CU������������
+			m_cabac_rdo->cabac_rdo_status(4,1,0);//CU_EST->CU_EST  ×Ô×ªÒ»È¦£¬±íÊ¾ÔÚµÈ´ýÉî¶È3 CU¸üÐÂÍêÉÏÏÂÎÄ
 			m_cabac_rdo->cu_best_mode_flag[3] = 1;
 
 #if RK_CABAC_H
@@ -1500,8 +1604,8 @@ void CU_LEVEL_CALC::intra_proc()
 			else 
 				m_cabac_rdo->cu_best_mode[3] = 2;
 
-			// 			m_cabac_rdo->cabac_rdo_status(3,1,0);//CU_EST_WAIT->CU_EST   ����������
-			// 			m_cabac_rdo->cabac_rdo_status(4,1,0);//CU_EST->CU_EST    ģ�²���  ��cu_ready��Ϊ1  �������3�ĵ�4��cuʱ����Ϊ1
+			// 			m_cabac_rdo->cabac_rdo_status(3,1,0);//CU_EST_WAIT->CU_EST   ¸üÐÂÉÏÏÂÎÄ
+			// 			m_cabac_rdo->cabac_rdo_status(4,1,0);//CU_EST->CU_EST    Ä£·Â²¢ÐÐ  °Ñcu_readyÖÃÎª1  µ±ÊÇÉî¶È3µÄµÚ4¸öcuÊ±²»ÖÃÎª1
 #endif
 		if ( inf_intra_proc.totalCost > totalCost4x4 )
 		{
@@ -1626,7 +1730,7 @@ uint32_t CU_LEVEL_CALC::RdoCostCalc(uint32_t dist, uint32_t bits, int qp)
 {
 
 	// RDO formula: cost = dist + lambda * bits
-	uint64_t lambda;
+	int lambda;
 	uint32_t cost;
 
 	/* get Lambda */
@@ -1644,6 +1748,43 @@ uint32_t CU_LEVEL_CALC::RdoCostCalc(uint32_t dist, uint32_t bits, int qp)
 
 	return cost;
 }
+
+void CU_LEVEL_CALC::InterRdCompare()
+{
+	/* compare inter FME & Merge */
+	if (inf_inter_fme_proc.totalCost <= inf_inter_merge_proc.totalCost) // choose FME
+	{
+		memcpy(cost_inter.recon_y, inf_inter_fme_proc.ReconY, m_size*m_size);
+		memcpy(cost_inter.recon_u, inf_inter_fme_proc.ReconU, m_size*m_size / 4);
+		memcpy(cost_inter.recon_v, inf_inter_fme_proc.ReconV, m_size*m_size / 4);
+		memcpy(cost_inter.resi_y, inf_inter_fme_proc.ResiY, m_size*m_size * 2);
+		memcpy(cost_inter.resi_u, inf_inter_fme_proc.ResiU, m_size*m_size / 2);
+		memcpy(cost_inter.resi_v, inf_inter_fme_proc.ResiV, m_size*m_size / 2);
+		cost_inter.TotalCost = inf_inter_fme_proc.totalCost;
+		cost_inter.Distortion = inf_inter_fme_proc.Distortion;
+		cost_inter.Bits = inf_inter_fme_proc.Bits;
+		cost_inter.skipFlag = 0;
+		cost_inter.mergeFlag = 0;
+		cost_inter.partSize = inf_inter_fme_proc.partSize;
+		cost_inter.predMode = inf_inter_fme_proc.predMode;
+	}
+	else // choose Merge
+	{
+		memcpy(cost_inter.recon_y, inf_inter_merge_proc.ReconY, m_size*m_size);
+		memcpy(cost_inter.recon_u, inf_inter_merge_proc.ReconU, m_size*m_size / 4);
+		memcpy(cost_inter.recon_v, inf_inter_merge_proc.ReconV, m_size*m_size / 4);
+		memcpy(cost_inter.resi_y, inf_inter_merge_proc.ResiY, m_size*m_size * 2);
+		memcpy(cost_inter.resi_u, inf_inter_merge_proc.ResiU, m_size*m_size / 2);
+		memcpy(cost_inter.resi_v, inf_inter_merge_proc.ResiV, m_size*m_size / 2);
+		cost_inter.TotalCost = inf_inter_merge_proc.totalCost;
+		cost_inter.Distortion = inf_inter_merge_proc.Distortion;
+		cost_inter.Bits = inf_inter_merge_proc.Bits;
+		cost_inter.skipFlag = 0;
+		cost_inter.mergeFlag = 1;
+		cost_inter.partSize = inf_inter_merge_proc.partSize;
+		cost_inter.predMode = inf_inter_merge_proc.predMode;
+	}
+}
 void CU_LEVEL_CALC::RDOCompare()
 {
 	/*
@@ -1652,17 +1793,29 @@ void CU_LEVEL_CALC::RDOCompare()
         cost_intra = cost_intra_4;
     }
 	*/
-
-    if(cost_inter.TotalCost > cost_intra.TotalCost)
-    {
+	if(2 == pHardWare->ctu_calc.slice_type) // only intra
+	{
         cost_best = &cost_intra;
         cost_best->predMode = 1;
-    }
-    else
-    {
-        cost_best = &cost_inter;
+	}
+	else if(cu_w==64) // only inter do 64x64
+	{
+		cost_best = &cost_inter;
         cost_best->predMode = 0;
-    }
+	}
+	else // normal case
+	{
+	    if(cost_inter.TotalCost > cost_intra.TotalCost)
+	    {
+	        cost_best = &cost_intra;
+	        cost_best->predMode = 1;
+	    }
+	    else
+	    {
+	        cost_best = &cost_inter;
+	        cost_best->predMode = 0;
+	    }	
+	}
 }
 
 unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigned int pos_y)
@@ -1703,7 +1856,10 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 			offsIdx = 64 + x_pos / 16 + y_pos / 16 * 4;
 		else if (3 == level)
 			offsIdx = x_pos / 8 + y_pos / 8 * 8;
+		
 		inter_proc(offsIdx);
+
+		InterRdCompare();
 	}
 #endif
     intra_proc();
@@ -1764,6 +1920,7 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 	cost_best->Bits = inf_intra_proc.Bits;
 	cost_best->Distortion = inf_intra_proc.Distortion;
 #endif
+
 
 	return cost;
 }

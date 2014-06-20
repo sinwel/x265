@@ -88,7 +88,7 @@ struct CTU_CMD
 
 #define RK_DEPTH                8
 
-#define RK_CHOOSE               0   // enable flag for default cfg modificaiton(e.g. RDOQ, signhide), added by lks
+#define RK_CHOOSE               1   // enable flag for default cfg modificaiton(e.g. RDOQ, signhide), added by lks
 
 #define RK_ClipY(x)			(((x) < 0) ? 0 : (((x) > ((1 << RK_DEPTH) - 1)) ? ((1 << RK_DEPTH) - 1) : (x)))
 #define RK_ClipC(x)			(((x) < 0) ? 0 : (((x) > ((1 << RK_DEPTH) - 1)) ? ((1 << RK_DEPTH) - 1) : (x)))

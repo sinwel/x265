@@ -228,8 +228,7 @@ public:
     void LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos);
 	void LogFile(INTERFACE_TQ* inf_tq);
     void convert8x8HWCtoX265Luma(int16_t* coeff);
-    void compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level);
-    void compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4split);
+    void compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level, bool choose4x4split);
     void ctu_status_calc();
 };
 

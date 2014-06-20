@@ -617,59 +617,107 @@ void CTU_CALC::convert8x8HWCtoX265Luma(int16_t* coeff)
 	memcpy(coeff, &temp[0], 8*8*sizeof(int16_t));
 }
 
-void CTU_CALC::compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level)
+void CTU_CALC::compareCoeffandRecon(CU_LEVEL_CALC* hwc_data, int level, bool choose4x4split)
 {
 	assert(level <= 3);
+	if(slice_type==2 && level==0)
+		return;
 
-	int pos = hwc_data[level].cu_pos - 1;
+	int pos=0;
+	if(level==0) // cu_w==64, pos is always 0.
+		pos=0;
+	else		
+		pos = hwc_data[level].cu_pos - 1;
+	
 	int sizeY = ctu_w >>  level;
 	int sizeUV = ctu_w >> (level+1);
 
-	//compare oriResi(after T and Q)
-	assert(!memcmp(hwc_data[level].inf_tq_total[0].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffY,
-		sizeY*sizeY*sizeof(int16_t)));
-	assert(!memcmp(hwc_data[level].inf_tq_total[1].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffU,
-		sizeUV*sizeUV*sizeof(int16_t)));
-	assert(!memcmp(hwc_data[level].inf_tq_total[2].oriResi, pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffV,
-		sizeUV*sizeUV*sizeof(int16_t)));
-
-	//compare Recon
-	assert(!memcmp(hwc_data[level].inf_recon_total[0].Recon, pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconY,
-		sizeY*sizeY*sizeof(uint8_t)));
-	assert(!memcmp(hwc_data[level].inf_recon_total[1].Recon, pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconU,
-		sizeUV*sizeUV*sizeof(uint8_t)));
-	assert(!memcmp(hwc_data[level].inf_recon_total[2].Recon, pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconV,
-		sizeUV*sizeUV*sizeof(uint8_t)));
-}
-
-
-void CTU_CALC::compareCoeffandRecon8x8(CU_LEVEL_CALC* hwc_data, bool choose4x4split)
-{
-	int pos = hwc_data[3].cu_pos - 1;
-	int sizeY = ctu_w >>  3;
-	int sizeUV = ctu_w >> (3+1);
-
-	if(choose4x4split)
+	int16_t* hwc_coeff[3];
+	uint8_t* hwc_recon[3];
+	
+	if(hwc_data[level].cost_best->predMode==0) /* inter */
 	{
-		convert8x8HWCtoX265Luma(hwc_data[3].inf_tq_total[0].oriResi);//only Luma
+		hwc_coeff[0] = hwc_data[level].cost_inter.resi_y;
+		hwc_coeff[1] = hwc_data[level].cost_inter.resi_u;
+		hwc_coeff[2] = hwc_data[level].cost_inter.resi_v;
+		hwc_recon[0] = hwc_data[level].cost_inter.recon_y;
+		hwc_recon[1] = hwc_data[level].cost_inter.recon_u;
+		hwc_recon[2] = hwc_data[level].cost_inter.recon_v;	
+	}
+	else /* intra */
+	{
+		if(level==3 && choose4x4split) // only for intra 8x8
+		{
+			convert8x8HWCtoX265Luma(hwc_data[level].inf_tq_total[0].oriResi);//only Luma
+		}	
+		hwc_coeff[0] = hwc_data[level].inf_tq_total[0].oriResi;
+		hwc_coeff[1] = hwc_data[level].inf_tq_total[1].oriResi;
+		hwc_coeff[2] = hwc_data[level].inf_tq_total[2].oriResi;
+		hwc_recon[0] = hwc_data[level].inf_recon_total[0].Recon;
+		hwc_recon[1] = hwc_data[level].inf_recon_total[1].Recon;
+		hwc_recon[2] = hwc_data[level].inf_recon_total[2].Recon;
 	}
 
-	//compare oriResi(after T and Q)
-	assert(!memcmp(hwc_data[3].inf_tq_total[0].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffY,
-		sizeY*sizeY*sizeof(int16_t)));
-	assert(!memcmp(hwc_data[3].inf_tq_total[1].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffU,
-		sizeUV*sizeUV*sizeof(int16_t)));
-	assert(!memcmp(hwc_data[3].inf_tq_total[2].oriResi, pHardWare->ctu_calc.cu_ori_data[3][pos]->CoeffV,
-		sizeUV*sizeUV*sizeof(int16_t)));
+	/* compare oriResi(after T and Q) */
+	if(level != 0) // cu_w < 64
+	{
+		assert(!memcmp(hwc_coeff[0], pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffY, sizeY*sizeY*sizeof(int16_t)));
+		assert(!memcmp(hwc_coeff[1], pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffU, sizeUV*sizeUV*sizeof(int16_t)));
+		assert(!memcmp(hwc_coeff[2], pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffV, sizeUV*sizeUV*sizeof(int16_t)));
+	}
+	else // cu_w==64
+	//NOTE: when cu_w==64, coeff(after in T and Q) in x265 is stored unusually
+	//1. stride 32(luma) or 16(chroma)
+	//2. 4 coeff blocks are arranged one after another(raster scan).
+	{
+		int lumaPart2pos[4] = {0, 32, 32*64, 32*64+32};
+		int chromaPart2pos[4] = {0, 16, 16*32, 16*32+16};
+	    for(int i = 0; i < 4; i ++)
+	    {
+			short *pHwcCoeff = hwc_coeff[0] + lumaPart2pos[i];
+			short *pX265Coeff = pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffY + i * 32 * 32;
 
-	//compare Recon
-	assert(!memcmp(hwc_data[3].inf_recon_total[0].Recon, pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconY,
-		sizeY*sizeY*sizeof(uint8_t)));
-	assert(!memcmp(hwc_data[3].inf_recon_total[1].Recon, pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconU,
-		sizeUV*sizeUV*sizeof(uint8_t)));
-	assert(!memcmp(hwc_data[3].inf_recon_total[2].Recon, pHardWare->ctu_calc.cu_ori_data[3][pos]->ReconV,
-		sizeUV*sizeUV*sizeof(uint8_t)));
+			// Y
+			for (int m = 0; m < 32; m++)
+			{
+				for (int n = 0; n < 32; n ++)
+				{
+					assert(pHwcCoeff[n + m * 64] == pX265Coeff[n + m * 32]);
+				}
+			}
+			pHwcCoeff = hwc_coeff[1] + chromaPart2pos[i];
+			pX265Coeff = pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffU + i * 16 * 16;
+
+			// U
+			for (int m = 0; m < 16; m++)
+			{
+				for (int n = 0; n < 16; n++)
+				{
+					assert(pHwcCoeff[n + m * 32] == pX265Coeff[n + m * 16]);
+				}
+			}
+			pHwcCoeff = hwc_coeff[2] + chromaPart2pos[i];
+			pX265Coeff = pHardWare->ctu_calc.cu_ori_data[level][pos]->CoeffV + i * 16 * 16;
+
+			// V
+			for (int m = 0; m < 16; m++)
+			{
+				for (int n = 0; n < 16; n++)
+				{
+					assert(pHwcCoeff[n + m * 32] == pX265Coeff[n + m * 16]);
+				}
+			}
+			
+	    }
+	}
+
+	/* compare Recon */
+	assert(!memcmp(hwc_recon[0], pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconY, sizeY*sizeY*sizeof(uint8_t)));
+	assert(!memcmp(hwc_recon[1], pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconU, sizeUV*sizeUV*sizeof(uint8_t)));
+	assert(!memcmp(hwc_recon[2], pHardWare->ctu_calc.cu_ori_data[level][pos]->ReconV, sizeUV*sizeUV*sizeof(uint8_t)));
+
 }
+
 void CTU_CALC::LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos)
 {
 	// log rk_Interface_Intra.bNeighborFlags
@@ -743,6 +791,7 @@ void CTU_CALC::proc()
     cu_level_calc[0].depth = 0;
     cu_level_calc[0].TotalCost = 0;
     cost_0 = cu_level_calc[0].proc(0, 0, 0);
+	compareCoeffandRecon(cu_level_calc, 0, false);
 
     totalBits_1 = 0;
     totalDist_1 = 0;
@@ -772,7 +821,7 @@ void CTU_CALC::proc()
 #endif
 #if TQ_RUN_IN_HWC_INTRA
 			//compare coeff(after T and Q), and Recon (Y, U, V)
-			compareCoeffandRecon(cu_level_calc, 1);
+			compareCoeffandRecon(cu_level_calc, 1, false);
 #endif
         }
 
@@ -805,7 +854,7 @@ void CTU_CALC::proc()
 			#endif
 #if TQ_RUN_IN_HWC_INTRA
 			    //compare coeff(after T and Q), and Recon (Y, U, V)
-			    compareCoeffandRecon(cu_level_calc, 2);
+			    compareCoeffandRecon(cu_level_calc, 2, false);
 #endif
             }
 
@@ -847,7 +896,7 @@ void CTU_CALC::proc()
 				#endif
 #if TQ_RUN_IN_HWC_INTRA //wait for 4x4 intra to be done, added by lks
 				    //compare coeff(after T and Q), and Recon (Y, U, V)
-				    compareCoeffandRecon8x8(cu_level_calc, cu_level_calc[3].choose4x4split);
+				    compareCoeffandRecon(cu_level_calc, 3, cu_level_calc[3].choose4x4split);
 #endif
                 }
 

@@ -15,7 +15,7 @@ extern unsigned char state_table[3][52][165];
 #define  INTRA_PU_4x4_MODIFY 1
 #define  INTRA_SPLIT_FLAG_MODIFY 1
 #define CABAC_INT_MODIFY 1
-#define RK_CABAC_H 1
+#define RK_CABAC_H 0
 #define RK_CABAC_TEST 0
 #define CABAC_EST_Accuracy_CutDown 0
 

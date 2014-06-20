@@ -4629,9 +4629,7 @@ void TEncSearch::xEstimateMvPredAMVP(TComDataCU* cu, uint32_t partIdx, int list,
 	// Fill the MV Candidates
 	cu->fillMvpCand(partIdx, partAddr, list, refIdx, amvpInfo); //amvpInfo最多有两个candidate  add by hdl 
 #if RK_INTER_METEST
-	uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
 	AmvpInfo amvpMine;
-	cu->PrefetchAmvpInfo(offsIdx, refIdx);
 	Amvp.fillMvpCand(list, refIdx, &amvpMine);
 	for (i = 0; i < amvpMine.m_num; i++)
 	{

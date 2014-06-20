@@ -17,7 +17,7 @@
 /* =========================== INTRA macros ============================== */
 #define MODULE_INTRA_OPEN
 
-#if defined(MODULE_INTRA_OPEN) && defined(RK_CTU_CALC_PROC_ENABLE)
+#if defined(MODULE_INTRA_OPEN) && (RK_CTU_CALC_PROC_ENABLE)
 
 # define RK_INTRA_PRED
 # define X265_INTRA_DEBUG
@@ -44,15 +44,16 @@
 
 
 /* ======================== TQ module macros begin ======================== */
-#if defined(MODULE_INTRA_OPEN) && defined(RK_CTU_CALC_PROC_ENABLE)
+#if defined(MODULE_INTRA_OPEN) && (RK_CTU_CALC_PROC_ENABLE)
 
 #define TQ_RUN_IN_X265_INTRA		1		// get info and run in x265 Intra module
 #define TQ_RUN_IN_HWC_INTRA			1		// get info and run in HWC Intra module
 
-#define TQ_RUN_IN_X265_ME			0		// get info and run in X265 ME module
-#define TQ_RUN_IN_HWC_ME			0		// get info and run in HWC ME module
-
 #endif
+
+#define TQ_RUN_IN_X265_ME			1		// get info and run in X265 ME module
+#define TQ_RUN_IN_HWC_ME			1		// get info and run in HWC ME module
+
 // log enable
 #define TQ_LOG_IN_X265_INTRA		0
 #define TQ_LOG_IN_HWC_INTRA			0

@@ -921,6 +921,57 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 	}
 	/*set first left top spatial candidate for each level except 8x8*/
 
+	/*get slice info of merge proc*/
+	MergeCand.setCtuPosInPic(cu->getAddr());
+	MergeCand.setCurrPicPoc(cu->getSlice()->getPOC());
+	MergeCand.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
+	MergeCand.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
+	MergeCand.setMergeCandNum(cu->getSlice()->getMaxNumMergeCand());
+	MergeCand.setCheckLDC(cu->getSlice()->getCheckLDC());
+	MergeCand.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
+	int nRefPicNum[2];
+	nRefPicNum[0] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
+	nRefPicNum[1] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
+	MergeCand.setRefPicNum(nRefPicNum);
+	if (cu->getSlice()->isInterB())
+		MergeCand.setSliceType(b_slice);
+	else if (cu->getSlice()->isInterP())
+		MergeCand.setSliceType(p_slice);
+	else
+		MergeCand.setSliceType(i_slice);
+	int nCurrRefPicPoc[2] = { 0 };
+	nCurrRefPicPoc[0] = cu->getSlice()->getRefPic(REF_PIC_LIST_0, 0)->getPOC();
+	if (cu->getSlice()->isInterB())
+	{
+		nCurrRefPicPoc[1] = cu->getSlice()->getRefPic(REF_PIC_LIST_1, 0)->getPOC();
+	}
+	MergeCand.setCurrRefPicPoc(nCurrRefPicPoc);
+	/*get slice info of merge proc*/
+
+	/*get slice info of FME proc*/
+	Amvp.setCtuPosInPic(cu->getAddr());
+	Amvp.setCurrPicPoc(cu->getSlice()->getPOC());
+	Amvp.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
+	Amvp.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
+	Amvp.setCheckLDC(cu->getSlice()->getCheckLDC());
+	Amvp.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
+	if (cu->getSlice()->isInterB())
+		Amvp.setSliceType(b_slice);
+	else if (cu->getSlice()->isInterP())
+		Amvp.setSliceType(p_slice);
+	else
+		Amvp.setSliceType(i_slice);
+	int nRefPicPoc[2][nMaxRefPic / 2] = { 0 };
+	for (int idxList = 0; idxList < 2; idxList++)
+	{
+		for (int idxRef = 0; idxRef < cu->getSlice()->getNumRefIdx(idxList); idxRef++)
+		{
+			nRefPicPoc[idxList][idxRef] = cu->getSlice()->getRefPic(idxList, idxRef)->getPOC();
+		}
+		Amvp.setCurrRefPicPoc(nRefPicPoc[idxList], idxList);
+	}
+	/*get slice info of FME proc*/
+
 	if (cu->getSlice()->getEnableTMVPFlag())
 	{
 		TComPic *colPic = cu->getSlice()->getRefPic(cu->getSlice()->isInterB() ? 1 - cu->getSlice()->getColFromL0Flag() : 0, cu->getSlice()->getColRefIdx());
@@ -2026,7 +2077,6 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 
 	uint32_t offsIdx = m_search->getOffsetIdx(g_maxCUWidth, outTempCU->getCUPelX(), outTempCU->getCUPelY(), outTempCU->getWidth(0));
 	outTempCU->getInterMergeCandidates(0, 0, mvFieldNeighbours, interDirNeighbours, numValidMergeCand);
-	outTempCU->PrefetchMergeCandidatesInfo(offsIdx);
 	MergeCand.getMergeCandidates();
 	for (int i = 0; i < numValidMergeCand; i ++)
 	{
@@ -2318,16 +2368,13 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 	if (!bSliceEnd && bInsidePicture)
 	{
 		outTempCU->initEstData(depth, qp);
+		outTempCU->PrefetchMergeAndFmeCandInfo(offsIdx);
 		xCheckRDCostInter(outBestCU, outTempCU);
 		outTempCU->initEstData(depth, qp);
 		xCheckRDCostMerge2Nx2N(outBestCU, outTempCU);
 		outTempCU->initEstData(depth, qp);
-#if 0
-		if (outBestCU->getSlice()->getSliceType() == I_SLICE ||
-			outBestCU->getCbf(0, TEXT_LUMA) != 0   ||
-			outBestCU->getCbf(0, TEXT_CHROMA_U) != 0   ||
-			outBestCU->getCbf(0, TEXT_CHROMA_V) != 0) // avoid very complex intra if it is unlikely
-#endif
+
+		if(outBestCU->getWidth(0) <= 32) // added by hdl
 		{
 			xCheckRDCostIntraInInter(outBestCU, outTempCU, SIZE_2Nx2N);
 			outTempCU->initEstData(depth, qp);
@@ -3032,13 +3079,12 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 		*bits = outTempCU->m_totalBits;
 		*dist = outTempCU->m_totalDistortion;
 		*cost = outTempCU->m_totalCost;
-
-	#ifdef RK_CABAC
-		uint8_t subDepth = (SIZE_2Nx2N == partSize) ? 0 : 1;
-		// only care depth = 3 and 4
-		g_intra_depth_total_bits[depth + subDepth][outTempCU->getZorderIdxInCU()] = outTempCU->m_totalBits;
-	#endif
 	}
+#ifdef RK_CABAC
+	uint8_t subDepth = (SIZE_2Nx2N == partSize) ? 0 : 1;
+	g_intra_depth_total_bits[depth + subDepth][outTempCU->getZorderIdxInCU()] = outTempCU->m_totalBits;
+#endif
+
 #endif
     xCheckDQP(outTempCU);
     xCheckBestMode(outBestCU, outTempCU, depth);
@@ -3051,6 +3097,7 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 		if ( SIZE_NxN == partSize )
 		{
 		#if 0 //def INTRA_RESULT_STORE_FILE
+			RK_HEVC_FPRINT(g_fp_result_x265,"intra \n");
 		    RK_HEVC_FPRINT(g_fp_result_x265,
 				"bits4x4 = %d dist4x4 = %d cost4x4 = %d \n bits8x8 = %d dist8x8 = %d cost8x8 = %d \n\n",
 				m_search->m_rkIntraPred->rk_totalBits4x4,
@@ -3123,9 +3170,52 @@ void TEncCu::xCheckRDCostIntraInInter(TComDataCU*& outBestCU, TComDataCU*& outTe
 
     outTempCU->m_totalBits = m_entropyCoder->getNumberOfWrittenBits();
     outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
+#ifdef X265_INTRA_DEBUG
+	if ( depth == 3 )
+	{
+		uint32_t *bits, *cost, *dist;
+		bits = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalBits8x8 : &m_search->m_rkIntraPred->rk_totalBits4x4;
+		dist = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalDist8x8 : &m_search->m_rkIntraPred->rk_totalDist4x4;
+		cost = (SIZE_2Nx2N == partSize) ? &m_search->m_rkIntraPred->rk_totalCost8x8 : &m_search->m_rkIntraPred->rk_totalCost4x4;
+		*bits = outTempCU->m_totalBits;
+		*dist = outTempCU->m_totalDistortion;
+		*cost = outTempCU->m_totalCost;
+	}
+#ifdef RK_CABAC
+	uint8_t subDepth = (SIZE_2Nx2N == partSize) ? 0 : 1;
+	g_intra_depth_total_bits[depth + subDepth][outTempCU->getZorderIdxInCU()] = outTempCU->m_totalBits;
+#endif
+#endif
 
     xCheckDQP(outTempCU);
     xCheckBestMode(outBestCU, outTempCU, depth);
+	
+#ifdef X265_INTRA_DEBUG
+	if ( depth == 3 )
+	{
+		m_search->m_rkIntraPred->rk_totalBitsBest = outBestCU->m_totalBits;
+		m_search->m_rkIntraPred->rk_totalCostBest = outBestCU->m_totalCost;
+		// write to file
+		if ( SIZE_NxN == partSize )
+		{
+		#if 0 //def INTRA_RESULT_STORE_FILE
+			RK_HEVC_FPRINT(g_fp_result_x265,"intraForInter \n");
+		    RK_HEVC_FPRINT(g_fp_result_x265,
+				"bits4x4 = %d dist4x4 = %d cost4x4 = %d \n bits8x8 = %d dist8x8 = %d cost8x8 = %d \n\n",
+				m_search->m_rkIntraPred->rk_totalBits4x4,
+				m_search->m_rkIntraPred->rk_totalDist4x4,
+				m_search->m_rkIntraPred->rk_totalCost4x4,
+				m_search->m_rkIntraPred->rk_totalBits8x8,
+				m_search->m_rkIntraPred->rk_totalDist8x8,
+				m_search->m_rkIntraPred->rk_totalCost8x8//,
+				//m_search->m_rkIntraPred->rk_totalBitsBest,
+				//m_search->m_rkIntraPred->rk_totalCostBest
+			);
+		#endif
+		}
+	}
+#endif
+
 }
 
 /** Check R-D costs for a CU with PCM mode.

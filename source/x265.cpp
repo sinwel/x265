@@ -646,21 +646,25 @@ int main(int argc, char **argv)
 	if ( !g_fp_result_rk )
 	{
 	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+		RK_HEVC_PRINT("[PATH error]:%s is not exist, please fix FILE_PATH in  -- rk_define.h -- !\n",FILE_PATH)
 	}
 	g_fp_result_x265 = fopen(PATH_NAME("result_x265.txt"),"w+");
 	if ( !g_fp_result_x265 )
 	{
 	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+		RK_HEVC_PRINT("[PATH error]:%s is not exist, please fix FILE_PATH in  -- rk_define.h -- !\n",FILE_PATH)
 	}
 	g_fp_4x4_params_rk = fopen(PATH_NAME("4x4_params_rk.txt"),"w+");
 	if ( !g_fp_4x4_params_rk )
 	{
 	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+		RK_HEVC_PRINT("[PATH error]:%s is not exist, please fix FILE_PATH in  -- rk_define.h -- !\n",FILE_PATH)
 	}
 	g_fp_4x4_params_x265 = fopen(PATH_NAME("4x4_params_x265.txt"),"w+");
 	if ( !g_fp_4x4_params_x265 )
 	{
 	    RK_HEVC_PRINT("creat g_fp_result_rk failed.\n")
+		RK_HEVC_PRINT("[PATH error]:%s is not exist, please fix FILE_PATH in  -- rk_define.h -- !\n",FILE_PATH)
 	}
 #endif
 #if TQ_LOG_IN_HWC_INTRA
@@ -668,6 +672,7 @@ int main(int argc, char **argv)
 	if (!g_fp_TQ_LOG_HWC_INTRA)
 	{
 		RK_HEVC_PRINT("creat TQ_LOG_HWC_INTRA failed.\n");
+		RK_HEVC_PRINT("[PATH error]:%s is not exist, please fix FILE_PATH in  -- rk_define.h -- !\n",FILE_PATH)
 	}
 #endif
 #if TQ_LOG_IN_HWC_ME
@@ -675,6 +680,7 @@ int main(int argc, char **argv)
 	if (!g_fp_TQ_LOG_HWC_ME)
 	{
 		RK_HEVC_PRINT("creat TQ_LOG_HWC_ME failed.\n");
+		RK_HEVC_PRINT("[PATH error]:%s is not exist, please fix FILE_PATH in  -- rk_define.h -- !\n",FILE_PATH)
 	}
 #endif
 
