@@ -2010,6 +2010,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 {
 #define OUTPUT_4X4_DATA 1
 #define OUTPUT_8X8_DATA 1
+#define OUTPUT_16X16_DATA	1
 	uint8_t* fenc 	= pInterface_Intra->fenc;
 	int32_t width 	= pInterface_Intra->size;
 	int32_t height	= pInterface_Intra->size;
@@ -2194,6 +2195,79 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		
 	#endif
 
+	#if OUTPUT_16X16_DATA
+		if((width == 16) && (cur_depth == 2)) // 16x16 CU
+		{
+			// print CU valid flag.`
+			uint8_t ValidIdx16x16[] = { 15, 13, 11, 9, 8, 6, 4, 2, 0 };// reverse
+			for ( uint8_t  i = 0 ; i < 9 ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_REF_CU_VALID],"%d",
+					pInterface_Intra->bNeighborFlags[ValidIdx16x16[i]] == true ? 1 : 0);			    
+
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_REF_CU_VALID],"\n");
+			for ( uint16_t  i = 0 ; i < 16*16 ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_LU],"%02x",fenc[256 - i]);			    
+				if ( (i + 1)%16 == 0 )
+				{
+					FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_LU],"\n");			    
+				}
+			}
+
+			//INTRA_16_TU_CABAC_BITS
+			uint64_t tu_cabac_bits[3];
+			uint32_t zscan = g_rk_raster2zscan_depth_4[cur_x_in_cu/4 + cur_y_in_cu*4];
+			tu_cabac_bits[0] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan];
+			tu_cabac_bits[1] = g_est_bit_tu_cb_NoCbf[1][cur_depth][zscan];
+			tu_cabac_bits[2] = g_est_bit_tu_cr_NoCbf[1][cur_depth][zscan];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_TU_CABAC_BITS],"%08llx",tu_cabac_bits[i]);
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_TU_CABAC_BITS],"\n");
+
+			//INTRA_8_PU_PRED_MODE_BITS
+			uint64_t pu_pred_mode_bits[3];
+			pu_pred_mode_bits[0] = g_intra_est_bit_luma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[1] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
+			pu_pred_mode_bits[2] = g_intra_est_bit_chroma_pred_mode[cur_depth][zscan + 0];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_PU_PRED_MODE_BITS],"%08llx",pu_pred_mode_bits[i]);
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_PU_PRED_MODE_BITS],"\n");
+
+			//INTRA_8_TU_CBF_BITS
+			uint64_t tu_cbf_bits[3];
+			tu_cbf_bits[0] = g_intra_est_bit_cbf[0][cur_depth][zscan + 0];
+			tu_cbf_bits[1] = g_intra_est_bit_cbf[1][cur_depth][zscan + 0];
+			tu_cbf_bits[2] = g_intra_est_bit_cbf[2][cur_depth][zscan + 0];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_TU_CBF_BITS],"%06llx",tu_cbf_bits[i]);
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_TU_CBF_BITS],"\n");
+
+			//INTRA_8_PU_PART_MODE_BITS
+			uint64_t pu_part_mode_bits[3];
+			pu_part_mode_bits[0] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[1] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+			pu_part_mode_bits[2] = g_intra_est_bit_part_mode[cur_depth][zscan + 0];
+
+			for (uint8_t i = 0; i < 3; i++)
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_PU_PART_MODE_BITS],"%06llx",pu_part_mode_bits[i]);
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_PU_PART_MODE_BITS],"\n");
+			
+		}
+		
+	#endif
 
 	
 		/* step 1 */
@@ -2247,6 +2321,19 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		}
 		
 	#endif
+	#if OUTPUT_16X16_DATA
+
+		if((width == 16) && (cur_depth == 2)) // 16X16 CU
+		{
+			for ( uint8_t  i = 0 ; i < 65 ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_LU],"%02x",LineBuf[64 - i]);			    
+
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_LU],"\n");
+		}
+		
+	#endif
 
 		// step 2 //
 
@@ -2276,7 +2363,20 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_LU_FILTER],"\n");			    
 	}
 #endif
+
+#if OUTPUT_16X16_DATA
+	if((width == 16) && (cur_depth == 2)) // 16x16 CU
+	{
+		// INTRA_16_REF_PIXEL_CU_LU_FILTER
+		for ( uint16_t  i = 0 ; i < 2*width + 1 ; i++ )
+			FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_LU_FILTER],"%02x",refAboveFlt[3*width - 1 - i]);			    
+		for ( uint16_t  i = 0 ; i < 2*width     ; i++ )
+			FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_LU_FILTER],"%02x",refLeftFlt[i + width]);	
 		
+		FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_LU_FILTER],"\n");			    
+	}
+#endif
+
 #ifdef INTRA_RESULT_STORE_FILE
 		// width - 1 是为了在做pred扩展用的
 		StoreSmoothing(g_fp_result_rk,
@@ -2482,6 +2582,42 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		}
 	#endif
 
+	#if OUTPUT_16X16_DATA
+		if((width == 16) && (cur_depth == 2)) // LEVEL 2
+		{
+			// INTRA_16_SAD
+			for ( uint8_t  i = 0 ; i < 34 ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_SAD],"%d %04x, ",i, costSad[i]);			    
+			}
+			
+			FPRINT(fp_intra_16x16[INTRA_16_SAD],"%d %04x",34,costSad[34]);	
+			
+			FPRINT(fp_intra_16x16[INTRA_16_SAD],"\n");	
+
+
+			// INTRA_16_TU_COST_BITS
+			  
+			for ( uint8_t  i = 0 ; i < 34 ; i+=2 )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_TU_COST_BITS],"%d %04x, ",i, costTotal[i]);			    
+			}
+			
+			FPRINT(fp_intra_16x16[INTRA_16_TU_COST_BITS],"%d %04x",34,costTotal[34]);	
+			
+			FPRINT(fp_intra_16x16[INTRA_16_TU_COST_BITS],"\n");				
+
+			// INTRA_16_CABAC_MODE_BIT	  
+			for ( uint8_t  i = 34 ; i > 0 ; i-- )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_CABAC_MODE_BIT],"%02x",bits_luma_dir[i]);			    
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_CABAC_MODE_BIT],"%02x",bits_luma_dir[0]);	
+			FPRINT(fp_intra_16x16[INTRA_16_CABAC_MODE_BIT],"\n");	
+			
+		}
+	#endif
+
 		// step 5 //
 		// get minnum costSad + lambad*bits,decide the dirMode
 		uint32_t index[35];
@@ -2531,6 +2667,17 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_8x8[INTRA_8_BEST_MODE],"%02x\n",bestMode);	// cr
 		}
 	#endif
+
+	#if OUTPUT_16X16_DATA
+		
+		if((width == 16) && (cur_depth == 2)) // LEVEL 2
+		{
+			FPRINT(fp_intra_16x16[INTRA_16_BEST_MODE],"%02x\n",bestMode);	// y
+			FPRINT(fp_intra_16x16[INTRA_16_BEST_MODE],"%02x\n",bestMode);	// cb
+			FPRINT(fp_intra_16x16[INTRA_16_BEST_MODE],"%02x\n",bestMode);	// cr
+		}
+	#endif
+
 
 		pInterface_Intra->DirMode = (uint8_t)bestMode;
 
@@ -2590,6 +2737,27 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		
 	#endif
 
+	#if OUTPUT_16X16_DATA
+		if((width == 16) && (cur_depth == 2))  
+		{
+			// y
+			for ( uint16_t  i = 0 ; i < (width*width) ; i++ )
+			{
+				{
+					FPRINT(fp_intra_16x16[INTRA_16_RESI_BEFORE],"%04x",(uint16_t)rk_residual[RK_COMPENT][(width*width - 1) - i]);	
+					FPRINT(fp_intra_16x16[INTRA_16_PRED],"%02x",rk_pred[RK_COMPENT][(width*width - 1) - i]);			    
+					if ( (i + 1)%16 == 0 ) // 16 一行
+					{
+					    FPRINT(fp_intra_16x16[INTRA_16_RESI_BEFORE],"\n");
+						FPRINT(fp_intra_16x16[INTRA_16_PRED],"\n");
+					}
+				}
+			}
+		}
+		
+	#endif
+
+
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
 		{
@@ -2635,6 +2803,21 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 				FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_CB],"%02x",fenc[15 - i]);			    
 			}
 			FPRINT(fp_intra_8x8[INTRA_8_ORI_PIXEL_CU_CB],"\n");			
+		}
+		
+	#endif
+
+	#if OUTPUT_16X16_DATA
+		if((width == 8) && (cur_depth == 2)) // 16x16 CU, chroma size is half of CU.
+		{
+			for ( uint16_t  i = 0 ; i < width*width ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_CB],"%02x",fenc[width*width - 1 - i]);	
+				if ( (i + 1)%16 == 0 )
+				{
+					FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_CB],"\n");			
+				}
+			}
 		}
 		
 	#endif
@@ -2689,6 +2872,20 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		}
 		
 	#endif
+
+	#if OUTPUT_16X16_DATA
+
+		if((width == 8) && (cur_depth == 2)) // 16x16 CU, chroma size is half of CU.
+		{
+			for ( uint8_t  i = 0 ; i < 33 ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_CB],"%02x",LineBuf[32 - i]);			    
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_CB],"\n");
+		}
+		
+	#endif
+
 
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
@@ -2753,6 +2950,25 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		}
 		
 	#endif
+
+	#if OUTPUT_16X16_DATA
+		if((width == 8) && (cur_depth == 2)) // 16x16 CU, chroma size is half of CU.
+		{
+			// cb
+			for ( uint16_t  i = 0 ; i < (width*width) ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_RESI_BEFORE],"%04x",(uint16_t)rk_residualCb[RK_COMPENT][(width*width - 1) - i]);			    
+				FPRINT(fp_intra_16x16[INTRA_16_PRED],"%02x",rk_predCb[RK_COMPENT][(width*width - 1) - i]);			    
+				if ( (i + 1)%16 == 0 ) // 16 一行
+				{
+				    FPRINT(fp_intra_16x16[INTRA_16_RESI_BEFORE],"\n");
+					FPRINT(fp_intra_16x16[INTRA_16_PRED],"\n");
+				}
+			}
+		}
+		
+	#endif
+
 
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
@@ -2873,6 +3089,31 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			FPRINT(fp_intra_8x8[INTRA_8_REF_PIXEL_CU_CR],"\n");
 		}
 	#endif 
+
+	#if OUTPUT_16X16_DATA
+
+		if((width == 8) && (cur_depth == 2)) // 16x16 CU, chroma size is half of CU.
+		{
+			for ( uint16_t  i = 0 ; i < width*width ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_CR],"%02x",fenc[width*width - 1 - i]);			    
+				if ( (i + 1)%8 == 0 )
+				{
+					FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_CB],"\n");			
+				}
+			}
+
+
+			for ( uint8_t  i = 0 ; i < 33 ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_CR],"%02x",LineBuf[32 - i]);			    
+			}
+			FPRINT(fp_intra_16x16[INTRA_16_REF_PIXEL_CU_CR],"\n");
+		}
+
+
+	#endif 
+
 		// chroma 不需要 smoothing操作
 		// 需要将 lineBuf 变为 refLeft 和 refAbove
 		uint8_t 	refLeft[33 + 16 - 1];
@@ -2940,6 +3181,25 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		
 	#endif
 
+	#if OUTPUT_16X16_DATA
+		if((width == 8) && (cur_depth == 2)) // 16x16 CU, chroma size is half of CU.
+		{
+			// cr
+			for ( uint16_t  i = 0 ; i < (width*width) ; i++ )
+			{
+				FPRINT(fp_intra_16x16[INTRA_16_RESI_BEFORE],"%04x",(uint16_t)rk_residualCr[RK_COMPENT][(width*width - 1) - i]);			    
+				FPRINT(fp_intra_16x16[INTRA_16_PRED],"%02x",rk_predCr[RK_COMPENT][(width*width - 1) - i]);			    
+				if ( (i + 1)%16 == 0 ) // 16 一行
+				{
+				    FPRINT(fp_intra_16x16[INTRA_16_RESI_BEFORE],"\n");
+					FPRINT(fp_intra_16x16[INTRA_16_PRED],"\n");
+				}
+			}
+		}
+		
+	#endif
+
+
 	
 	#if OUTPUT_4X4_DATA
 		if((width == 4) && (cur_depth == 4)) // LEVEL 3
@@ -2974,6 +3234,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		RK_HEVC_PRINT("%s Error case Happen.\n",__FUNCTION__);
 	}
 #undef OUTPUT_4X4_DATA
+#undef OUTPUT_8X8_DATA	
+#undef OUTPUT_16X16_DATA
 }
 
 

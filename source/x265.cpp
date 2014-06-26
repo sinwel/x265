@@ -801,12 +801,16 @@ int main(int argc, char **argv)
 			fclose(G_hardwareC.ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[i]);
 	}
 
-		for (int i = 0; i < INTRA_8_FILE_NUM ; i++)
+	for (int i = 0; i < INTRA_8_FILE_NUM ; i++)
 	{
 		if (G_hardwareC.ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_8x8[i])
 			fclose(G_hardwareC.ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_8x8[i]);
 	}
-
+	for (int i = 0; i < INTRA_16_FILE_NUM ; i++)
+	{
+		if (G_hardwareC.ctu_calc.cu_level_calc[2].m_rkIntraPred->fp_intra_16x16[i])
+			fclose(G_hardwareC.ctu_calc.cu_level_calc[2].m_rkIntraPred->fp_intra_16x16[i]);
+	}
 	
 #endif
 

@@ -251,14 +251,30 @@ void hardwareC::ConfigFiles(FILE *fp)
 				}
 				
 				strcpy( namebuff, CFG_FILE);
-				strcat( namebuff, cmdbuff);
+				
 				
 				/*open output file */
-				if ( num >= INTRA_4_FILE_NUM)
+				if ( num >= INTRA_4_FILE_NUM + INTRA_8_FILE_NUM)
+				{
+					strcat( namebuff, "/16x16/");
+					strcat( namebuff, cmdbuff);
+					ctu_calc.cu_level_calc[2].m_rkIntraPred->fp_intra_16x16[num - INTRA_4_FILE_NUM - INTRA_8_FILE_NUM] = fopen(namebuff, "w");
+					RK_HEVC_PRINT("the %d file name is: %s \n",num - INTRA_4_FILE_NUM - INTRA_8_FILE_NUM,namebuff);
+				}
+				else if ( num >= INTRA_4_FILE_NUM)
+				{
+					strcat( namebuff, "/8x8/");
+					strcat( namebuff, cmdbuff);
 					ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_8x8[num - INTRA_4_FILE_NUM] = fopen(namebuff, "w");
+					RK_HEVC_PRINT("the %d file name is: %s \n",num - INTRA_4_FILE_NUM, namebuff);
+				}
 				else if ( num < INTRA_4_FILE_NUM)
+				{
+					strcat( namebuff, "/4x4/");
+					strcat( namebuff, cmdbuff);
 					ctu_calc.cu_level_calc[3].m_rkIntraPred->fp_intra_4x4[num] = fopen(namebuff, "w");
-
+					RK_HEVC_PRINT("the %d file name is: %s \n",num ,namebuff);
+				}
 				num++;
 
                 break;

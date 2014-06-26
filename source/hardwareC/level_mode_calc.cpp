@@ -954,7 +954,8 @@ void CU_LEVEL_CALC::intra_proc()
 	uint32_t totalBits4x4 = 0;
 #endif
 
-#define OUT_8X8	1
+#define OUT_8X8		1
+#define OUT_16X16	1
 	//=====================================================================================//
     /* -------------- Y ----------------*/
     inf_recon.size = m_size;
@@ -1047,6 +1048,23 @@ void CU_LEVEL_CALC::intra_proc()
 		FPRINT(m_rkIntraPred->fp_intra_8x8[INTRA_8_RECON],"\n");	
 	}
 #endif
+#if OUT_16X16
+	// Y
+	if (m_size == 16)
+	{
+		for ( uint16_t  j = 0 ; j < m_size*m_size ; j++ )
+		{
+			FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RESI_AFTER],"%04x",(uint16_t)inf_recon.resi[m_size*m_size - 1 - j]);			    
+			FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RECON],"%02x",inf_recon.Recon[m_size*m_size - 1  - j]);			    
+			if ( (j+1) % 16 == 0 )
+			{
+				FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RESI_AFTER],"\n");			    
+				FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RECON],"\n");	
+			}
+		}
+	}
+#endif
+
     //CABAC();
 
     // store [ Y output] to [inf_intra_proc]
@@ -1119,6 +1137,25 @@ void CU_LEVEL_CALC::intra_proc()
 		FPRINT(m_rkIntraPred->fp_intra_8x8[INTRA_8_RECON],"\n");	
 	}
 #endif
+
+#if OUT_16X16
+	// cb
+	if (m_size == 16)
+	{
+		for ( uint16_t  j = 0 ; j < m_size*m_size/4 ; j++ )
+		{
+			FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RESI_AFTER],"%04x",(uint16_t)inf_recon.resi[m_size*m_size/4 - 1 - j]);			    
+			FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RECON],"%02x",inf_recon.Recon[m_size*m_size/4 - 1  - j]);			    
+			if ( (j+1) % 16 == 0 )
+			{
+				FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RESI_AFTER],"\n");			    
+				FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RECON],"\n");	
+			}
+		}
+	}
+#endif
+
+
     // store [ U output] to [inf_intra_proc]
     inf_intra_proc.ReconU 	= inf_recon.Recon;
     inf_intra_proc.ResiU 	= inf_recon.resi;
@@ -1205,6 +1242,23 @@ void CU_LEVEL_CALC::intra_proc()
 	}
 #endif
 
+#if OUT_16X16
+	// cR
+	if (m_size == 16)
+	{
+		for ( uint16_t  j = 0 ; j < m_size*m_size/4 ; j++ )
+		{
+			FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RESI_AFTER],"%04x",(uint16_t)inf_recon.resi[m_size*m_size/4 - 1 - j]);			    
+			FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RECON],"%02x",inf_recon.Recon[m_size*m_size/4 - 1  - j]);			    
+			if ( (j+1) % 16 == 0 )
+			{
+				FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RESI_AFTER],"\n");			    
+				FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_RECON],"\n");	
+			}
+		}
+	}
+#endif
+
 
     //CABAC();
 	// store [ V output] to [inf_intra_proc]
@@ -1247,6 +1301,19 @@ void CU_LEVEL_CALC::intra_proc()
 #endif
 
 	
+#if OUT_16X16
+	if (m_size == 16)
+	{
+		FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_CU_TOTAL_BITS],"%08x",totalBits8x8);	
+		FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_CU_TOTAL_BITS],"\n");	
+
+		FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_CU_TOTAL_DISTORTION],"%08x",inf_intra_proc.Distortion);	
+		FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_CU_TOTAL_DISTORTION],"\n");	
+
+		FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_CU_TOTAL_COST],"%08x",inf_intra_proc.totalCost);			    
+		FPRINT(m_rkIntraPred->fp_intra_16x16[INTRA_16_CU_TOTAL_COST],"\n");			    
+	}
+#endif
 
 
 
@@ -1561,7 +1628,7 @@ void CU_LEVEL_CALC::intra_proc()
 	#endif
     }
 #undef OUT_8X8	
-	
+#undef OUT_16X16	
 }
 
 

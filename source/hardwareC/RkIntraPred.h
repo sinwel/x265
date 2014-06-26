@@ -135,6 +135,39 @@ typedef enum Intra8HardwareFile
     INTRA_8_FILE_NUM
 } Intra8HardwareFile;
 
+typedef enum Intra16HardwareFile
+{
+    INTRA_16_SAD               , //按照35个一行 y 的顺序进行打印 0 sad[0], 1 sad[1], 2 sad[2], 3 sad[3], ... 34 sad[34]
+    INTRA_16_CABAC_MODE_BIT    , //按照35个一行 y 的顺序进行打印 [bit34][bit33]...[bit2][bit1][bit0] 
+    INTRA_16_ORI_PIXEL_CU_LU   , // 16x16 CU 按照16 x 16个像素一行的顺序打印，打印顺序p[63]p[62]p[61]...p[1]p[0]
+    INTRA_16_ORI_PIXEL_CU_CB   , // 16x16 CU 按照8 x 8个像素一行的顺序打印，打印顺序p[15]p[14]p[13]...p[1]p[0]
+    INTRA_16_ORI_PIXEL_CU_CR   , // 16x16 CU 按照8 x 8个像素一行的顺序打印，打印顺序p[15]p[14]p[13]...p[1]p[0]
+    INTRA_16_REF_PIXEL_CU_LU   , // 16x16 CU的ref pixel lu像素 65个像素一行 打印顺序p[64]p[63]p[62]...p[1]p[0]
+    INTRA_16_REF_PIXEL_CU_CB   , // 16x16 CU的ref pixel cb像素 33个像素一行 打印顺序p[32]p[31]p[30]...p[1]p[0]
+    INTRA_16_REF_PIXEL_CU_CR   , // 16x16 CU的ref pixel cr像素 33个像素一行 打印顺序p[32]p[31]p[30]...p[1]p[0]
+    INTRA_16_REF_CU_VALID      , // 16x16 CU的ref cu valid信号 按照9bit一行的顺序打印[8][7][6][5][4][3][2][1][0]
+    INTRA_16_RESI_BEFORE       , // 预测出来残差像素 按照16个像素一行的顺序打印，每个像素位宽为16bit，打印顺序p[15]p[14]p[13]...p[1]p[0];
+								 //	cb两行拼成1行	cr两行拼成1行 	按照y cb cr的顺序打印
+    INTRA_16_RESI_AFTER        , // 经过IT之后的残差像素 按照16个像素一行的顺序打印，每个像素位宽为16bit，打印顺序p[15]p[14]p[13]...p[1]p[0];
+								 // cb两行拼成1行 	cr两行拼成1行 	按照y cb cr的顺序打印
+    INTRA_16_PRED              , // 经过IT之后的残差像素 按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15]p[14]p[13]...p[1]p[0];
+								 // cb两行拼成1行 	cr两行拼成1行 	按照y cb cr的顺序打印
+    INTRA_16_RECON             , // 经过IT之后的残差像素 按照16个像素一行的顺序打印，每个像素位宽为8bit，打印顺序p[15]p[14]p[13]...p[1]p[0];
+								 // cb两行拼成1行 	cr两行拼成1行 	按照y cb cr的顺序打印
+    INTRA_16_BEST_MODE         , // 按照8bit一行进行打印;按照y cb cr的顺序打印 
+    INTRA_16_TU_CABAC_BITS   	, //按照一个tu 残差 24 bit一行的顺序进行打印;按照y cb cr 的顺序打印 
+    INTRA_16_PU_PRED_MODE_BITS   , //按照 32 bit一行的数据进行打印,按照y cb cr的顺序进行打印
+    INTRA_16_CU_TOTAL_BITS       , //按照24bit一行的顺序进行打印
+    INTRA_16_CU_TOTAL_DISTORTION , //按照32bit一行的顺序进行打印
+    INTRA_16_CU_TOTAL_COST       , //按照32bit一行的顺序进行打印
+    INTRA_16_TU_COST_BITS		, //按照一个Y分量的TU的(sad + sad_lambda * bit)打印;顺序0 cost[0], 1 cost[1], 2 cost[2], 4 cost[4], ... 34 cost[34];cost按32bit打印
+    INTRA_16_TU_CBF_BITS         , //按照 24 bit打印 ，y cb cr 的顺序打印 一个TU 一行
+    INTRA_16_PU_PART_MODE_BITS	, //按照 24 bit一行的顺序进行打印,一个PU一行
+    INTRA_16_REF_PIXEL_CU_LU_FILTER  ,//16x16 CU的ref pixel lu像素 经过滤波后的lu ref像素 65个像素一行 打印顺序p[64]p[63]p[62]...p[1]p[0]
+
+    INTRA_16_FILE_NUM
+} Intra16HardwareFile;
+
 class Rk_IntraPred
 {
 public:
@@ -144,6 +177,7 @@ public:
     FILE *rk_logIntraPred[20];
     FILE* fp_intra_4x4[INTRA_4_FILE_NUM];
     FILE* fp_intra_8x8[INTRA_8_FILE_NUM];
+    FILE* fp_intra_16x16[INTRA_16_FILE_NUM];
 
     int     num_4x4fp;
     int     num_8x8fp;
