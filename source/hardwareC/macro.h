@@ -2,8 +2,10 @@
 #define __MACRO_H__
 
 /* =========================== hardWareC macros ============================== */
-#define MODULE_INIT_OPEN 0
+#define MODULE_INIT_OPEN            0
 
+#define RK_HWC_THREAD_OPEN          0            // add by dw  
+#define RK_HWC_TIME_CALC_ENABLE     0            // add by dw
 /* ======================================================================= */
 
 

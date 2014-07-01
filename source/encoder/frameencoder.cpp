@@ -95,6 +95,21 @@ void FrameEncoder::destroy()
     m_frameFilter.destroy();
     // wait for worker thread to exit
     stop();
+
+#if RK_HWC_THREAD_OPEN
+	ctuRow_threadDestory();
+#endif
+
+#if RK_HWC_TIME_CALC_ENABLE
+
+#if RK_HWC_THREAD_OPEN
+	printf("\n --------- Thread Mode TotalTime:%f \n", thd_totalTime);
+#else
+	printf("\n =================== Single Mode TotalTime:%f \n", nothd_totalTime);
+#endif		
+
+#endif
+
 }
 
 void FrameEncoder::init(Encoder *top, int numRows)
@@ -177,7 +192,85 @@ void FrameEncoder::init(Encoder *top, int numRows)
     }
 
     start();
+#if RK_HWC_THREAD_OPEN
+
+	ctuRow_threadActive = true;
+	ctuRow_encRow = 0;
+
+	ctuRow_threadInit();
+#endif          
+
+#if RK_HWC_TIME_CALC_ENABLE
+
+	thd_totalTime   = 0.0;
+	nothd_totalTime = 0.0;
+#endif
+
 }
+
+#if RK_HWC_THREAD_OPEN
+
+
+static DWORD WINAPI ThreadShim(FrameEncoder *instance)
+{
+	// defer processing to the virtual function implemented in the derived class
+	instance->ctuRow_threadMain();
+
+	return 0;
+}
+
+bool FrameEncoder::ctuRow_threadInit()
+{
+	DWORD threadId;
+
+	this->ctuRow_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadShim, this, 0, &threadId);
+
+	return threadId > 0;
+}
+
+void FrameEncoder::ctuRow_threadDestory()
+{
+	ctuRow_threadActive = false;
+	ctuRow_enable.trigger();
+
+	if (this->ctuRow_thread)
+	{
+		WaitForSingleObject(this->ctuRow_thread, INFINITE);
+
+		CloseHandle(this->ctuRow_thread);
+	}
+}
+
+void FrameEncoder::ctuRow_threadMain()
+{
+	//======== ctuRow Encoder
+	do
+	{
+		ctuRow_enable.wait(); // Encoder::encode() triggers this event
+		if (ctuRow_threadActive)
+		{
+			for (ctuRow_encRow=0; ctuRow_encRow<m_numRows;)
+			{
+				ScopedLock s(ctuRow_encLock);
+				//printf("---------encRow=%d \n", ctuRow_encRow);
+				//Sleep(300);
+				processRowEncoder(ctuRow_encRow);
+
+				if (ctuRow_encRow>=m_filterRowDelay)
+				 {
+					  ctuRow_filter.trigger();
+				 }
+				 ctuRow_encRow++;
+			}
+			
+		}
+	}
+	while (ctuRow_threadActive);
+
+}
+
+#endif
+
 
 int FrameEncoder::getStreamHeaders(NALUnitEBSP **nalunits)
 {
@@ -355,6 +448,9 @@ void FrameEncoder::setLambda(int qp, int row)
     //m_rows[row].m_rdCost.setLambda(lambda);
     m_rows[row].m_rdCost.setCbDistortionWeight(cbWeight);
     m_rows[row].m_rdCost.setCrDistortionWeight(crWeight);
+	G_hardwareC.hw_cfg.slice_type = static_cast<uint8_t>(slice->getSliceType());
+	G_hardwareC.hw_cfg.CbDistWeight = (uint32_t)floor(cbWeight * 256.0);
+	G_hardwareC.hw_cfg.CrDistWeight = (uint32_t)floor(crWeight * 256.0);
 }
 
 
@@ -1063,6 +1159,38 @@ void FrameEncoder::compressCTURows()
     }
     else
     {
+
+#if RK_HWC_TIME_CALC_ENABLE
+		int64_t      tmp_time = x265_mdate();
+#endif
+
+#if RK_HWC_THREAD_OPEN
+
+ 		ctuRow_enable.trigger();			
+		for (int row = 0; row < m_numRows;)
+		{
+			ScopedLock l(ctuRow_filLock);
+			if ( (ctuRow_encRow < m_numRows) && (ctuRow_encRow <= row+m_filterRowDelay) )
+			{
+				ctuRow_filter.wait();
+			} 
+
+			//printf("=====================filterRow=%d \n", row);
+			m_frameFilter.processRow(row);		
+			//Sleep(200);
+
+			row++;
+		}
+
+
+		// reset encode row
+		{
+			ScopedLock l(ctuRow_filLock);
+			ctuRow_encRow = 0;
+		}
+
+#else
+
         for (int i = 0; i < this->m_numRows + m_filterRowDelay; i++)
         {
             // Encoder
@@ -1095,16 +1223,31 @@ void FrameEncoder::compressCTURows()
 
                 processRow(i * 2 + 0);
             }
-
+			
+			Lock   m_fltLock;
             // Filter
             if (i >= m_filterRowDelay)
             {
+				ScopedLock l(m_fltLock);
                 processRow((i - m_filterRowDelay) * 2 + 1);
             }
 #if RK_CABAC_H
 			G_hardwareC.ctu_calc.m_cabac_rdo.update_L_buffer_y();
 #endif
         }
+
+#endif // end of  RK_HWC_THREAD_OPEN macro definition
+
+#if RK_HWC_TIME_CALC_ENABLE
+
+#if RK_HWC_THREAD_OPEN
+		thd_totalTime   += (double)(x265_mdate() - tmp_time) /1000000;
+#else
+		nothd_totalTime += (double)(x265_mdate() - tmp_time) /1000000;
+#endif		
+		
+#endif
+
     }
     m_pic->m_frameTime = (double)m_totalTime / 1000000;
     m_totalTime = 0;

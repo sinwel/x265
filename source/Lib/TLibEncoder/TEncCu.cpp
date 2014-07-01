@@ -390,7 +390,7 @@ bool mergeFlag = 0;
 		pHardWare->Cime.setPicWidth(nPicWidth);
 		int merangeX = cu->getSlice()->getSPS()->getMeRangeX() / 4 * 4;
 		int merangeY = cu->getSlice()->getSPS()->getMeRangeY() / 4 * 4;
-		merangeX = MIN_MINE(768, merangeX);
+		merangeX = MIN_MINE(384, merangeX);
 		merangeY = MIN_MINE(320, merangeY);
 		if (nPicWidth < merangeX + 60 || nPicWidth <= 352)
 		{
@@ -742,7 +742,7 @@ void TEncCu::SaveTemporalMv(TComDataCU* cu)
 		}
 	}
 }
-void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
+void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu, MergeMvpCand *pMergeCand, AmvpCand *pAmvpCand)
 {
 	int nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
 	int nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
@@ -779,8 +779,8 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 						pCurrCtu->getCULeft()->getSlice()->getRefPOC(refList, mvField.refIdx);
 				}
 			}
-			MergeCand.setMvSpatialForCtu(mvSpatial, i);
-			Amvp.setMvSpatialForCtu(mvSpatial, i);
+			pMergeCand->setMvSpatialForCtu(mvSpatial, i);
+			pAmvpCand->setMvSpatialForCtu(mvSpatial, i);
 		}
 	}
 	else
@@ -788,8 +788,8 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 		for (int i = 0; i < 8; i++)
 		{
 			mvSpatial.valid = 0;	mvSpatial.pred_flag[0] = 0;  mvSpatial.pred_flag[1] = 0;
-			MergeCand.setMvSpatialForCtu(mvSpatial, i);
-			Amvp.setMvSpatialForCtu(mvSpatial, i);
+			pMergeCand->setMvSpatialForCtu(mvSpatial, i);
+			pAmvpCand->setMvSpatialForCtu(mvSpatial, i);
 		}
 	}
 
@@ -814,14 +814,14 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 					pCurrCtu->getCUAboveLeft()->getSlice()->getRefPOC(refList, mvField.refIdx);
 			}
 		}
-		MergeCand.setMvSpatialForCtu(mvSpatial, 8);
-		Amvp.setMvSpatialForCtu(mvSpatial, 8);
+		pMergeCand->setMvSpatialForCtu(mvSpatial, 8);
+		pAmvpCand->setMvSpatialForCtu(mvSpatial, 8);
 	}
 	else
 	{
 		mvSpatial.valid = 0;	mvSpatial.pred_flag[0] = 0;	mvSpatial.pred_flag[1] = 0;
-		MergeCand.setMvSpatialForCtu(mvSpatial, 8);
-		Amvp.setMvSpatialForCtu(mvSpatial, 8);
+		pMergeCand->setMvSpatialForCtu(mvSpatial, 8);
+		pAmvpCand->setMvSpatialForCtu(mvSpatial, 8);
 	}
 
 	if (pCurrCtu->getCUAbove())
@@ -848,8 +848,8 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 						pCurrCtu->getCUAbove()->getSlice()->getRefPOC(refList, mvField.refIdx);
 				}
 			}
-			MergeCand.setMvSpatialForCtu(mvSpatial, i+9);
-			Amvp.setMvSpatialForCtu(mvSpatial, i + 9);
+			pMergeCand->setMvSpatialForCtu(mvSpatial, i+9);
+			pAmvpCand->setMvSpatialForCtu(mvSpatial, i + 9);
 		}
 	}
 	else
@@ -857,8 +857,8 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 		for (int i = 0; i < 8; i++)
 		{
 			mvSpatial.valid = 0;	mvSpatial.pred_flag[0] = 0;  mvSpatial.pred_flag[1] = 0;
-			MergeCand.setMvSpatialForCtu(mvSpatial, i+9);
-			Amvp.setMvSpatialForCtu(mvSpatial, i + 9);
+			pMergeCand->setMvSpatialForCtu(mvSpatial, i+9);
+			pAmvpCand->setMvSpatialForCtu(mvSpatial, i + 9);
 		}
 	}
 
@@ -883,84 +883,62 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 					pCurrCtu->getCUAboveRight()->getSlice()->getRefPOC(refList, mvField.refIdx);
 			}
 		}
-		MergeCand.setMvSpatialForCtu(mvSpatial, 17);
-		Amvp.setMvSpatialForCtu(mvSpatial, 17);
+		pMergeCand->setMvSpatialForCtu(mvSpatial, 17);
+		pAmvpCand->setMvSpatialForCtu(mvSpatial, 17);
 	}
 	else
 	{
 		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
-		MergeCand.setMvSpatialForCtu(mvSpatial, 17);
-		Amvp.setMvSpatialForCtu(mvSpatial, 17);
+		pMergeCand->setMvSpatialForCtu(mvSpatial, 17);
+		pAmvpCand->setMvSpatialForCtu(mvSpatial, 17);
 	}
 
 	/*set first left top spatial candidate for each level except 8x8*/
 	int idx64[4] = { 0, 8, 16, 17 };
 	for (int i = 0; i < 4; i++)
 	{
-		MergeCand.getMvSpatialForCtu(mvSpatial, idx64[i]);
-		MergeCand.setMvSpatialForCu64(mvSpatial, i);
-		Amvp.getMvSpatialForCtu(mvSpatial, idx64[i]);
-		Amvp.setMvSpatialForCu64(mvSpatial, i);
+		pMergeCand->getMvSpatialForCtu(mvSpatial, idx64[i]);
+		pMergeCand->setMvSpatialForCu64(mvSpatial, i);
+		pAmvpCand->getMvSpatialForCtu(mvSpatial, idx64[i]);
+		pAmvpCand->setMvSpatialForCu64(mvSpatial, i);
 	}
 	int idx32[9] = { 0, 3, 4, 8, 9, 12, 13, 16, 17 };
 	for (int i = 0; i < 9; i++)
 	{
-		MergeCand.getMvSpatialForCtu(mvSpatial, idx32[i]);
-		MergeCand.setMvSpatialForCu32(mvSpatial, i);
-		Amvp.getMvSpatialForCtu(mvSpatial, idx32[i]);
-		Amvp.setMvSpatialForCu32(mvSpatial, i);
+		pMergeCand->getMvSpatialForCtu(mvSpatial, idx32[i]);
+		pMergeCand->setMvSpatialForCu32(mvSpatial, i);
+		pAmvpCand->getMvSpatialForCtu(mvSpatial, idx32[i]);
+		pAmvpCand->setMvSpatialForCu32(mvSpatial, i);
 	}
 	int idx16[10] = { 3, 4, 5, 6, 8, 9, 10, 11, 12, 13 };
 	for (int i = 0; i < 10; i++)
 	{
 		mvSpatial.valid = 0;	mvSpatial.pred_flag[0] = 0;	mvSpatial.pred_flag[1] = 0;
-		MergeCand.getMvSpatialForCtu(mvSpatial, idx16[i]);
-		MergeCand.setMvSpatialForCu16(mvSpatial, i);
-		Amvp.getMvSpatialForCtu(mvSpatial, idx16[i]);
-		Amvp.setMvSpatialForCu16(mvSpatial, i);
+		pMergeCand->getMvSpatialForCtu(mvSpatial, idx16[i]);
+		pMergeCand->setMvSpatialForCu16(mvSpatial, i);
+		pAmvpCand->getMvSpatialForCtu(mvSpatial, idx16[i]);
+		pAmvpCand->setMvSpatialForCu16(mvSpatial, i);
 	}
 	/*set first left top spatial candidate for each level except 8x8*/
 
 	/*get slice info of merge proc*/
-	MergeCand.setCtuPosInPic(cu->getAddr());
-	MergeCand.setCurrPicPoc(cu->getSlice()->getPOC());
-	MergeCand.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
-	MergeCand.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
-	MergeCand.setMergeCandNum(cu->getSlice()->getMaxNumMergeCand());
-	MergeCand.setCheckLDC(cu->getSlice()->getCheckLDC());
-	MergeCand.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
+	pMergeCand->setCtuPosInPic(cu->getAddr());
+	pMergeCand->setCurrPicPoc(cu->getSlice()->getPOC());
+	pMergeCand->setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
+	pMergeCand->setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
+	pMergeCand->setMergeCandNum(cu->getSlice()->getMaxNumMergeCand());
+	pMergeCand->setCheckLDC(cu->getSlice()->getCheckLDC());
+	pMergeCand->setFromL0Flag(cu->getSlice()->getColFromL0Flag());
 	int nRefPicNum[2];
 	nRefPicNum[0] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_0);
 	nRefPicNum[1] = cu->getSlice()->getNumRefIdx(REF_PIC_LIST_1);
-	MergeCand.setRefPicNum(nRefPicNum);
+	pMergeCand->setRefPicNum(nRefPicNum);
 	if (cu->getSlice()->isInterB())
-		MergeCand.setSliceType(b_slice);
+		pMergeCand->setSliceType(b_slice);
 	else if (cu->getSlice()->isInterP())
-		MergeCand.setSliceType(p_slice);
+		pMergeCand->setSliceType(p_slice);
 	else
-		MergeCand.setSliceType(i_slice);
-	int nCurrRefPicPoc[2] = { 0 };
-	nCurrRefPicPoc[0] = cu->getSlice()->getRefPic(REF_PIC_LIST_0, 0)->getPOC();
-	if (cu->getSlice()->isInterB())
-	{
-		nCurrRefPicPoc[1] = cu->getSlice()->getRefPic(REF_PIC_LIST_1, 0)->getPOC();
-	}
-	MergeCand.setCurrRefPicPoc(nCurrRefPicPoc);
-	/*get slice info of merge proc*/
-
-	/*get slice info of FME proc*/
-	Amvp.setCtuPosInPic(cu->getAddr());
-	Amvp.setCurrPicPoc(cu->getSlice()->getPOC());
-	Amvp.setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
-	Amvp.setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
-	Amvp.setCheckLDC(cu->getSlice()->getCheckLDC());
-	Amvp.setFromL0Flag(cu->getSlice()->getColFromL0Flag());
-	if (cu->getSlice()->isInterB())
-		Amvp.setSliceType(b_slice);
-	else if (cu->getSlice()->isInterP())
-		Amvp.setSliceType(p_slice);
-	else
-		Amvp.setSliceType(i_slice);
+		pMergeCand->setSliceType(i_slice);
 	int nRefPicPoc[2][nMaxRefPic / 2] = { 0 };
 	for (int idxList = 0; idxList < 2; idxList++)
 	{
@@ -968,7 +946,30 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 		{
 			nRefPicPoc[idxList][idxRef] = cu->getSlice()->getRefPic(idxList, idxRef)->getPOC();
 		}
-		Amvp.setCurrRefPicPoc(nRefPicPoc[idxList], idxList);
+		pMergeCand->setCurrRefPicPoc(nRefPicPoc[idxList], idxList);
+	}
+	/*get slice info of merge proc*/
+
+	/*get slice info of FME proc*/
+	pAmvpCand->setCtuPosInPic(cu->getAddr());
+	pAmvpCand->setCurrPicPoc(cu->getSlice()->getPOC());
+	pAmvpCand->setPicHeight(cu->getSlice()->getSPS()->getPicHeightInLumaSamples());
+	pAmvpCand->setPicWidth(cu->getSlice()->getSPS()->getPicWidthInLumaSamples());
+	pAmvpCand->setCheckLDC(cu->getSlice()->getCheckLDC());
+	pAmvpCand->setFromL0Flag(cu->getSlice()->getColFromL0Flag());
+	if (cu->getSlice()->isInterB())
+		pAmvpCand->setSliceType(b_slice);
+	else if (cu->getSlice()->isInterP())
+		pAmvpCand->setSliceType(p_slice);
+	else
+		pAmvpCand->setSliceType(i_slice);
+	for (int idxList = 0; idxList < 2; idxList++)
+	{
+		for (int idxRef = 0; idxRef < cu->getSlice()->getNumRefIdx(idxList); idxRef++)
+		{
+			nRefPicPoc[idxList][idxRef] = cu->getSlice()->getRefPic(idxList, idxRef)->getPOC();
+		}
+		pAmvpCand->setCurrRefPicPoc(nRefPicPoc[idxList], idxList);
 	}
 	/*get slice info of FME proc*/
 
@@ -989,8 +990,8 @@ void TEncCu::setMvpCandInfoForCtu(TComDataCU* cu)
 			for (int j = 0; j < 16; j++)
 			{
 				memcpy(&mvTemporal, &pTemporalMv[nColCtuPosInPic * 16 + j], sizeof(TEMPORAL_MV));
-				MergeCand.setMvTemporal(mvTemporal, i, j);
-				Amvp.setMvTemporal(mvTemporal, i, j);
+				pMergeCand->setMvTemporal(mvTemporal, i, j);
+				pAmvpCand->setMvTemporal(mvTemporal, i, j);
 			}
 		}
 	}
@@ -1043,7 +1044,9 @@ void TEncCu::compressCU(TComDataCU* cu)
         else
 		{
 #if RK_INTER_METEST
-		setMvpCandInfoForCtu(m_bestCU[0]);
+		setMvpCandInfoForCtu(m_bestCU[0], &MergeCand, &Amvp);
+		setMvpCandInfoForCtu(m_bestCU[0], &pHardWare->ctu_calc.cu_level_calc[0].m_MergeCand, 
+				&pHardWare->ctu_calc.cu_level_calc[0].m_Amvp);
 		xCompressCU(m_bestCU[0], m_tempCU[0], 0, true);
 #else
 			xCompressCU(m_bestCU[0], m_tempCU[0], 0);
@@ -1315,7 +1318,7 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         }
 
         m_entropyCoder->resetBits();
-# if !INTRA_SPLIT_FLAG_MODIFY
+#if !INTRA_SPLIT_FLAG_MODIFY
 		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
 #endif
         outBestCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); // split bits
@@ -1392,7 +1395,7 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
             {
                 if (0 == partUnitIdx) //initialize RD with previous depth buffer
                 {
-# if INTRA_SPLIT_FLAG_MODIFY
+#if INTRA_SPLIT_FLAG_MODIFY
 					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
 					m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
 					if (depth == 0 || depth == 1)
@@ -2080,12 +2083,18 @@ void TEncCu::xCheckRDCostMerge2Nx2N(TComDataCU*& outBestCU, TComDataCU*& outTemp
 	MergeCand.getMergeCandidates();
 	for (int i = 0; i < numValidMergeCand; i ++)
 	{
-		assert(MergeCand.getMvFieldNeighbours()[i].refIdx == mvFieldNeighbours[i].refIdx);
-		if (mvFieldNeighbours[i].refIdx >= 0)
+		assert(MergeCand.getMvFieldNeighbours()[i * 2 + 0].refIdx == mvFieldNeighbours[i * 2 + 0].refIdx);
+		assert(MergeCand.getMvFieldNeighbours()[i * 2 + 1].refIdx == mvFieldNeighbours[i * 2 + 1].refIdx);
+		assert(MergeCand.getInterDirNeighbours()[i] == interDirNeighbours[i]);
+		if (mvFieldNeighbours[i*2+0].refIdx >= 0)
 		{
-			assert(MergeCand.getMvFieldNeighbours()[i].mv.x == mvFieldNeighbours[i].mv.x);
-			assert(MergeCand.getMvFieldNeighbours()[i].mv.y == mvFieldNeighbours[i].mv.y);
-			assert(MergeCand.getInterDirNeighbours()[i] == interDirNeighbours[i]);
+			assert(MergeCand.getMvFieldNeighbours()[i * 2 + 0].mv.x == mvFieldNeighbours[i * 2 + 0].mv.x);
+			assert(MergeCand.getMvFieldNeighbours()[i * 2 + 0].mv.y == mvFieldNeighbours[i * 2 + 0].mv.y);
+		}
+		if (mvFieldNeighbours[i * 2 + 1].refIdx >= 0)
+		{
+			assert(MergeCand.getMvFieldNeighbours()[i * 2 + 1].mv.x == mvFieldNeighbours[i * 2 + 1].mv.x);
+			assert(MergeCand.getMvFieldNeighbours()[i * 2 + 1].mv.y == mvFieldNeighbours[i * 2 + 1].mv.y);
 		}
 	}
 

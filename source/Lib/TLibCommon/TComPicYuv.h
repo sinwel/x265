@@ -103,6 +103,8 @@ public:
     virtual ~TComPicYuv();
 
     void xExtendPicCompBorder(Pel* recon, int stride, int width, int height, int marginX, int marginY);
+	void frame_init_lowres_core(Pel *src0, Pel *dst0, Pel *dsth, Pel *dstv, Pel *dstc,
+		intptr_t src_stride, intptr_t dst_stride, int width, int height);
 
     // ------------------------------------------------------------------------------------------------
     //  Memory management

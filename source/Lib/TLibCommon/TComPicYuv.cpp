@@ -195,6 +195,31 @@ void TComPicYuv::xExtendPicCompBorder(Pel* recon, int stride, int width, int hei
     }
 }
 
+void TComPicYuv::frame_init_lowres_core(Pel *src0, Pel *dst0, Pel *dsth, Pel *dstv, Pel *dstc,
+	intptr_t src_stride, intptr_t dst_stride, int width, int height)
+{
+	for (int y = 0; y < height; y++)
+	{
+		pixel *src1 = src0 + src_stride;
+		pixel *src2 = src1 + src_stride;
+		for (int x = 0; x < width; x++)
+		{
+			// slower than naive bilinear, but matches asm
+#define FILTER(a, b, c, d) ((((a + b + 1) >> 1) + ((c + d + 1) >> 1) + 1) >> 1)
+			dst0[x] = FILTER(src0[2 * x], src1[2 * x], src0[2 * x + 1], src1[2 * x + 1]);
+			dsth[x] = FILTER(src0[2 * x + 1], src1[2 * x + 1], src0[2 * x + 2], src1[2 * x + 2]);
+			dstv[x] = FILTER(src1[2 * x], src2[2 * x], src1[2 * x + 1], src2[2 * x + 1]);
+			dstc[x] = FILTER(src1[2 * x + 1], src2[2 * x + 1], src1[2 * x + 2], src2[2 * x + 2]);
+#undef FILTER
+		}
+		src0 += src_stride * 2;
+		dst0 += dst_stride;
+		dsth += dst_stride;
+		dstv += dst_stride;
+		dstc += dst_stride;
+	}
+}
+
 /* Copy pixels from an input picture (C structure) into internal TComPicYuv instance
  * Upscale pixels from 8bits to 16 bits when required, but do not modify
  * pixels. */

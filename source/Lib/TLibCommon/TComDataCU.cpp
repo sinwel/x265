@@ -2809,21 +2809,21 @@ void TComDataCU::UpdateMvpInfo(unsigned int offsIdx)
 {
 	SPATIAL_MV mvSpatial;
 	TComMvField mvField;
+	mvSpatial.valid = 1;
+	for (int i = 0; i < 2; i++)
+	{
+		getMvField(this, 0, i, mvField);
+		if (mvField.refIdx >= 0)
+			mvSpatial.pred_flag[i] = 1;
+		else
+			mvSpatial.pred_flag[i] = 0;
+		mvSpatial.mv[i].x = mvField.mv.x;
+		mvSpatial.mv[i].y = mvField.mv.y;
+		mvSpatial.ref_idx[i] = mvField.refIdx;
+		mvSpatial.delta_poc[i] = getSlice()->getPOC() - getSlice()->getRefPOC(i, mvField.refIdx);
+	}
 	if (offsIdx<64)
 	{
-		mvSpatial.valid = 1;
-		for (int i = 0; i < 2; i ++)
-		{
-			getMvField(this, 0, i, mvField);
-			if (mvField.refIdx >= 0)
-				mvSpatial.pred_flag[i] = 1;
-			else
-				mvSpatial.pred_flag[i] = 0;
-			mvSpatial.mv[i].x = mvField.mv.x;
-			mvSpatial.mv[i].y = mvField.mv.y;
-			mvSpatial.ref_idx[i] = mvField.refIdx;
-			mvSpatial.delta_poc[i] = getSlice()->getPOC() -	getSlice()->getRefPOC(i, mvField.refIdx);
-		}
 		if ( (offsIdx/8)%2 == 0 && offsIdx%2==0 ) //left top
 		{
 			MergeCand.setMvSpatialForCu8(mvSpatial, 3);
@@ -2848,19 +2848,6 @@ void TComDataCU::UpdateMvpInfo(unsigned int offsIdx)
 	else if (offsIdx<80)
 	{
 		bool isSplit = getDepth(0)>2;
-		mvSpatial.valid = 1;
-		for (int i = 0; i < 2; i++)
-		{
-			getMvField(this, 0, i, mvField);
-			if (mvField.refIdx >= 0)
-				mvSpatial.pred_flag[i] = 1;
-			else
-				mvSpatial.pred_flag[i] = 0;
-			mvSpatial.mv[i].x = mvField.mv.x;
-			mvSpatial.mv[i].y = mvField.mv.y;
-			mvSpatial.ref_idx[i] = mvField.refIdx;
-			mvSpatial.delta_poc[i] = getSlice()->getPOC() - getSlice()->getRefPOC(i, mvField.refIdx);
-		}
 		//update internal info
 		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0)
 		{
@@ -3034,20 +3021,6 @@ void TComDataCU::UpdateMvpInfo(unsigned int offsIdx)
 	else if (offsIdx<84)
 	{
 		bool isSplit = getDepth(0)>1;
-		mvSpatial.valid = 1;
-		for (int i = 0; i < 2; i++)
-		{
-			getMvField(this, 0, i, mvField);
-			if (mvField.refIdx >= 0)
-				mvSpatial.pred_flag[i] = 1;
-			else
-				mvSpatial.pred_flag[i] = 0;
-			mvSpatial.mv[i].x = mvField.mv.x;
-			mvSpatial.mv[i].y = mvField.mv.y;
-			mvSpatial.ref_idx[i] = mvField.refIdx;
-			mvSpatial.delta_poc[i] = getSlice()->getPOC() - getSlice()->getRefPOC(i, mvField.refIdx);
-		}
-
 		//update internal info and external info
 		if (80 == offsIdx)
 		{

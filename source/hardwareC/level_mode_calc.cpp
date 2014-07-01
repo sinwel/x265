@@ -41,6 +41,9 @@ CU_LEVEL_CALC::~CU_LEVEL_CALC()
 {
 }
 
+class AmvpCand CU_LEVEL_CALC::m_Amvp;
+class MergeMvpCand CU_LEVEL_CALC::m_MergeCand;
+
 void CU_LEVEL_CALC::init(uint8_t size)
 {
     m_size = size;
@@ -594,6 +597,8 @@ void CU_LEVEL_CALC::inter_qt(uint8_t nPart, uint8_t mode, uint8_t textType)
 }
 void CU_LEVEL_CALC::inter_proc(int offsIdx)
 {
+	m_Amvp.PrefetchAmvpCandInfo(offsIdx);
+	m_MergeCand.PrefetchAmvpCandInfo(offsIdx);
 	int nPicWidth = pHardWare->pic_w;
 	int nPicHeight = pHardWare->pic_h;
 	int nCtu = pHardWare->ctu_w;
@@ -619,6 +624,23 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 
 	Merge.setCuPosInCtu(offsIdx);
 	Merge.setCuSize(nCuSize);
+	m_MergeCand.getMergeCandidates();
+	MvField *pMvField = m_MergeCand.getMvFieldNeighbours();
+	for (int i = 0; i < m_MergeCand.getMergeCandNum(); i ++)
+	{
+		assert(g_mvMerge[offsIdx][i * 2].refIdx == pMvField[i * 2].refIdx);
+		if (pMvField[i*2].refIdx >= 0)
+		{
+			assert(g_mvMerge[offsIdx][i * 2].mv.x == pMvField[i * 2].mv.x);
+			assert(g_mvMerge[offsIdx][i * 2].mv.y == pMvField[i * 2].mv.y);
+		}
+		assert(g_mvMerge[offsIdx][i * 2 + 1].refIdx == pMvField[i * 2 + 1].refIdx);
+		if (pMvField[i * 2 + 1].refIdx >= 0)
+		{
+			assert(g_mvMerge[offsIdx][i * 2 + 1].mv.x == pMvField[i * 2 + 1].mv.x);
+			assert(g_mvMerge[offsIdx][i * 2 + 1].mv.y == pMvField[i * 2 + 1].mv.y);
+		}
+	}
 	Merge.setMergeCand(g_mvMerge[offsIdx]);
 	Mv tmpMv[nMaxRefPic*2];
 	for (int nRefPicIdx = 0; nRefPicIdx < nMaxRefPic; nRefPicIdx ++)
@@ -647,6 +669,13 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 			Fme.setCurrCuPel(pHardWare->Rime[offsIdx].getCurrCuPel(), nCuSize);
 			for (int nRefPicIdx = 0; nRefPicIdx < Fme.getRefPicNum(REF_PIC_LIST0); nRefPicIdx++)
 			{
+				AmvpInfo amvpMine;
+				m_Amvp.fillMvpCand(REF_PIC_LIST0, nRefPicIdx, &amvpMine);
+				for (int i = 0; i < amvpMine.m_num; i++)
+				{
+					assert(amvpMine.m_mvCand[i].x == g_mvAmvp[nRefPicIdx][offsIdx][i].x);
+					assert(amvpMine.m_mvCand[i].y == g_mvAmvp[nRefPicIdx][offsIdx][i].y);
+				}
 				Fme.setAmvp(g_mvAmvp[nRefPicIdx][offsIdx], nRefPicIdx);
 				Fme.setFmeInterpPel(pHardWare->Rime[offsIdx].getCuForFmeInterp(nRefPicIdx), (nCuSize + 4 * 2), nRefPicIdx);
 				Fme.setMvFmeInput(pHardWare->Rime[offsIdx].getFmeMv(nRefPicIdx), nRefPicIdx);
@@ -654,6 +683,13 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 			for (int nRefPicIdx = 0; nRefPicIdx < Fme.getRefPicNum(REF_PIC_LIST1); nRefPicIdx++)
 			{
 				int idx = nMaxRefPic / 2 + nRefPicIdx;
+				AmvpInfo amvpMine;
+				m_Amvp.fillMvpCand(REF_PIC_LIST1, nRefPicIdx, &amvpMine);
+				for (int i = 0; i < amvpMine.m_num; i++)
+				{
+					assert(amvpMine.m_mvCand[i].x == g_mvAmvp[idx][offsIdx][i].x);
+					assert(amvpMine.m_mvCand[i].y == g_mvAmvp[idx][offsIdx][i].y);
+				}
 				Fme.setAmvp(g_mvAmvp[idx][offsIdx], idx);
 				Fme.setFmeInterpPel(pHardWare->Rime[offsIdx].getCuForFmeInterp(idx), (nCuSize + 4 * 2), idx);
 				Fme.setMvFmeInput(pHardWare->Rime[offsIdx].getFmeMv(idx), idx);
@@ -665,6 +701,13 @@ void CU_LEVEL_CALC::inter_proc(int offsIdx)
 			Fme.setCurrCuPel(pHardWare->Rime[offsIdx].getCurrCuPel(), nCuSize);
 			for (int nRefPicIdx = 0; nRefPicIdx < Fme.getRefPicNum(REF_PIC_LIST0); nRefPicIdx++)
 			{
+				AmvpInfo amvpMine;
+				m_Amvp.fillMvpCand(REF_PIC_LIST0, nRefPicIdx, &amvpMine);
+				for (int i = 0; i < amvpMine.m_num; i++)
+				{
+					assert(amvpMine.m_mvCand[i].x == g_mvAmvp[nRefPicIdx][offsIdx][i].x);
+					assert(amvpMine.m_mvCand[i].y == g_mvAmvp[nRefPicIdx][offsIdx][i].y);
+				}
 				Fme.setAmvp(g_mvAmvp[nRefPicIdx][offsIdx], nRefPicIdx);
 				Fme.setFmeInterpPel(pHardWare->Rime[offsIdx].getCuForFmeInterp(nRefPicIdx), (nCuSize + 4 * 2), nRefPicIdx);
 				Fme.setMvFmeInput(pHardWare->Rime[offsIdx].getFmeMv(nRefPicIdx), nRefPicIdx);
@@ -1863,17 +1906,16 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 	}
 #endif
     intra_proc();
-
-    RDOCompare();
-
+	
     cost_intra.predMode = 1;
     cost_intra.TotalCost = inf_intra_proc.totalCost;
     cost_intra.Distortion = inf_intra_proc.Distortion;
     cost_intra.Bits = inf_intra_proc.Bits;
-    cost_best = &cost_intra;
+	RDOCompare();
+    //cost_best = &cost_intra;
 
 
-
+	
     //-------------------------------------------//
     // temp use for debug                        //
     //-------------------------------------------//
@@ -1923,4 +1965,5 @@ unsigned int CU_LEVEL_CALC::proc(unsigned int level, unsigned int pos_x, unsigne
 
 
 	return cost;
+	//return cost_best->TotalCost;
 }

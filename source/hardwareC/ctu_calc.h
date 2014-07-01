@@ -224,6 +224,7 @@ public:
     void end();
     void compare();
     void cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint8_t depth);
+	void UpdateMvpInfo(int, bool); //add by hdl
 	void model_cfg(char *cmd);
     void LogIntraParams2File(INTERFACE_INTRA_PROC &inf_intra_proc, uint32_t x_pos, uint32_t y_pos);
 	void LogFile(INTERFACE_TQ* inf_tq);

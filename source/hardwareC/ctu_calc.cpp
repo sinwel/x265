@@ -346,6 +346,72 @@ void CTU_CALC::cu_level_compare(uint32_t bestCU_cost, uint32_t tempCU_cost, uint
     }
 }
 
+void CTU_CALC::UpdateMvpInfo(int offsIdx, bool isSplit)
+{
+	SPATIAL_MV mvSpatial;
+	int level = 0;
+	if (offsIdx < 64)
+		level = 3;
+	else if (offsIdx < 80)
+		level = 2;
+	else if (offsIdx < 84)
+		level = 1;
+	else
+		level = 0;
+	MvField mvField;
+	if (cu_level_calc[level].cost_best->predMode == 0)
+	{
+		if (cu_level_calc[level].cost_best->mergeFlag == 1) //merge
+		{
+			int nMergeIdx = cu_level_calc[level].Merge.getMergeIdx();
+			mvSpatial.valid = 1;
+			for (int i = 0; i < 2; i++)
+			{
+				mvField = cu_level_calc[level].Merge.getMergeCand(nMergeIdx, 0 != i);
+				if (mvField.refIdx >= 0)
+				{
+					mvSpatial.pred_flag[i] = 1;
+					mvSpatial.mv[i].x = mvField.mv.x;
+					mvSpatial.mv[i].y = mvField.mv.y;
+					mvSpatial.delta_poc[i] = cu_level_calc[level].m_MergeCand.getCurrPicPoc() -
+						cu_level_calc[level].m_MergeCand.getCurrRefPicPoc(i, mvField.refIdx);
+				}
+				else
+					mvSpatial.pred_flag[i] = 0;
+				mvSpatial.ref_idx[i] = mvField.refIdx;
+			}
+		}
+		else //fme
+		{
+			mvSpatial.valid = 1;
+			for (int i = 0; i < 2; i++)
+			{
+				int refIdx = cu_level_calc[level].Fme.getFmeInfoForCabac()->m_refIdx[i];
+				Mv tmpMv;
+				if (refIdx >= 0)
+				{
+					mvSpatial.pred_flag[i] = 1;
+					int idx = i == 0 ? refIdx : refIdx + nMaxRefPic / 2;
+					mvSpatial.mv[i].x = cu_level_calc[level].Fme.getMvFme(idx).x;
+					mvSpatial.mv[i].y = cu_level_calc[level].Fme.getMvFme(idx).y;
+					mvSpatial.delta_poc[i] = cu_level_calc[level].m_Amvp.getCurrPicPoc() - cu_level_calc[level].m_Amvp.getCurrRefPicPoc(i, refIdx);
+				}
+				else
+					mvSpatial.pred_flag[i] = 0;
+				mvSpatial.ref_idx[i] = refIdx;
+			}
+		}
+	}
+	else
+	{
+		mvSpatial.pred_flag[0] = 0;
+		mvSpatial.pred_flag[1] = 0;
+		//isSplit = false;
+	}
+	cu_level_calc[level].m_Amvp.UpdateMvpInfo(offsIdx, mvSpatial, isSplit);
+	cu_level_calc[level].m_MergeCand.UpdateMvpInfo(offsIdx, mvSpatial, isSplit);
+}
+
 void CTU_CALC::compare()
 {
     uint32_t i, j;
@@ -788,7 +854,8 @@ void CTU_CALC::proc()
 
 #ifndef	CTU_CALC_STATUS_ENABLE
 	//==============================================================
-    cu_level_calc[0].depth = 0;
+	int offsIdx = 84;
+	cu_level_calc[0].depth = 0;
     cu_level_calc[0].TotalCost = 0;
     cost_0 = cu_level_calc[0].proc(0, 0, 0);
 	compareCoeffandRecon(cu_level_calc, 0, false);
@@ -813,7 +880,8 @@ void CTU_CALC::proc()
 
         cost_1 = cu_level_calc[1].proc(1, cu_x_1, cu_y_1);
 
-        if (!(cost_1 & 0x80000000)) {
+        if (!(cost_1 & 0x80000000))
+		{
 //            totalBits_1 += cu_level_calc[1].cost_best->Bits;
 //            totalDist_1 += cu_level_calc[1].cost_best->Distortion;
 #ifdef LOG_INTRA_PARAMS_2_FILE
@@ -900,6 +968,12 @@ void CTU_CALC::proc()
 #endif
                 }
 
+				if (2 != pHardWare->ctu_calc.slice_type)
+				{
+					offsIdx = cu_x_3 / 8 + cu_y_3 / 8 * 8;
+					UpdateMvpInfo(offsIdx, false);
+				}
+
 				cu_level_calc[3].end();
 				cu_level_calc[3].ori_pos++;
 
@@ -941,6 +1015,13 @@ void CTU_CALC::proc()
 #endif
 			
 			cu_level_compare(cost_2, cost_3_total, 2);
+
+			if (2 != pHardWare->ctu_calc.slice_type)
+			{
+				offsIdx = 64 + cu_x_2 / 16 + cu_y_2 / 16 * 4;
+				UpdateMvpInfo(offsIdx, cost_3_total < cost_2);
+			}
+
             cu_level_calc[2].end();
             cu_level_calc[2].ori_pos++;
         }
@@ -981,6 +1062,13 @@ void CTU_CALC::proc()
 #endif
 		
 		cu_level_compare(cost_1, cost_2_total, 1);
+
+		if (2 != pHardWare->ctu_calc.slice_type)
+		{
+			offsIdx = 80 + cu_x_1 / 32 + cu_y_1 / 32 * 2;
+			UpdateMvpInfo(offsIdx, cost_2_total < cost_1);
+		}
+
         cu_level_calc[1].end();
         cu_level_calc[1].ori_pos++;
     }

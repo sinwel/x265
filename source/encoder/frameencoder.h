@@ -159,6 +159,29 @@ public:
     // worker thread
     void threadMain();
 
+#if RK_HWC_THREAD_OPEN
+
+	volatile int            ctuRow_encRow;
+
+	Event                   ctuRow_enable;
+	Event                   ctuRow_filter;
+
+	Lock                    ctuRow_encLock;
+	Lock                    ctuRow_filLock;
+
+    ThreadHandle            ctuRow_thread;
+	bool                    ctuRow_threadActive;
+	bool                    ctuRow_threadInit();
+	void                    ctuRow_threadDestory();
+	void                    ctuRow_threadMain();
+
+#endif
+
+#if RK_HWC_TIME_CALC_ENABLE
+	double                  thd_totalTime;
+	double                  nothd_totalTime;
+#endif
+
     Event                    m_enable;
     Event                    m_done;
     bool                     m_threadActive;

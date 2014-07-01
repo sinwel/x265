@@ -3730,7 +3730,7 @@ void TEncSearch::predInterSearch(TComYuv* predYuv, TComDataCU* cu)
 				uint32_t nPicWidth = cu->getSlice()->getSPS()->getPicWidthInLumaSamples();
 				uint32_t nPicHeight = cu->getSlice()->getSPS()->getPicHeightInLumaSamples();
 				uint32_t offsIdx = getOffsetIdx(g_maxCUWidth, cu->getCUPelX(), cu->getCUPelY(), cu->getWidth(0));
-				merangeX = MIN_MINE(768, merangeX);
+				merangeX = MIN_MINE(384, merangeX);
 				merangeY = MIN_MINE(320, merangeY);
 				if (nPicWidth < merangeX + 60 || nPicWidth <= 352)
 				{

@@ -147,7 +147,7 @@ public:
 	bool isOutPic(int);
 	void setSearchRange(int &merange_x, int &merange_y);
 	void SaveTemporalMv(TComDataCU* cu);
-	void setMvpCandInfoForCtu(TComDataCU* cu);
+	void setMvpCandInfoForCtu(TComDataCU* cu, MergeMvpCand *pMergeCand, AmvpCand *pAmvpCand);
 #endif
 
     void init(Encoder* top);

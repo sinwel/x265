@@ -32,8 +32,8 @@ const int nRimeWidth = 8;
 const int nRimeHeight = 6;
 const int nNeightMv = 2; //plus 1 is number of refine search windows
 const int nAllNeighMv = 28;
-const int g_nSearchRangeWidth = 192;
-const int g_nSearchRangeHeight = 192;
+const int g_nSearchRangeWidth = 208;
+const int g_nSearchRangeHeight = 208;
 const int nCtuSize = 64;
 #define MAX_MRG_NUM_CANDS 5
 #define MAX_AMVP_NUM_CANDS 2
@@ -422,6 +422,7 @@ public:
 		m_mvFmeInput[nRefPicIdx].y = mvFmeInput.y;
 		m_mvFmeInput[nRefPicIdx].nSadCost = mvFmeInput.nSadCost;
 	}
+	Mv getMvFme(int idx){ return m_mvFmeInput[idx]; }
 	Mv *getAmvp(int nRefPicIdx) { return m_mvAmvp[nRefPicIdx]; }
 	void setAmvp(Mv mvAmvp[2], int nRefPicIdx)
 	{ 
@@ -501,7 +502,7 @@ private:
 	int                                       m_nPicHeight;
 	int                                       m_nMergeLevel;
 	int                                       m_nCurrPicPoc;
-	int                                       m_nCurrRefPicPoc[2];
+	int                                       m_nCurrRefPicPoc[2][nMaxRefPic / 2];
 	int                                       m_nFromL0Flag;
 	bool                                    m_bCheckLDC;
 	bool                                    m_bTMVPFlag;
@@ -524,7 +525,7 @@ public:
 	void setPicHeight(int nPicHeight){ m_nPicHeight = nPicHeight; }
 	void setMergeLevel(int nMergeLevel){ m_nMergeLevel = nMergeLevel; }
 	void setCurrPicPoc(int nCurrPicPoc){ m_nCurrPicPoc = nCurrPicPoc; }
-	void setCurrRefPicPoc(int nCurrRefPicPoc[2]){ m_nCurrRefPicPoc[0] = nCurrRefPicPoc[0]; m_nCurrRefPicPoc[1] = nCurrRefPicPoc[1]; }
+	void setCurrRefPicPoc(int nCurrRefPicPoc[2], int list);
 	void setCheckLDC(bool isCheckLDC){ m_bCheckLDC = isCheckLDC; }
 	void setFromL0Flag(bool isFromL0Flag){ m_nFromL0Flag = isFromL0Flag; }
 	void setTMVPFlag(bool isTMVP = true){ m_bTMVPFlag = isTMVP; }
@@ -538,6 +539,7 @@ public:
 	void setMvSpatialForCu8(SPATIAL_MV mvSpatial, int idx);
 	void setRefPicNum(int nRefPicNum[2]){ m_nRefPic[0] = nRefPicNum[0]; m_nRefPic[1] = nRefPicNum[1]; }
 	void setMergeCandNum(int nMergeCand){ m_nMergeCand = nMergeCand; }
+	int getMergeCandNum(){ return m_nMergeCand; }
 	void getMvSpatialForCtu(SPATIAL_MV &mvSpatial, int idx);
 	void getMvSpatialForCu64(SPATIAL_MV &mvSpatial, int idx);
 	void getMvSpatialForCu32(SPATIAL_MV &mvSpatial, int idx);
@@ -545,9 +547,13 @@ public:
 	void getMvSpatialForCu8(SPATIAL_MV &mvSpatial, int idx);
 	MvField *getMvFieldNeighbours(){ return m_mvFieldNeighbours; }
 	unsigned char *getInterDirNeighbours(){ return m_nInterDirNeighbours; }
+	int getCurrPicPoc(){ return m_nCurrPicPoc; }
+	int getCurrRefPicPoc(int list, int refIdx){ return m_nCurrRefPicPoc[list][refIdx]; }
 
 	//produce n merge candidates from 2 temporal MV and 5 spatial MV
 	void getMergeCandidates();
+	void PrefetchAmvpCandInfo(unsigned int offsIdx);
+	void UpdateMvpInfo(unsigned int offsIdx, SPATIAL_MV mvSpatial, bool isSplit);
 	void deriveRightBottomIdx(unsigned int& outPartIdxRB);
 	void xDeriveCenterIdx(unsigned int& outPartIdxCenter);
 	bool isDiffMER(int xN, int yN, int xP, int yP);
@@ -617,9 +623,13 @@ public:
 	void getMvSpatialForCu8(SPATIAL_MV &mvSpatial, int idx);
 	MvField *getMvFieldNeighbours(){ return m_mvFieldNeighbours; }
 	unsigned char *getInterDirNeighbours(){ return m_nInterDirNeighbours; }
+	int getCurrPicPoc(){ return m_nCurrPicPoc; }
+	int getCurrRefPicPoc(int list, int refIdx){ return m_nCurrRefPicPoc[list][refIdx]; }
 
 	//produce n merge candidates from 2 temporal MV and 5 spatial MV
 	void fillMvpCand(int picList, int refIdx, AmvpInfo* info);
+	void PrefetchAmvpCandInfo(unsigned int offsIdx);
+	void UpdateMvpInfo(unsigned int offsIdx, SPATIAL_MV mvSpatial, bool isSplit);
 	bool xAddMVPCand(AmvpInfo* info, int picList, int refIdx, AMVP_DIR dir);
 	bool xAddMVPCandOrder(AmvpInfo* info, int picList, int refIdx, AMVP_DIR dir);
 	void deriveRightBottomIdx(unsigned int& outPartIdxRB);
@@ -672,6 +682,7 @@ public:
 	short *getMergeResi(){ return m_pMergeResi; }
     unsigned char *getMergePred(){return m_pMergePred;}
 	MvField getMergeCand(int nMergeIdx, bool isPost){ return m_mvMergeCand[nMergeIdx * 2 + isPost]; }
+	int getMergeIdx(){ return m_nMergeIdx; }
     
 	//merge interpolate
 	void CalcMergeResi();

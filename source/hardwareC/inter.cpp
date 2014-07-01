@@ -3105,36 +3105,40 @@ void FractionMotionEstimation::CalcResiAndMvd()
 			PredInterBi(nBestPostIdx);
 			addAvg(nBestPrevIdx, nBestPostIdx, true, true);
 			m_fmeInfoForCabac.m_interDir = 3;
-			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x;
-			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y;
-			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].x;
-			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].y;
+			int nPrevMvpIdx = m_nMvpIdx[nBestPrevIdx];
+			int nPostMvpIdx = m_nMvpIdx[nBestPostIdx];
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x - m_mvAmvp[nBestPrevIdx][nPrevMvpIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y - m_mvAmvp[nBestPrevIdx][nPrevMvpIdx].y;
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].x - m_mvAmvp[nBestPostIdx][nPostMvpIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].y - m_mvAmvp[nBestPostIdx][nPostMvpIdx].y;
 			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = nBestPrevIdx;
 			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST1] = nBestPostIdx - nMaxRefPic / 2;
-			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = m_nMvpIdx[REF_PIC_LIST0];
-			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST1] = m_nMvpIdx[REF_PIC_LIST1];
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = nPrevMvpIdx;
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST1] = nPostMvpIdx;
 		}
 		else if (nBestPrevCost <= nBestPostCost)
 		{
 			xCalcResiAndMvd(nBestPrevIdx, true, true, false);
 			CopyToBest(m_pCurrCuPred[nBestPrevIdx]);
 			m_fmeInfoForCabac.m_interDir = 1;
-			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x;
-			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y;
+			int nPrevMvpIdx = m_nMvpIdx[nBestPrevIdx];
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x - m_mvAmvp[nBestPrevIdx][nPrevMvpIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y - m_mvAmvp[nBestPrevIdx][nPrevMvpIdx].y;
 			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = nBestPrevIdx;
-			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = -1;
-			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = m_nMvpIdx[REF_PIC_LIST0];
+			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST1] = -1;
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = nPrevMvpIdx;
 		}
 		else
 		{
 			xCalcResiAndMvd(nBestPostIdx, true, true, false);
 			CopyToBest(m_pCurrCuPred[nBestPostIdx]);
 			m_fmeInfoForCabac.m_interDir = 2;
-			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].x;
-			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].y;
+			int nPostMvpIdx = m_nMvpIdx[nBestPostIdx];
+			m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].x - m_mvAmvp[nBestPostIdx][nPostMvpIdx].x;
+			m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST1] = m_mvFmeInput[nBestPostIdx].y - m_mvAmvp[nBestPostIdx][nPostMvpIdx].y;
 			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = -1;
 			m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST1] = nBestPostIdx - nMaxRefPic / 2;
-			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST1] = m_nMvpIdx[REF_PIC_LIST1];
+			m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST1] = nPostMvpIdx;
 		}
 	}
 	else
@@ -3160,11 +3164,12 @@ void FractionMotionEstimation::CalcResiAndMvd()
 		xCalcResiAndMvd(nBestPrevIdx, true, true, false);
 		CopyToBest(m_pCurrCuPred[nBestPrevIdx]);
 		m_fmeInfoForCabac.m_interDir = 1;
-		m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x;
-		m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y;
+		int nPrevMvpIdx = m_nMvpIdx[nBestPrevIdx];
+		m_fmeInfoForCabac.m_mvdx[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].x - m_mvAmvp[nBestPrevIdx][nPrevMvpIdx].x;
+		m_fmeInfoForCabac.m_mvdy[REF_PIC_LIST0] = m_mvFmeInput[nBestPrevIdx].y - m_mvAmvp[nBestPrevIdx][nPrevMvpIdx].y;
 		m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = nBestPrevIdx;
-		m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST0] = -1;
-		m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = m_nMvpIdx[REF_PIC_LIST0];
+		m_fmeInfoForCabac.m_refIdx[REF_PIC_LIST1] = -1;
+		m_fmeInfoForCabac.m_mvpIdx[REF_PIC_LIST0] = nPrevMvpIdx;
 	}
 
 }
@@ -4091,6 +4096,7 @@ MergeMvpCand::MergeMvpCand()
 {
 	m_bTMVPFlag = true;
 	m_nCtuSize = 64;
+	m_nMergeCand = 3;
 	m_nMergeCand = 2;
 	m_nMergeLevel = 2;
 }
@@ -4155,6 +4161,660 @@ void MergeMvpCand::getMvSpatialForCu8(SPATIAL_MV &mvSpatial, int idx)
 void MergeMvpCand::setMvTemporal(TEMPORAL_MV mvTemporal, int cuIdx, int nPos)
 {
 	memcpy(&m_mvTemporal[cuIdx][nPos], &mvTemporal, sizeof(TEMPORAL_MV));
+}
+
+void MergeMvpCand::UpdateMvpInfo(unsigned int offsIdx, SPATIAL_MV mvSpatial, bool isSplit)
+{
+	if (offsIdx < 64)
+	{
+		if ((offsIdx / 8) % 2 == 0 && offsIdx % 2 == 0) //left top
+		{
+			setMvSpatialForCu8(mvSpatial, 3);
+		}
+		else if ((offsIdx / 8) % 2 == 0 && offsIdx % 2 != 0) //right top
+		{
+			setMvSpatialForCu8(mvSpatial, 4);
+		}
+		else if ((offsIdx / 8) % 2 != 0 && offsIdx % 2 == 0) //left bottom
+		{
+			setMvSpatialForCu8(mvSpatial, 2);
+		}
+		else if ((offsIdx / 8) % 2 != 0 && offsIdx % 2 != 0) //right bottom
+		{
+			setMvSpatialForCu8(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 80)
+	{
+		//update internal info
+		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 4);
+		}
+		else if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 2);
+			}
+			setMvSpatialForCu16(mvSpatial, 5);
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 6);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 3);
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 2);
+			}
+			setMvSpatialForCu16(mvSpatial, 2);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 4);
+		}
+
+		//update external info (CTU info)
+		switch (offsIdx)
+		{
+		case 0: //left top is 8
+		case 18:
+		case 36:
+		case 54:
+		case 64:
+		case 69:
+		case 74:
+		case 79:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 7);
+			}
+			break;
+		case 16: //left top is 6
+		case 34:
+		case 52:
+		case 68:
+		case 73:
+		case 78:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 5);
+			}
+			break;
+		case 2: //left top is 10
+		case 20:
+		case 38:
+		case 65:
+		case 70:
+		case 75:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 9);
+			}
+			break;
+		case 32: //left top is 4
+		case 50:
+		case 72:
+		case 77:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 3);
+			}
+			break;
+		case 4: //left top is 12
+		case 22:
+		case 66:
+		case 71:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 11);
+			}
+			break;
+		case 48: //left top is 2
+		case 76:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 1);
+			}
+			break;
+		case 6: //left top is 14
+		case 67:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 13);
+			}
+			break;
+		}
+	}
+	else if (offsIdx < 84)
+	{
+		//update internal info and external info
+		if (80 == offsIdx)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 5; i <= 11; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			setMvSpatialForCu32(mvSpatial, 3); //internal info
+		}
+		else if (81 == offsIdx)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 2);
+			}
+			setMvSpatialForCu32(mvSpatial, 4); //internal info
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 9; i <= 15; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			setMvSpatialForCu32(mvSpatial, 5); //internal info
+		}
+		else if (82 == offsIdx)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 1; i <= 7; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			setMvSpatialForCu32(mvSpatial, 2); //internal
+		}
+		else if (83 == offsIdx) //no update
+		{
+			if (!isSplit)
+			{
+				for (int i = 5; i <= 11; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+		}
+	}
+	else if (offsIdx == 84) //no update
+	{
+	}
+
+}
+
+void MergeMvpCand::PrefetchAmvpCandInfo(unsigned int offsIdx)
+{
+	setCuPosInCtu(offsIdx);
+	if (offsIdx < 64)
+	{
+		setCuSize(8);
+	}
+	else if (offsIdx < 80)
+	{
+		setCuSize(16);
+	}
+	else if (offsIdx < 84)
+	{
+		setCuSize(32);
+	}
+	else
+	{
+		setCuSize(64);
+	}
+	SPATIAL_MV mvSpatial;
+	switch (offsIdx)
+	{
+		//top left is 8
+	case 0:
+	case 36:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 5);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 18:
+	case 54:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 5);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 6
+	case 16:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 3);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 34:
+	case 52:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 3);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+		//top left is 10
+	case 2:
+	case 20:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 7);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+	case 38:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 7);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 4
+	case 32:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 1);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 50:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 1);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 12
+	case 4:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 9);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 22:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 9);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 2
+	case 48:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i - 1);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+		//top left is 14
+	case 6:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 11);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+
+	case 64:
+	{
+			   int idx[10] = { 3, 4, 5, 6, 8, 9, 10, 11, 12, 13 };
+			   for (int i = 0; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+	}
+		break;
+	case 66:
+	{
+			   int idx[9] = { 8, 9, 10, 12, 13, 14, 15, 16, 17 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 72:
+	{
+			   int idx[9] = { 0, 1, 2, 4, 5, 6, 7, 8, 9 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 74:
+	{
+			   int idx[8] = { 4, 5, 6, 8, 9, 10, 11, 12 };
+			   for (int i = 1; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   setMvSpatialForCu16(mvSpatial, 0);
+			   setMvSpatialForCu16(mvSpatial, 9);
+	}
+		break;
+
+	case 80:
+	{
+			   int idx[9] = { 0, 3, 4, 8, 9, 12, 13, 16, 17 };
+			   for (int i = 0; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i]);
+				   setMvSpatialForCu32(mvSpatial, i);
+			   }
+	}
+		break;
+
+	case 84:
+	{
+			   int idx[4] = { 0, 8, 16, 17 };
+			   for (int i = 0; i <= 3; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i]);
+				   setMvSpatialForCu64(mvSpatial, i);
+			   }
+	}
+		break;
+	}
+
+	for (int i = 0; i < 5; i++)
+	{
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatial(mvSpatial, i);
+	}
+
+	if (offsIdx < 64)
+	{
+		if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 == 0)) //left top
+		{
+			int idx[5] = { 2, 4, 5, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 != 0)) //right top
+		{
+			int idx[5] = { 3, 5, 6, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 == 0)) //left bottom
+		{
+			int idx[5] = { 1, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 != 0)) //right bottom
+		{
+			int idx[5] = { 2, 4, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 2);
+			setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 80)
+	{
+		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0) //left top
+		{
+			int idx[5] = { 3, 6, 7, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0) //right top
+		{
+			int idx[5] = { 4, 8, 9, 0, 6 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0) //left bottom
+		{
+			int idx[5] = { 1, 4, 5, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0) //right bottom
+		{
+			int idx[5] = { 3, 6, 0, 0, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 2);
+			setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 84)
+	{
+		if (80 == offsIdx) //left top
+		{
+			int idx[5] = { 2, 5, 6, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (81 == offsIdx) //right top
+		{
+			int idx[5] = { 3, 7, 8, 0, 5 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (82 == offsIdx) //left bottom
+		{
+			int idx[5] = { 0, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (83 == offsIdx) //right bottom
+		{
+			int idx[5] = { 2, 5, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 2);
+			setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx == 84)
+	{
+		int idx[5] = { 0, 2, 3, 0, 1 };
+		for (int i = 0; i < 5; i++)
+		{
+			if (3 == i)
+				continue;
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCu64(mvSpatial, idx[i]);
+			setMvSpatial(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatial(mvSpatial, 3);
+	}
+}
+
+void MergeMvpCand::setCurrRefPicPoc(int nCurrRefPicPoc[nMaxRefPic / 2], int list)
+{
+	for (int i = 0; i < nMaxRefPic / 2; i++)
+	{
+		m_nCurrRefPicPoc[list][i] = nCurrRefPicPoc[i];
+	}
 }
 
 void MergeMvpCand::getMergeCandidates()
@@ -4425,9 +5085,9 @@ void MergeMvpCand::getMergeCandidates()
 				m_mvFieldNeighbours[arrayAddr << 1].setMvField(m_mvFieldNeighbours[i << 1].mv, m_mvFieldNeighbours[i << 1].refIdx);
 				m_mvFieldNeighbours[(arrayAddr << 1) + 1].setMvField(m_mvFieldNeighbours[(j << 1) + 1].mv, m_mvFieldNeighbours[(j << 1) + 1].refIdx);
 
-				int refIdx0 = m_mvFieldNeighbours[(arrayAddr << 1)].refIdx;
-				int refIdx1 = m_mvFieldNeighbours[(arrayAddr << 1) + 1].refIdx;
-				if (refIdx0 == refIdx1 && 
+				int refPicPoc0 = m_nCurrRefPicPoc[REF_PIC_LIST0][m_mvFieldNeighbours[(arrayAddr << 1)].refIdx];
+				int refPicPoc1 = m_nCurrRefPicPoc[REF_PIC_LIST1][m_mvFieldNeighbours[(arrayAddr << 1) + 1].refIdx];
+				if (refPicPoc0 == refPicPoc1 &&
 					m_mvFieldNeighbours[(arrayAddr << 1)].mv.x == m_mvFieldNeighbours[(arrayAddr << 1) + 1].mv.x &&
 					m_mvFieldNeighbours[(arrayAddr << 1)].mv.y == m_mvFieldNeighbours[(arrayAddr << 1) + 1].mv.y)
 				{
@@ -4572,7 +5232,7 @@ bool MergeMvpCand::xGetColMVP(int picList, int cuAddr, unsigned int partUnitIdx,
 	}
 	
 	curPOC = m_nCurrPicPoc;
-	curRefPOC = m_nCurrRefPicPoc[picList];
+	curRefPOC = m_nCurrRefPicPoc[picList][0];
 
 	colRefPicList = isCheckLDC ? picList : colFromL0Flag;
 	bool isListValid = colRefPicList ? m_mvTemporal[idx][nPos].pred_l1 : m_mvTemporal[idx][nPos].pred_l0;
@@ -4686,6 +5346,652 @@ void AmvpCand::getMvSpatialForCu8(SPATIAL_MV &mvSpatial, int idx)
 void AmvpCand::setMvTemporal(TEMPORAL_MV mvTemporal, int cuIdx, int nPos)
 {
 	memcpy(&m_mvTemporal[cuIdx][nPos], &mvTemporal, sizeof(TEMPORAL_MV));
+}
+
+void AmvpCand::UpdateMvpInfo(unsigned int offsIdx, SPATIAL_MV mvSpatial, bool isSplit)
+{
+	if (offsIdx < 64)
+	{
+		if ((offsIdx / 8) % 2 == 0 && offsIdx % 2 == 0) //left top
+		{
+			setMvSpatialForCu8(mvSpatial, 3);
+		}
+		else if ((offsIdx / 8) % 2 == 0 && offsIdx % 2 != 0) //right top
+		{
+			setMvSpatialForCu8(mvSpatial, 4);
+		}
+		else if ((offsIdx / 8) % 2 != 0 && offsIdx % 2 == 0) //left bottom
+		{
+			setMvSpatialForCu8(mvSpatial, 2);
+		}
+		else if ((offsIdx / 8) % 2 != 0 && offsIdx % 2 != 0) //right bottom
+		{
+			setMvSpatialForCu8(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx<80)
+	{
+		//update internal info
+		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 4);
+		}
+		else if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 2);
+			}
+			setMvSpatialForCu16(mvSpatial, 5);
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 6);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 3);
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 2);
+			}
+			setMvSpatialForCu16(mvSpatial, 2);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu8(mvSpatial, 3);
+			}
+			setMvSpatialForCu16(mvSpatial, 4);
+		}
+
+		//update external info (CTU info)
+		switch (offsIdx)
+		{
+		case 0: //left top is 8
+		case 18:
+		case 36:
+		case 54:
+		case 64:
+		case 69:
+		case 74:
+		case 79:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+			    setMvSpatialForCtu(mvSpatial, i + 7);
+			}
+			break;
+		case 16: //left top is 6
+		case 34:
+		case 52:
+		case 68:
+		case 73:
+		case 78:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 5);
+			}
+			break;
+		case 2: //left top is 10
+		case 20:
+		case 38:
+		case 65:
+		case 70:
+		case 75:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 9);
+			}
+			break;
+		case 32: //left top is 4
+		case 50:
+		case 72:
+		case 77:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 3);
+			}
+			break;
+		case 4: //left top is 12
+		case 22:
+		case 66:
+		case 71:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 11);
+			}
+			break;
+		case 48: //left top is 2
+		case 76:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 1);
+			}
+			break;
+		case 6: //left top is 14
+		case 67:
+			for (int i = 0; i <= 2; i++)
+			{
+				if (isSplit)
+				{
+					getMvSpatialForCu8(mvSpatial, i + 2);
+				}
+				setMvSpatialForCtu(mvSpatial, i + 13);
+			}
+			break;
+		}
+	}
+	else if (offsIdx<84)
+	{
+		//update internal info and external info
+		if (80 == offsIdx)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 5; i <= 11; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			setMvSpatialForCu32(mvSpatial, 3); //internal info
+		}
+		else if (81 == offsIdx)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 2);
+			}
+			setMvSpatialForCu32(mvSpatial, 4); //internal info
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 9; i <= 15; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			setMvSpatialForCu32(mvSpatial, 5); //internal info
+		}
+		else if (82 == offsIdx)
+		{
+			if (isSplit)
+			{
+				getMvSpatialForCu16(mvSpatial, 4);
+			}
+			else
+			{
+				for (int i = 1; i <= 7; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+			setMvSpatialForCu32(mvSpatial, 2); //internal
+		}
+		else if (83 == offsIdx) //no update
+		{
+			if (!isSplit)
+			{
+				for (int i = 5; i <= 11; i++)
+				{
+					setMvSpatialForCtu(mvSpatial, i); //external info
+				}
+			}
+		}
+	}
+	else if (offsIdx == 84) //no update
+	{
+	}
+
+}
+
+void AmvpCand::PrefetchAmvpCandInfo(unsigned int offsIdx)
+{
+	setCuPosInCtu(offsIdx);
+	if (offsIdx < 64)
+	{
+		setCuSize(8);
+	}
+	else if (offsIdx < 80)
+	{
+		setCuSize(16);
+	}
+	else if (offsIdx < 84)
+	{
+		setCuSize(32);
+	}
+	else
+	{
+		setCuSize(64);
+	}
+	SPATIAL_MV mvSpatial;
+	switch (offsIdx)
+	{
+		//top left is 8
+	case 0:
+	case 36:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 5);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 18:
+	case 54:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 5);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 6
+	case 16:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 3);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 34:
+	case 52:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 3);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+		//top left is 10
+	case 2:
+	case 20:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 7);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+	case 38:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 7);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 4
+	case 32:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 1);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 50:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 1);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 12
+	case 4:
+		for (int i = 0; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 9);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		break;
+	case 22:
+		for (int i = 1; i <= 5; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 9);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		setMvSpatialForCu8(mvSpatial, 6);
+		break;
+		//top left is 2
+	case 48:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i - 1);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+		//top left is 14
+	case 6:
+		for (int i = 1; i <= 6; i++)
+		{
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCtu(mvSpatial, i + 11);
+			setMvSpatialForCu8(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatialForCu8(mvSpatial, 0);
+		break;
+
+	case 64:
+	{
+			   int idx[10] = { 3, 4, 5, 6, 8, 9, 10, 11, 12, 13 };
+			   for (int i = 0; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+	}
+		break;
+	case 66:
+	{
+			   int idx[9] = { 8, 9, 10, 12, 13, 14, 15, 16, 17 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 72:
+	{
+			   int idx[9] = { 0, 1, 2, 4, 5, 6, 7, 8, 9 };
+			   for (int i = 1; i <= 9; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   setMvSpatialForCu16(mvSpatial, 0);
+	}
+		break;
+	case 74:
+	{
+			   int idx[8] = { 4, 5, 6, 8, 9, 10, 11, 12 };
+			   for (int i = 1; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i - 1]);
+				   setMvSpatialForCu16(mvSpatial, i);
+			   }
+			   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			   setMvSpatialForCu16(mvSpatial, 0);
+			   setMvSpatialForCu16(mvSpatial, 9);
+	}
+		break;
+
+	case 80:
+	{
+			   int idx[9] = { 0, 3, 4, 8, 9, 12, 13, 16, 17 };
+			   for (int i = 0; i <= 8; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i]);
+				   setMvSpatialForCu32(mvSpatial, i);
+			   }
+	}
+		break;
+
+	case 84:
+	{
+			   int idx[4] = { 0, 8, 16, 17 };
+			   for (int i = 0; i <= 3; i++)
+			   {
+				   mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				   getMvSpatialForCtu(mvSpatial, idx[i]);
+				   setMvSpatialForCu64(mvSpatial, i);
+			   }
+	}
+		break;
+	}
+
+	for (int i = 0; i < 5; i++)
+	{
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatial(mvSpatial, i);
+	}
+
+	if (offsIdx < 64)
+	{
+		if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 == 0)) //left top
+		{
+			int idx[5] = { 2, 4, 5, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 == 0) && (offsIdx % 2 != 0)) //right top
+		{
+			int idx[5] = { 3, 5, 6, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 == 0)) //left bottom
+		{
+			int idx[5] = { 1, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx / 8) % 2 != 0) && (offsIdx % 2 != 0)) //right bottom
+		{
+			int idx[5] = { 2, 4, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu8(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 2);
+			setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 80)
+	{
+		if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 == 0) //left top
+		{
+			int idx[5] = { 3, 6, 7, 2, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx - 64) / 4) % 2 == 0 && (offsIdx - 64) % 2 != 0) //right top
+		{
+			int idx[5] = { 4, 8, 9, 0, 6 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 == 0) //left bottom
+		{
+			int idx[5] = { 1, 4, 5, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (((offsIdx - 64) / 4) % 2 != 0 && (offsIdx - 64) % 2 != 0) //right bottom
+		{
+			int idx[5] = { 3, 6, 0, 0, 4 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu16(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 2);
+			setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx < 84)
+	{
+		if (80 == offsIdx) //left top
+		{
+			int idx[5] = { 2, 5, 6, 1, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+		}
+		else if (81 == offsIdx) //right top
+		{
+			int idx[5] = { 3, 7, 8, 0, 5 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (82 == offsIdx) //left bottom
+		{
+			int idx[5] = { 0, 3, 4, 0, 2 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 3);
+		}
+		else if (83 == offsIdx) //right bottom
+		{
+			int idx[5] = { 2, 5, 0, 0, 3 };
+			for (int i = 0; i < 5; i++)
+			{
+				if (2 == i || 3 == i)
+					continue;
+				mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+				getMvSpatialForCu32(mvSpatial, idx[i]);
+				setMvSpatial(mvSpatial, i);
+			}
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			setMvSpatial(mvSpatial, 2);
+			setMvSpatial(mvSpatial, 3);
+		}
+	}
+	else if (offsIdx == 84)
+	{
+		int idx[5] = { 0, 2, 3, 0, 1 };
+		for (int i = 0; i < 5; i++)
+		{
+			if (3 == i)
+				continue;
+			mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+			getMvSpatialForCu64(mvSpatial, idx[i]);
+			setMvSpatial(mvSpatial, i);
+		}
+		mvSpatial.valid = 0; mvSpatial.pred_flag[0] = 0; mvSpatial.pred_flag[1] = 0;
+		setMvSpatial(mvSpatial, 3);
+	}
 }
 
 void AmvpCand::setCurrRefPicPoc(int nCurrRefPicPoc[nMaxRefPic/2], int list)
@@ -5528,6 +6834,7 @@ void MergeProc::CalcMergeResi()
 		}
 	}
 	m_mergeInfoForCabac.m_mergeIdx = nBestMergeCand;
+	m_nMergeIdx = nBestMergeCand;
 	m_mergeInfoForCabac.m_bSkipFlag = false;
 	delete[] pMergePred; pMergePred = RK_NULL;
 	if (!m_bMergeSwValid[nBestMergeCand])
