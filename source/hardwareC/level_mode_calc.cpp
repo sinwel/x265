@@ -1608,15 +1608,17 @@ void CU_LEVEL_CALC::intra_proc()
 	#if 1
 		for ( uint8_t  i = 0 ; i < 6 ; i++ )
 		{
-			for ( uint8_t  j = 0 ; j < inf_tq.Size*inf_tq.Size ; j++ )
-			{
-				FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"%04x",(uint16_t)resi4x4[lu_cb_cr_order[i]][inf_tq.Size*inf_tq.Size - 1 - j]);			    
-				FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"%02x",recon4x4[lu_cb_cr_order[i]][inf_tq.Size*inf_tq.Size - 1 - j]);			    
+		  	if (i != 1 && i != 4) // SKIP Cb Cr chroma.
+		  	{
+				for ( uint8_t  j = 0 ; j < inf_tq.Size*inf_tq.Size ; j++ )
+				{
+					FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"%04x",(uint16_t)resi4x4[lu_cb_cr_order[i]][inf_tq.Size*inf_tq.Size - 1 - j]);			    
+					FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"%02x",recon4x4[lu_cb_cr_order[i]][inf_tq.Size*inf_tq.Size - 1 - j]);			    
+				}
+				FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"\n");			    
+				FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"\n");			    
 			}
-			FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RESI_AFTER],"\n");			    
-			FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_RECON],"\n");			    
 		}
-
 		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_BITS],"%08x",totalBits4x4);	
 		FPRINT(m_rkIntraPred->fp_intra_4x4[INTRA_4_CU_TOTAL_BITS],"\n");	
 		

@@ -2064,8 +2064,9 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			tu_cabac_bits[5] = g_est_bit_tu_luma_NoCbf[1][cur_depth][zscan + 3];
 
 			for (uint8_t i = 0; i < 6; i++)
-			{
-				FPRINT(fp_intra_4x4[INTRA_4_TU_CABAC_BITS],"%08llx",tu_cabac_bits[i]);
+			{	
+				if( i != 1 && i != 4)
+					FPRINT(fp_intra_4x4[INTRA_4_TU_CABAC_BITS],"%08llx",tu_cabac_bits[i]);
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_TU_CABAC_BITS],"\n");
 
@@ -2080,7 +2081,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			for (uint8_t i = 0; i < 6; i++)
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_PU_PRED_MODE_BITS],"%08llx",pu_pred_mode_bits[i]);
+				if( i != 1 && i != 4)
+					FPRINT(fp_intra_4x4[INTRA_4_PU_PRED_MODE_BITS],"%08llx",pu_pred_mode_bits[i]);
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_PU_PRED_MODE_BITS],"\n");
 
@@ -2095,7 +2097,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			for (uint8_t i = 0; i < 6; i++)
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_TU_CBF_BITS],"%06llx",tu_cbf_bits[i]);
+				if( i != 1 && i != 4)
+					FPRINT(fp_intra_4x4[INTRA_4_TU_CBF_BITS],"%06llx",tu_cbf_bits[i]);
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_TU_CBF_BITS],"\n");
 
@@ -2110,7 +2113,8 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			for (uint8_t i = 0; i < 6; i++)
 			{
-				FPRINT(fp_intra_4x4[INTRA_4_PU_PART_MODE_BITS],"%06llx",pu_part_mode_bits[i]);
+				if( i != 1 && i != 4)
+					FPRINT(fp_intra_4x4[INTRA_4_PU_PART_MODE_BITS],"%06llx",pu_part_mode_bits[i]);
 			}
 			FPRINT(fp_intra_4x4[INTRA_4_PU_PART_MODE_BITS],"\n");
 		}
@@ -2648,12 +2652,12 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			// store partOffset = 0 bestMode for Cb & Cr
 			if ( partOffset == 0 )
 			{
-			    FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",bestMode); // Cb
+			    //FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",bestMode); // Cb
 			    static_bestMode4x4 = bestMode;
 			}
 			else if ( partOffset == 2 )
 			{
-			    FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",static_bestMode4x4); // Cr
+			    //FPRINT(fp_intra_4x4[INTRA_4_BEST_MODE],"%02x\n",static_bestMode4x4); // Cr
 			}
 		}
 	#endif
@@ -3044,27 +3048,29 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			// write to file
 			for ( uint8_t  k = 0 ; k < 6 ; k++ )
 			{
-				for ( uint8_t  i = 0 ; i < 17 ; i++ )
-				{
-					//if (( k != 1 )&&( k != 4 ))// only luma
+			  	if (k != 1 && k != 4) // SKIP Cb Cr chroma.
+			  	{
+					for ( uint8_t  i = 0 ; i < 17 ; i++ )
 					{
-						FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL],"%02x",rk_LineBufAll[k][16 - i]);			    
+						//if (( k != 1 )&&( k != 4 ))// only luma
+						{
+							FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL],"%02x",rk_LineBufAll[k][16 - i]);			    
+						}
 					}
-				}
-				//if (( k != 1 )&&( k != 4 ))// only luma 
-					FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL],"\n");
+					//if (( k != 1 )&&( k != 4 ))// only luma 
+						FPRINT(fp_intra_4x4[INTRA_4_REF_PIXEL],"\n");
 
 
-				for ( uint8_t  i = 0 ; i < 16 ; i++ )
-				{
-					//if (( k != 1 )&&( k != 4 ))// only luma
+					for ( uint8_t  i = 0 ; i < 16 ; i++ )
 					{
-						FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL],"%02x",rk_OrgBufAll[k][i]);			    
+						//if (( k != 1 )&&( k != 4 ))// only luma
+						{
+							FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL],"%02x",rk_OrgBufAll[k][i]);			    
+						}
 					}
-				}
-				//if (( k != 1 )&&( k != 4 ))// only luma 
-					FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL],"\n");	
-
+					//if (( k != 1 )&&( k != 4 ))// only luma 
+						FPRINT(fp_intra_4x4[INTRA_4_ORI_PIXEL],"\n");	
+				  	}
 			}
 
 					    
@@ -3212,16 +3218,18 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			for ( uint8_t  k = 0 ; k < 6 ; k++ )
 			{
-				for ( uint8_t  i = 0 ; i < (width*width) ; i++ )
-				{
+			  	if (k != 1 && k != 4) // SKIP Cb Cr chroma.
+			  	{
+					for ( uint8_t  i = 0 ; i < (width*width) ; i++ )
 					{
-						FPRINT(fp_intra_4x4[INTRA_4_RESI_BEFORE],"%04x",(uint16_t)rk_resiAll[k][(width*width - 1) - i]);			    
-						FPRINT(fp_intra_4x4[INTRA_4_PRED],"%02x",rk_predAll[k][(width*width - 1) - i]);			    
+						{
+							FPRINT(fp_intra_4x4[INTRA_4_RESI_BEFORE],"%04x",(uint16_t)rk_resiAll[k][(width*width - 1) - i]);			    
+							FPRINT(fp_intra_4x4[INTRA_4_PRED],"%02x",rk_predAll[k][(width*width - 1) - i]);			    
+						}
 					}
-				}
-				FPRINT(fp_intra_4x4[INTRA_4_RESI_BEFORE],"\n");	
-				FPRINT(fp_intra_4x4[INTRA_4_PRED],"\n");
-
+					FPRINT(fp_intra_4x4[INTRA_4_RESI_BEFORE],"\n");	
+					FPRINT(fp_intra_4x4[INTRA_4_PRED],"\n");
+			  	}
 			}
 		}
 	#endif
