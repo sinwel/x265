@@ -60,6 +60,7 @@ int hevcSizeConvertToBit[65] =
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4 //size=64,bit=4
 };
 
+#if 1
 uint8_t ChromaScale[70] =
 {
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
@@ -68,6 +69,16 @@ uint8_t ChromaScale[70] =
 	45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
 	62, 63
 };
+#else //为了打印4x4的chroma，让其qp能达到51.
+uint8_t ChromaScale[52] =
+{
+	0,  1,  2,  3,   4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+	17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+	34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+	51
+};
+#endif
+
 // ====================================================================================================================
 // hevcQT class member functions
 // ====================================================================================================================
@@ -632,7 +643,7 @@ void hevcQT::fprintResiForTQiT(FILE* fpIn, FILE* fpOut, int16_t *inT, int16_t *o
 		}		
 		fprintf(fpOut, "\n");	
 	}
-	else // size>=8 || (size==4 && chroma)
+	else // size>=8
 	{
 		//0: Luma;  1: chroma
 		if(m_infoForQT->textType==0) //luma
@@ -666,6 +677,39 @@ void hevcQT::fprintResiForTQiT(FILE* fpIn, FILE* fpOut, int16_t *inT, int16_t *o
 			fprintf(fpIn, "\n");	
 		}
 
+#if 1 //连续打印Q的结果，TU块全部结束之后，再打印iT的结果。added on 07.01.
+		for(int i = 0; i < m_infoForQT->size; i++)
+		{
+			// print prefix q
+			fprintf(fpOut, "%02x", idx1[0]&0xff);
+			for(int k=1; k<4; k++)
+			{
+				fprintf(fpOut, "%x", idx1[k]&0xf);
+			}
+			// print resi q
+			for (int j = m_infoForQT->size-1; j >= 0; j--)
+			{
+				fprintf(fpOut, "%04x", outQ[i*m_infoForQT->size+j]&0xffff);
+			}
+			fprintf(fpOut, "\n");
+		}
+
+		for(int i = 0; i < m_infoForQT->size; i++)
+		{		
+			// print prefix it
+			fprintf(fpOut, "%02x", idx1[0]&0xff);
+			for(int k=1; k<4; k++)
+			{
+				fprintf(fpOut, "%x", idx1[k]&0xf);
+			}
+			// print resi it
+			for (int j = m_infoForQT->size-1; j >= 0; j--)
+			{
+				fprintf(fpOut, "%04x", outIT[i*m_infoForQT->size+j]&0xffff);
+			}
+			fprintf(fpOut, "\n");
+		}
+#else // 逐行、交替打印Q与iT的结果。
 		for(int i = 0; i < m_infoForQT->size; i++)
 		{
 			// print prefix q
@@ -694,7 +738,9 @@ void hevcQT::fprintResiForTQiT(FILE* fpIn, FILE* fpOut, int16_t *inT, int16_t *o
 			}
 			fprintf(fpOut, "\n");
 
-		}		
+		}
+#endif
+
 	}
 		
 }
@@ -2194,6 +2240,9 @@ void hevcQT::getFromIntra(INTERFACE_INTRA* inf_intra, uint8_t textType, uint8_t 
 
 void hevcQT::getFromInter(INTERFACE_ME* inf_me, uint8_t textType, uint8_t qp, uint8_t sliceType)
 {
+	if (&m_infoForQT->inResi[0] == NULL) {
+		textType = textType;
+	}
 	for (int k = 0; k < inf_me->size; k++)
 	{
 		memcpy(&m_infoForQT->inResi[k*CTU_SIZE], &inf_me->resi[k*inf_me->size], inf_me->size*sizeof(int16_t));
@@ -2497,6 +2546,7 @@ void hevcQT::proc(int predMode)
 
 	// IQ and IT
 	procIQandIT();
+#if TQ_LOG_FROM_X265 
 
 #if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
 	int16_t *tmpCoeffT = new int16_t[m_infoForQT->size*m_infoForQT->size];
@@ -2526,7 +2576,12 @@ void hevcQT::proc(int predMode)
 	FILE *fpIn = NULL, *fpOut = NULL;
 	if(m_infoForQT->size==4)
 	{
+	#if 0
 		fpIn = m_fp_t_input4x4data;		fpOut = m_fp_qit_output4x4data;
+	#else
+		fpIn 	= m_fp_intrainput4x4;		
+		fpOut 	= m_fp_intraoutput4x4;
+	#endif
 	}
 	else if(m_infoForQT->size==8)
 	{
@@ -2541,15 +2596,33 @@ void hevcQT::proc(int predMode)
 		fpIn = m_fp_t_input32x32data;	fpOut = m_fp_qit_output32x32data;
 	}
 
-	fprintResiForTQiT(fpIn, fpOut, tmpInResi, tmpCoeffTQ, tmpOutResi, trType);
+	// transpose after T and Q, added on 07.01.
+	// only for size>4
+	if(m_infoForQT->size > 4)
+	{
+		transpose(tmpCoeffTQ, m_infoForQT->size);
+	}
+
+	// only printf dct/dst for 4x4, added on 07.01.
+	if(m_infoForQT->size==4)
+	{
+		if(trType==1)//dst
+			fprintResiForTQiT(fpIn, fpOut, tmpInResi, tmpCoeffTQ, tmpOutResi, trType);
+	}
+	else
+	{
+		fprintResiForTQiT(fpIn, fpOut, tmpInResi, tmpCoeffTQ, tmpOutResi, trType);	
+	}
+
 #endif //#if GET_TQ_INFO_FOR_RTL
+#endif //#if TQ_LOG_FROM_X265
 
 #if LOG_T_Q
-	if(m_infoForQT->size==32)
+	if(m_infoForQT->size==4 && trType==1) // only dct/dst for 4x4
 		printResiTQiQiT(tmpInResi, tmpCoeffT, tmpCoeffTQ, tmpCoeffTQIQ, tmpOutResi, trType);
 #endif //#if LOG_T_Q
 
-
+#if TQ_LOG_FROM_X265
 #if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
 	delete[] tmpInResi;
 	delete[] tmpCoeffT;
@@ -2557,6 +2630,7 @@ void hevcQT::proc(int predMode)
 	delete[] tmpCoeffTQIQ;
 	delete[] tmpOutResi;
 #endif //#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+#endif //#if TQ_LOG_FROM_X265
 
 	// print output
 #if TQ_LOG_IN_X265_INTRA	
@@ -2570,7 +2644,7 @@ void hevcQT::proc(int predMode)
 
 	// compare results
 	compareX265andHWC();
-	if(m_infoForQT->size==32)
+	if(m_infoForQT->size==4 /*&& trType==1*/) // only dct/dst for 4x4
 		g_count_block++;
 }
 
@@ -2594,9 +2668,95 @@ void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t text
 	// print output
 	printOutputLog(g_fp_TQ_LOG_HWC_INTRA);
 #endif
-
 	//set info
 	setForHWC(inf_tq, inf_intra);
+#if TQ_LOG_FROM_INTRA 
+
+#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+	int16_t *tmpCoeffT = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	int16_t *tmpCoeffTQ = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	int16_t	*tmpCoeffTQIQ = new int16_t[m_infoForQT->size*m_infoForQT->size];	
+	for(int k=0; k<m_infoForQT->size*m_infoForQT->size; k++)
+	{
+		tmpCoeffT[k] = (int16_t)m_infoForQT->coeffT[k];
+		tmpCoeffTQ[k] = (int16_t)m_infoForQT->coeffTQ[k];		
+		tmpCoeffTQIQ[k] = (int16_t)m_infoForQT->coeffTQIQ[k];
+	}
+
+	int16_t *tmpInResi = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	int16_t *tmpOutResi = new int16_t[m_infoForQT->size*m_infoForQT->size];
+	for(int k=0; k<m_infoForQT->size; k++)
+	{
+		memcpy(&tmpInResi[k*m_infoForQT->size], &m_infoForQT->inResi[k*CTU_SIZE], 2*m_infoForQT->size);
+		memcpy(&tmpOutResi[k*m_infoForQT->size], &m_infoForQT->outResi[k*CTU_SIZE], 2*m_infoForQT->size);
+	}
+
+	uint8_t trType = 0; // dct
+	if(m_infoForQT->size==4)
+		trType = m_infoForQT->predMode==0 ? (m_infoForQT->textType== 0 ? 1 : 0) : 0;
+#endif //#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+
+#if GET_TQ_INFO_FOR_RTL
+	FILE *fpIn = NULL, *fpOut = NULL;
+	if(m_infoForQT->size==4)
+	{
+#if 0
+		fpIn = m_fp_t_input4x4data;		fpOut = m_fp_qit_output4x4data;
+#else
+		fpIn 	= m_fp_intrainput4x4;		
+		fpOut 	= m_fp_intraoutput4x4;
+#endif
+	}
+	else if(m_infoForQT->size==8)
+	{
+		fpIn = m_fp_t_input8x8data;		fpOut = m_fp_qit_output8x8data;
+	}
+	else if(m_infoForQT->size==16)
+	{
+		fpIn = m_fp_t_input16x16data;	fpOut = m_fp_qit_output16x16data;
+	}
+	else // 32
+	{
+		fpIn = m_fp_t_input32x32data;	fpOut = m_fp_qit_output32x32data;
+	}
+
+	// transpose after T and Q, added on 07.01.
+	// only for size>4
+	if(m_infoForQT->size > 4)
+	{
+		transpose(tmpCoeffTQ, m_infoForQT->size);
+	}
+
+	// only printf dct/dst for 4x4, added on 07.01.
+	if(m_infoForQT->size==4)
+	{
+		if(trType==1)//dst
+			fprintResiForTQiT(fpIn, fpOut, tmpInResi, tmpCoeffTQ, tmpOutResi, trType);
+	}
+	else
+	{
+		fprintResiForTQiT(fpIn, fpOut, tmpInResi, tmpCoeffTQ, tmpOutResi, trType);	
+	}
+
+#endif //#if GET_TQ_INFO_FOR_RTL
+#endif //#if TQ_LOG_FROM_X265
+
+#if LOG_T_Q
+	if(m_infoForQT->size==4 && trType==1) // only dct/dst for 4x4
+		printResiTQiQiT(tmpInResi, tmpCoeffT, tmpCoeffTQ, tmpCoeffTQIQ, tmpOutResi, trType);
+#endif //#if LOG_T_Q
+
+#if TQ_LOG_FROM_X265
+#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+	delete[] tmpInResi;
+	delete[] tmpCoeffT;
+	delete[] tmpCoeffTQ;
+	delete[] tmpCoeffTQIQ;
+	delete[] tmpOutResi;
+#endif //#if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
+#endif //#if TQ_LOG_FROM_X265
+	if(m_infoForQT->size==4 /*&& trType==1*/) // only dct/dst for 4x4
+		g_count_block++;
 }
 
 // for inter

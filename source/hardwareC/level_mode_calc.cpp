@@ -45,9 +45,6 @@ void CU_LEVEL_CALC::init(uint8_t size)
 {
     m_size = size;
     cu_w = size;
-#if TQ_RUN_IN_HWC_INTRA || TQ_RUN_IN_HWC_ME
-	m_hevcQT = new hevcQT; // reuse by intra and me
-#endif
 
 #ifdef RK_INTRA_PRED
 	m_rkIntraPred = new Rk_IntraPred;
@@ -62,6 +59,12 @@ void CU_LEVEL_CALC::init(uint8_t size)
 	inf_intra4x4.resi			= (int16_t*)X265_MALLOC(int16_t, 4*4);
 
 #endif
+
+#if TQ_RUN_IN_HWC_INTRA || TQ_RUN_IN_HWC_ME
+	m_hevcQT = new hevcQT; // reuse by intra and me
+#endif
+
+
 
 #if TQ_RUN_IN_HWC_INTRA //added by lks
 	for (int k=0; k<3; k++)
@@ -1325,6 +1328,9 @@ void CU_LEVEL_CALC::intra_proc()
 		uint8_t lu_cb_cr_order[6] = {0, 4, 1, 2, 5, 3};// y cb y y cr y
 		uint8_t predModeLocal4x4[4] = {35,35,35,35};
 		choose4x4split = false; // default: not split to 4x4
+	
+		m_hevcQT->setFileForTQ(	m_rkIntraPred->fp_intra_4x4[INTRA_4_T_INPUT4X4DATA],m_rkIntraPred->fp_intra_4x4[INTRA_4_QIT_OUTPUT4X4DATA]);
+
 	    // TODO TU_SIZE == 4
 	#ifdef RK_INTRA_4x4_PRED
 		//*********************************************************************************//

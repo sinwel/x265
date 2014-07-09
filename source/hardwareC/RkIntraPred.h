@@ -104,6 +104,10 @@ typedef enum Intra4HardwareFile
     INTRA_4_TU_COST_BITS        ,
     INTRA_4_TU_CBF_BITS         , //按照 24 bit打印 ，y cb y y cr y的顺序打印 一个TU 一行
     INTRA_4_PU_PART_MODE_BITS	, //按照 24 bit一行的顺序进行打印,一个PU一行    
+    // ------ TQ file ----------- //
+    INTRA_4_T_INPUT4X4DATA         ,
+    INTRA_4_QIT_OUTPUT4X4DATA      ,
+    
     INTRA_4_FILE_NUM
 } Intra4HardwareFile;
 

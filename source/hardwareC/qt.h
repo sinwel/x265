@@ -59,12 +59,15 @@ extern int t4_coeff[4][4];
 // Constants
 // ====================================================================================================================
 
+#define TQ_LOG_FROM_X265          0
+#define TQ_LOG_FROM_INTRA         1
+
 #define GET_DBG_INFO_FOR_RTL      0
 /* iDCT(8x8-32x32)  in:after transpose,    out:normal            (4x4) in:normal   out:normal
    DCT(8x8-32x32)   in:normal,             out:after transpose   (4x4) in:normal   out:normal
  */
  
-#define GET_TQ_INFO_FOR_RTL       0
+#define GET_TQ_INFO_FOR_RTL       (TQ_LOG_FROM_X265||TQ_LOG_FROM_INTRA)
 /* data form: (qp)(slice_type)(text_type)(tran_type)[data]
    input:   before T, every row or all elements(only for 4x4)
    output:  after Q and after IT, every row or all elements(only for 4x4)
@@ -257,7 +260,15 @@ public:
     void printResiTQiQiT(int16_t *inT, int16_t *outT, int16_t *outQ, int16_t *outIQ, int16_t* outIT,
 									 uint8_t trType);
 
-
+   
+    /* add by zxy */
+    FILE*             m_fp_intrainput4x4;
+    FILE*             m_fp_intraoutput4x4;
+    void setFileForTQ(FILE* fp_in, FILE* fp_out)
+    {
+        m_fp_intrainput4x4 = fp_in;
+        m_fp_intraoutput4x4 = fp_out;     
+    }
 #if GET_DBG_INFO_FOR_RTL
     void printResiForTandIT(FILE* fpIn, FILE* fpOut, int16_t *in, int16_t *out, uint8_t size, bool isT, uint8_t trType);
     FILE*             m_fp_input4x4data;
