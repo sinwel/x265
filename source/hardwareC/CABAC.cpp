@@ -5,7 +5,7 @@ uint64_t g_tu_bits[2][5][256] = {0};
 unsigned int pu_luma_dir_x265[5][256][35]={0};
 
 
-CABAC_RDO *g_cabac_rdo_test = new CABAC_RDO;
+
 int g_intra_cu_best_mode[RDO_MAX_DEPTH][256] = {0};//1表示采用当前深度下一层的intra CU
 uint64_t g_SplitFlag_bit[RDO_MAX_DEPTH] = {0};
 

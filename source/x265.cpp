@@ -832,7 +832,7 @@ int main(int argc, char **argv)
 #endif
 
 #if HAVE_VLD
-    assert(VLDReportLeaks() == 0);
+    //assert(VLDReportLeaks() == 0);
 #endif
     return 0;
 }

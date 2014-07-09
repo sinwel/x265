@@ -2739,14 +2739,14 @@ void hevcQT::proc(INTERFACE_TQ* inf_tq, INTERFACE_INTRA* inf_intra, uint8_t text
 	}
 
 #endif //#if GET_TQ_INFO_FOR_RTL
-#endif //#if TQ_LOG_FROM_X265
+#endif //#if TQ_LOG_FROM_INTRA
 
 #if LOG_T_Q
 	if(m_infoForQT->size==4 && trType==1) // only dct/dst for 4x4
 		printResiTQiQiT(tmpInResi, tmpCoeffT, tmpCoeffTQ, tmpCoeffTQIQ, tmpOutResi, trType);
 #endif //#if LOG_T_Q
 
-#if TQ_LOG_FROM_X265
+#if TQ_LOG_FROM_INTRA
 #if (GET_TQ_INFO_FOR_RTL || LOG_T_Q)
 	delete[] tmpInResi;
 	delete[] tmpCoeffT;
