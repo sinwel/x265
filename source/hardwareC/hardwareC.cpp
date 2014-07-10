@@ -254,7 +254,14 @@ void hardwareC::ConfigFiles(FILE *fp)
 				
 				
 				/*open output file */
-				if ( num >= INTRA_4_FILE_NUM + INTRA_8_FILE_NUM)
+				if ( num >= INTRA_4_FILE_NUM + INTRA_8_FILE_NUM + INTRA_16_FILE_NUM)
+				{
+					strcat( namebuff, "/32x32/");
+					strcat( namebuff, cmdbuff);
+					ctu_calc.cu_level_calc[1].m_rkIntraPred->fp_intra_32x32[num - INTRA_4_FILE_NUM - INTRA_8_FILE_NUM - INTRA_16_FILE_NUM] = fopen(namebuff, "w");
+					RK_HEVC_PRINT("the %d file name is: %s \n",num - INTRA_4_FILE_NUM - INTRA_8_FILE_NUM - INTRA_16_FILE_NUM,namebuff);
+				}
+				else if ( num >= INTRA_4_FILE_NUM + INTRA_8_FILE_NUM)
 				{
 					strcat( namebuff, "/16x16/");
 					strcat( namebuff, cmdbuff);
