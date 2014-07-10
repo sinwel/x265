@@ -8,16 +8,20 @@ extern unsigned char state_table[3][52][165];
 #include "../Lib/TLibCommon/TComPic.h"
 #include "../Lib/TLibCommon/TComSampleAdaptiveOffset.h"
 
-
+#define RDO_CU_MODE 3
 #define  RDO_MAX_DEPTH 5
 #define	CONTEXT_NUM			165
 
 #define  INTRA_PU_4x4_MODIFY 1
-#define  INTRA_SPLIT_FLAG_MODIFY 1
+#define  SPLIT_FLAG_MODIFY 1
 #define CABAC_INT_MODIFY 1
 #define RK_CABAC_H 0
+#define RK_CABAC_FUNCTIONAL_TYPE 1
 #define RK_CABAC_TEST 0
 #define CABAC_EST_Accuracy_CutDown 0
+#define GET_X265_ORG_DATA 1
+#define GET_X265_ORG_DATA_TU 1
+#define CU_QP_DELTA_ABS_MODIFY 1
 
 #define MAX(X, Y)           ((X)>(Y)?(X):(Y))
 #define MIN(X, Y)           ((X)<(Y)?(X):(Y))
@@ -33,7 +37,7 @@ extern uint64_t g_intra_est_bit_coeff_abs_level_greater1_flag[3][RDO_MAX_DEPTH][
 extern uint64_t g_intra_est_bit_coeff_abs_level_greater2_flag[3][RDO_MAX_DEPTH][256];
 extern uint64_t g_intra_est_bit_coeff_sign_flag[3][RDO_MAX_DEPTH][256] ;
 extern uint64_t g_intra_est_bit_coeff_abs_level_remaining[3][RDO_MAX_DEPTH][256] ;
-extern uint64_t g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256];
+extern uint64_t g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256]; 
 
 extern uint64_t g_intra_est_bit_cbf[3][RDO_MAX_DEPTH][256] ;
 
@@ -42,14 +46,16 @@ extern uint64_t g_intra_est_bit_luma_pred_mode[RDO_MAX_DEPTH][256] ;
 extern uint64_t g_intra_est_bit_chroma_pred_mode[RDO_MAX_DEPTH][256] ;
 extern uint64_t g_intra_est_bit_part_mode[RDO_MAX_DEPTH][256] ;
 
-extern uint64_t g_est_bit_tu[2][RDO_MAX_DEPTH][256] ;
-extern uint64_t g_est_bit_tu_luma_NoCbf[2][RDO_MAX_DEPTH][256];
-extern uint64_t g_est_bit_tu_cb_NoCbf[2][RDO_MAX_DEPTH][256];
-extern uint64_t g_est_bit_tu_cr_NoCbf[2][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_tu[RDO_CU_MODE][RDO_MAX_DEPTH][256] ;
+extern uint64_t g_est_bit_tu_luma_NoCbf[RDO_CU_MODE][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_tu_cb_NoCbf[RDO_CU_MODE][RDO_MAX_DEPTH][256];
+extern uint64_t g_est_bit_tu_cr_NoCbf[RDO_CU_MODE][RDO_MAX_DEPTH][256];
 
-extern uint64_t g_est_bit_cu[2][RDO_MAX_DEPTH][256];
+extern int g_cu_qp_delta_abs[RDO_CU_MODE][RDO_MAX_DEPTH][256] ;
 
-extern uint64_t g_est_bit_cu_split_flag[2][RDO_MAX_DEPTH][256][2];
+extern uint64_t g_est_bit_cu[RDO_CU_MODE][RDO_MAX_DEPTH][256];
+
+extern uint64_t g_est_bit_cu_split_flag[RDO_CU_MODE][RDO_MAX_DEPTH][256][2];
 //Enc_est
 typedef struct
 {
@@ -459,62 +465,63 @@ class CABAC_RDO
 private:
 public:
 
-		int current_status[2][RDO_MAX_DEPTH] ;
-		int next_status[2][RDO_MAX_DEPTH] ;
+		int current_status[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		int next_status[RDO_CU_MODE][RDO_MAX_DEPTH] ;
 
 		int x_ctu_left_up_in_pic;
 		int y_ctu_left_up_in_pic;
-		int x_cu_left_up_in_pic[2][RDO_MAX_DEPTH];
-		int y_cu_left_up_in_pic[2][RDO_MAX_DEPTH];
+		int x_cu_left_up_in_pic[RDO_CU_MODE][RDO_MAX_DEPTH];
+		int y_cu_left_up_in_pic[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-		bool cu_in_pic_flag[2][RDO_MAX_DEPTH];
+		bool cu_in_pic_flag[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-		uint32_t inx_in_cu[2][RDO_MAX_DEPTH] ;
-		uint32_t inx_in_tu[2][RDO_MAX_DEPTH] ;
-		int cur_mode[2][RDO_MAX_DEPTH];
+		uint32_t inx_in_cu[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		uint32_t inx_in_tu[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		int cur_mode[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-		bool cu_ready[2][RDO_MAX_DEPTH];
-		uint32_t cu_cnt[2][RDO_MAX_DEPTH];
+		bool cu_ready[RDO_CU_MODE][RDO_MAX_DEPTH];
+		uint32_t cu_cnt[RDO_CU_MODE][RDO_MAX_DEPTH];
 		bool ctu_start_flag;
 		int inx_in_cu_transfer_table[RDO_MAX_DEPTH];
 		int cu_pixel_wide[RDO_MAX_DEPTH];
 
 		int pu_cnt_table[PU_TU_MAX_MODE];//0表示PU没有划分 1表示一个CU划分成两个PU 2表示1个CU划分成4个PU  TU都和PU一样尺寸
 		int tu_cnt_table[PU_TU_MAX_MODE];//指的是TU在PU的基础上划分成多少个TU
-		int depth_to_cur_mode[2][RDO_MAX_DEPTH] ;
-		bool pu_best_mode_flag[2][RDO_MAX_DEPTH] ; //某层PU最佳模式确定的标记
+		int depth_to_cur_mode[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		bool pu_best_mode_flag[RDO_CU_MODE][RDO_MAX_DEPTH] ; //某层PU最佳模式确定的标记
 		int intra_pu_depth_luma_bestDir[RDO_MAX_DEPTH] ;//intra某层PU 亮度最佳的预测方向值
 		int intra_pu_depth_chroma_bestDir[RDO_MAX_DEPTH] ;//intra某层PU 色度最佳的预测方向值
 
-		bool pu_mode_bit_ready[2][RDO_MAX_DEPTH] ; //表示某层PU各种模式需要多少bit都已经准备好
+		bool pu_mode_bit_ready[RDO_CU_MODE][RDO_MAX_DEPTH] ; //表示某层PU各种模式需要多少bit都已经准备好
 
-		bool quant_finish_flag[2][RDO_MAX_DEPTH] ;
-		uint32_t end_depth[2] ;
-		uint32_t max_pu_cnt[2][RDO_MAX_DEPTH];
-		uint32_t max_tu_cnt[2][RDO_MAX_DEPTH];
-		uint32_t pu_cnt[2][RDO_MAX_DEPTH];
-		uint32_t tu_cnt[2][RDO_MAX_DEPTH];
+		bool quant_finish_flag[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		uint32_t end_depth[RDO_CU_MODE] ;
+		uint32_t max_pu_cnt[RDO_CU_MODE][RDO_MAX_DEPTH];
+		uint32_t max_tu_cnt[RDO_CU_MODE][RDO_MAX_DEPTH];
+		uint32_t pu_cnt[RDO_CU_MODE][RDO_MAX_DEPTH];
+		uint32_t tu_cnt[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-		uint32_t est_bits_total[2][RDO_MAX_DEPTH] ;//total bit
-		uint32_t cu_est_bits[2][RDO_MAX_DEPTH] ;//cu total bit
-		uint32_t pu_est_bits[2][RDO_MAX_DEPTH] ;//pu total bit
-		uint32_t tu_est_bits[2][RDO_MAX_DEPTH] ;//tu total bit
+		uint32_t est_bits_total[RDO_CU_MODE][RDO_MAX_DEPTH] ;//total bit
+		uint32_t cu_est_bits[RDO_CU_MODE][RDO_MAX_DEPTH] ;//cu total bit
+		uint32_t pu_est_bits[RDO_CU_MODE][RDO_MAX_DEPTH] ;//pu total bit
+		uint32_t tu_est_bits[RDO_CU_MODE][RDO_MAX_DEPTH] ;//tu total bit
 
 		uint32_t intra_pu_depth_luma_bestDir_temp[4];//
 		uint32_t cu_best_mode[RDO_MAX_DEPTH] ;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
+		uint32_t inter_cu_best_mode[RDO_MAX_DEPTH];//0表示当前层INTER用非SKIP模式，1表示当前层INTER用SKIP模式
 		uint32_t cu_best_mode_flag[RDO_MAX_DEPTH] ;
 
-		uint32_t est_bit_cu_spit_flag[2][RDO_MAX_DEPTH] ;
-		uint32_t mstate_cu_spit_flag[2][RDO_MAX_DEPTH] ;
+		uint32_t est_bit_cu_spit_flag[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		uint32_t mstate_cu_spit_flag[RDO_CU_MODE][RDO_MAX_DEPTH] ;
 
-		uint32_t est_bit_cu_transquant_bypass_flag[2][RDO_MAX_DEPTH][2] ;
-		uint32_t mstate_cu_transquant_bypass_flag[2][RDO_MAX_DEPTH][2] ;
+		uint32_t est_bit_cu_transquant_bypass_flag[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
+		uint32_t mstate_cu_transquant_bypass_flag[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
 
-		uint32_t est_bit_cu_skip_flag[2][RDO_MAX_DEPTH][2];
-		uint32_t mstate_cu_skip_flag[2][RDO_MAX_DEPTH][2] ;
+		uint32_t est_bit_cu_skip_flag[RDO_CU_MODE][RDO_MAX_DEPTH][2];
+		uint32_t mstate_cu_skip_flag[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
 
-		uint32_t est_bit_pred_mode_flag[2][RDO_MAX_DEPTH] ;
-		uint32_t mstate_pred_mode_flag[2][RDO_MAX_DEPTH] ;
+		uint32_t est_bit_pred_mode_flag[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
+		uint32_t mstate_pred_mode_flag[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
 
 		uint32_t est_bit_pu_luma_dir[RDO_MAX_DEPTH][35] ;
 		uint32_t mstate_prev_intra_luma_pred_flag[RDO_MAX_DEPTH];
@@ -522,9 +529,9 @@ public:
 		uint32_t est_bit_pu_chroma_dir[RDO_MAX_DEPTH] ;
 		uint32_t mstate_pu_chroma_dir[RDO_MAX_DEPTH] ;
 
-		uint32_t est_bit_pu_part_mode[2][RDO_MAX_DEPTH][2] ;
-		uint32_t est_bit_pu_part_mode_sure[2][RDO_MAX_DEPTH] ;
-		uint32_t mstate_pu_part_mode[2][RDO_MAX_DEPTH][2] ;
+		uint32_t est_bit_pu_part_mode[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
+		uint32_t est_bit_pu_part_mode_sure[RDO_CU_MODE][RDO_MAX_DEPTH] ;
+		uint32_t mstate_pu_part_mode[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
 
 		uint32_t est_bit_merge_flag[RDO_MAX_DEPTH][2] ;
 		uint32_t mstate_merge_flag[RDO_MAX_DEPTH][2] ;
@@ -544,11 +551,11 @@ public:
 		uint32_t est_bit_rqt_root_cbf[RDO_MAX_DEPTH][2];
 		uint32_t mstate_rqt_root_cbf[RDO_MAX_DEPTH][2] ;
 
-		uint32_t est_bit_cbf_luma[2][RDO_MAX_DEPTH][2] ;
-		uint32_t mstate_cbf_luma[2][RDO_MAX_DEPTH][2] ;
+		uint32_t est_bit_cbf_luma[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
+		uint32_t mstate_cbf_luma[RDO_CU_MODE][RDO_MAX_DEPTH][2] ;
 
-		uint32_t est_bit_cbf_chroma[2][RDO_MAX_DEPTH][2][2] ;
-		uint32_t mstate_cbf_chroma[2][RDO_MAX_DEPTH][2][2] ;
+		uint32_t est_bit_cbf_chroma[RDO_CU_MODE][RDO_MAX_DEPTH][2][2] ;
+		uint32_t mstate_cbf_chroma[RDO_CU_MODE][RDO_MAX_DEPTH][2][2] ;
 
 		uint32_t est_bit_sao_merge_left_flag[2];
 		uint32_t est_bit_sao_merge_up_flag[2];//由于merge left和up使用同一个上下文，up标记都默认先经过一个输入值为0的状态跳转
@@ -558,12 +565,12 @@ public:
 		uint32_t est_bit_tu[2][RDO_MAX_DEPTH];
 
 
-		char			avail_left_up[2][RDO_MAX_DEPTH][32];//分2 * tu_len + 1，-tu_len 到tu_len，其中tu_len点是用不到的，因为 左上角点用不到 
-		unsigned char	intra_luma_pred_mode_left_up[2][RDO_MAX_DEPTH][32];//只有帧内块才会设置，存储的时经过帧内模式预测的值,没有就不更新，因为要用到的时候会判断是否avail且是否诶帧内块
+		char			avail_left_up[RDO_CU_MODE][RDO_MAX_DEPTH][1040];//分2 * tu_len + 1，-tu_len 到tu_len，其中tu_len点是用不到的，因为 左上角点用不到 
+		unsigned char	intra_luma_pred_mode_left_up[RDO_CU_MODE][RDO_MAX_DEPTH][32];//只有帧内块才会设置，存储的时经过帧内模式预测的值,没有就不更新，因为要用到的时候会判断是否avail且是否诶帧内块
 		//只要是帧内块默认是dc_idx，也就是说pcm也要设置为dc_idx
-		unsigned char	depth_left_up[2][RDO_MAX_DEPTH][16];//解析处以及拆分前设置  cu块更新就可以了
-		char			skip_flag_left_up[2][RDO_MAX_DEPTH][16];//解析处设置	0，1都需要设置，否则不覆盖可能出现错误判断
-		char			pred_mode_left_up[2][RDO_MAX_DEPTH][16];//intra  ipcm inter empty都不一样skip为inter，part_size在tu前，所以能保证全部覆盖  每个块都必须有他的predmode，所以必须更新
+		unsigned char	depth_left_up[RDO_CU_MODE][RDO_MAX_DEPTH][520];//解析处以及拆分前设置  cu块更新就可以了
+		char			skip_flag_left_up[RDO_CU_MODE][RDO_MAX_DEPTH][520];//解析处设置	0，1都需要设置，否则不覆盖可能出现错误判断
+		char			pred_mode_left_up[RDO_CU_MODE][RDO_MAX_DEPTH][16];//intra  ipcm inter empty都不一样skip为inter，part_size在tu前，所以能保证全部覆盖  每个块都必须有他的predmode，所以必须更新
 	
 	void init_L_buffer();//初始化L型buff
 	void update_L_buffer_x();
@@ -574,85 +581,122 @@ public:
 	T getLeftpart_in_tu(T* puhBaseLCU, UInt uiAbsPartIdx );
 	template<typename T>
 	T getUppart_in_tu(T* puhBaseLCU, UInt uiAbsPartIdx );
-	char getLeftAvailSubParts( UInt uiAbsPartIdx, UInt depth , bool IsIntra  );
-	char getUpAvailSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntra );
+	char getLeftAvailSubParts( UInt uiAbsPartIdx, UInt depth , int IsIntra  );
+	char getUpAvailSubParts( UInt uiAbsPartIdx , UInt depth , int IsIntra );
 	template<typename T>
 	T getUppart_in_cu(  T* puhBaseLCU, UInt uiAbsPartIdx );
 	template<typename T>
 	T getLeftpart_in_cu( T* puhBaseLCU, UInt uiAbsPartIdx );
-	char getLeftDepthSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntra );
-	char getUpDepthSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntra );
-	UInt getCtxSplitFlag( UInt uiAbsPartIdx, UInt depth , bool IsIntra);
-	UInt getCtxSkipFlag( UInt uiAbsPartIdx , UInt depth , bool IsIntra );
-	char getLeftSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , bool IsIntra);
-	char getUpSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , bool IsIntra);
-	Int getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,int partIdx   , UInt depth , bool IsIntra);
-	unsigned char getLeftIntra_pred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool IsIntra);
-	unsigned char getUpIntra_pred_modeSubParts( UInt uiAbsPartIdx  , UInt depth , bool IsIntra );
-	char getLeftPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool IsIntra);
-	char getUpPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool IsIntra);
+	char getLeftDepthSubParts( UInt uiAbsPartIdx , UInt depth , int IsIntra );
+	char getUpDepthSubParts( UInt uiAbsPartIdx , UInt depth , int IsIntra );
+	UInt getCtxSplitFlag( UInt uiAbsPartIdx, UInt depth , int IsIntra);
+	UInt getCtxSkipFlag( UInt uiAbsPartIdx , UInt depth , int IsIntra );
+	char getLeftSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , int IsIntra);
+	char getUpSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , int IsIntra);
+	Int getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,int partIdx   , UInt depth , int IsIntra);
+	unsigned char getLeftIntra_pred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , int IsIntra);
+	unsigned char getUpIntra_pred_modeSubParts( UInt uiAbsPartIdx  , UInt depth , int IsIntra );
+	char getLeftPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , int IsIntra);
+	char getUpPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , int IsIntra);
 	template<typename T>
 	void setpart_in_tu( T uiParameter, T* puhBaseLCU, UInt uiAbsPartIdx, UInt depth );
-	void setLumaIntraDirSubParts( UInt uiDir, UInt uiAbsPartIdx, UInt depth , bool IsIntra);
+	void setLumaIntraDirSubParts( UInt uiDir, UInt uiAbsPartIdx, UInt depth , int IsIntra);
 	template<typename T>
 	void setpart_in_cu( T uiParameter, T* puhBaseLCU, UInt uiAbsPartIdx, UInt depth );
-	void setPredModeSubParts( PredMode eMode, UInt uiAbsPartIdx, UInt depth , bool IsIntra );
-	void setSkipFlagSubParts( bool skip, UInt absPartIdx, UInt depth , bool IsIntra );//cu level
-	void setDepthSubParts( UInt depth, UInt uiAbsPartIdx  , bool IsIntra);//cu level
-	void setAvailSubParts_map( UInt availC, UInt uiAbsPartIdx,UInt depth  , bool IsIntra );//cu level
+	void setPredModeSubParts( PredMode eMode, UInt uiAbsPartIdx, UInt depth , int IsIntra );
+	void setSkipFlagSubParts( bool skip, UInt absPartIdx, UInt depth , int IsIntra );//cu level
+	void setDepthSubParts( UInt depth, UInt uiAbsPartIdx  , int IsIntra);//cu level
+	void setAvailSubParts_map( UInt availC, UInt uiAbsPartIdx,UInt depth  , int IsIntra );//cu level
 
 	//CABAC接口函数
-	uint32_t Est_bit_cu(uint32_t  depth , bool  IsIntra , bool  cu_skip_flag);//CU级别某层深度下bit估计
+	uint32_t Est_bit_cu(uint32_t  depth , int  IsIntra , bool  cu_skip_flag);//CU级别某层深度下bit估计
 	uint32_t Est_bit_pu_luma_dir(uint32_t  depth , int  dir);//PU级别INTRA 35种方向luma bit估计
 	uint32_t Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx);//PU级别INTER  merge模式bit估计
 	uint32_t Est_bit_pu_fme(uint32_t  depth , uint32_t  mvd , uint32_t  mvp_l0_flag);//PU级别INTER  FME模式bit估计
 	uint32_t Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type);//SAO级别模式bit估计
-	uint32_t Est_bit_tu(uint32_t  depth , bool  IsIntra);//TU级别bit估计
+	uint32_t Est_bit_tu(uint32_t  depth , int  IsIntra);//TU级别bit估计
 
+	//功能型相关
+	uint32_t Intra_Est_bit_pu_luma_dir(int  IntraDirLumaAng , ContextModel_hm mModels_of_CU_PU[CONTEXT_NUM], int pred[3], uint32_t &bit_fraction);//PU级别INTRA 35种方向luma bit估计 , 由CABAC传入的上下文自己估计
+	void Intra_pu_update(ContextModel_hm mModels_of_CU_PU[CONTEXT_NUM], int  bestDir , int pred[3] , int inx_in_tu , int depth , int IsIntra);
+	void cabac_est_functional_type_intra();
+	void cabac_est_functional_type_inter(int type);
+	void cabac_est_functional_type_inter_cbf();
 
+	void Intra_cu_update();
+	uint64_t Inter_fme_est_bit_cu_pu(FmeInfoForCabac *fmeInfoForCabac);
+	uint64_t Inter_merge_est_bit_cu_pu(MergeInfoForCabac *mergeInfoForCabac);
+	uint64_t est_bits_ref_idx(int type , FmeInfoForCabac *fmeInfoForCabac);
+	uint64_t est_bits_mvd(int type , FmeInfoForCabac *fmeInfoForCabac);
+	uint64_t est_bit_Golomb(uint32_t symbol, uint32_t count);
+	uint64_t Intra_est_bit_cu_pu();
+	void cu_update();
 
-	ContextModel_hm mModels[2][RDO_MAX_DEPTH][CONTEXT_NUM];
+	uint64_t est_bit_cu_qp_delta_abs_prefixVal(uint32_t symbol);
+
+	int est_bits_split_cu_flag(unsigned int depth  , uint32_t zscan);
+
+	ContextModel_hm mModels[RDO_CU_MODE][RDO_MAX_DEPTH][CONTEXT_NUM];
+
+	ContextModel_hm mModels_of_CU_PU[RDO_MAX_DEPTH][CONTEXT_NUM] ;
+	int preds[3];
+	uint32_t ctu_x;
+	uint32_t ctu_y;
+	uint32_t L_buff_ctu_x;
+	int cu_qp_luma;
+	int bits_split_cu_flag[RDO_MAX_DEPTH];
+
+	//***//
 	
 	void init_data();//初始化变量
 	void resetEntropy_CABAC();//初始化8套上下文
-	void cabac_rdo_status_test(uint32_t depth,bool IsIntra , bool end_of_cabac_rdo_status );//状态机用来和x265原始数据对比使用
-	void cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac_rdo_status );//状态机  联调时使用
+	void cabac_rdo_status_test(uint32_t depth,int IsIntra , bool end_of_cabac_rdo_status );//状态机用来和x265原始数据对比使用
+	void cabac_rdo_status(uint32_t depth,int IsIntra , bool end_of_cabac_rdo_status );//状态机  联调时使用
 
 	//tu 级别相关
-	int tu_luma_4x4_idx;
+	int tu_luma_idx;
 	int TU_type;//残差块的类型 0 表示是luma
-	int TU_size;//残差块的像素宽
+	int TU_chroma_size;//残差块色度的像素宽
 	int scanIdx;
 	int cbf;
 	int cbf_luma;
 	int cbf_chroma_u;
 	int cbf_chroma_v;
+	int rqt_root_cbf;
+	int cbf_luma_root;
+	int cbf_chroma_u_root;
+	int cbf_chroma_v_root;
+	int cbf_luma_total[4];//低位到高位按顺序把LUMA 0 1 2 3 四个块的cbf存下来
+	int cbf_chroma_u_total[4];
+	int cbf_chroma_v_total[4];
+
 	int16_t *TU_Resi_luma;
 	int16_t *TU_Resi_chroma_u;
 	int16_t *TU_Resi_chroma_v;
 	//int TU_type;//0表示luma 1表示chromaU  2表示chromaV
-	bool IsIntra_tu;
+	int IsIntra_tu;
 	uint32_t depth_tu;
+	int zscan_idx_tu;
 
-	uint32_t est_bit_last_sig_coeff_x_prefix[2][RDO_MAX_DEPTH];
-	uint32_t est_bit_last_sig_coeff_x_suffix[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_last_sig_coeff_x_prefix[RDO_CU_MODE][RDO_MAX_DEPTH];
+	uint32_t est_bit_last_sig_coeff_x_suffix[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	uint32_t est_bit_last_sig_coeff_y_prefix[2][RDO_MAX_DEPTH];
-	uint32_t est_bit_last_sig_coeff_y_suffix[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_last_sig_coeff_y_prefix[RDO_CU_MODE][RDO_MAX_DEPTH];
+	uint32_t est_bit_last_sig_coeff_y_suffix[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	uint32_t est_bit_sig_coeff_flag[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_sig_coeff_flag[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	uint32_t est_bit_coeff_sign_flag[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_coeff_sign_flag[RDO_CU_MODE][RDO_MAX_DEPTH];
 	
-	uint32_t est_bit_coeff_abs_level_greater1_flag[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_coeff_abs_level_greater1_flag[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	uint32_t est_bit_coeff_abs_level_greater2_flag[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_coeff_abs_level_greater2_flag[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	uint32_t est_bit_coeff_abs_level_remaining[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_coeff_abs_level_remaining[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	uint32_t est_bit_coded_sub_block_flag[2][RDO_MAX_DEPTH];
+	uint32_t est_bit_coded_sub_block_flag[RDO_CU_MODE][RDO_MAX_DEPTH];
 
-	void cabac_est(int TU_size,int16_t *TU_Resi , int TU_type);
+	void cabac_est(int TU_chroma_size,int16_t *TU_Resi , int TU_type);
 
 	void	est_bins(int bin, int len , int valbin_ctxInc_r[4] , int ctx_offset);
 	void	est_bypass( int len , int mode);

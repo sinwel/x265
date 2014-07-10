@@ -75,7 +75,7 @@ class CTU_CALC
 {
 public:
 
-#if RK_CABAC_H
+#if RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE||1
 	CABAC_RDO  m_cabac_rdo;
 #endif
 
@@ -154,6 +154,7 @@ public:
     uint8_t     L_intra_buf_u[16*5+1];                //相邻L型buf，用于存储重构像素
     uint8_t     L_intra_buf_v[16*5+1];                //相邻L型buf，用于存储重构像素
     uint8_t     L_cu_type[(32*5)/8 + 1];              //相邻L型buf，用于存储相邻CU块的属性，用于MV及constra_intra 以及BS计算
+    uint8_t     L_intra_mpm[(32*5)/4 + 1];            //相邻L型buf，用于存储相邻Intra块的角度预测信息
     struct MV_INFO   L_mv_buf[(32*5)/8 + 1];          //相邻L型buf,用于存储相邻CU块的MV信息
 
     uint8_t cu_data_valid[8*8];                 //cu data valid,用于判断相邻CU块是否有效。

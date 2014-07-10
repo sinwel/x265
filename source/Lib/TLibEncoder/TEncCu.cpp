@@ -1057,11 +1057,6 @@ void TEncCu::compressCU(TComDataCU* cu)
 	SaveTemporalMv(m_bestCU[0]);
 #endif
 
-#if RK_CABAC_H
-	//	memset(g_cabac_rdo_test->inx_in_tu,0,sizeof(g_cabac_rdo_test->inx_in_tu));
-	//	memset(g_cabac_rdo_test->inx_in_cu,0,sizeof(g_cabac_rdo_test->inx_in_cu));
-	memset(pHardWare->ctu_calc.m_cabac_rdo.next_status , CTU_EST , sizeof(pHardWare->ctu_calc.m_cabac_rdo.next_status));
-#endif
 #if RK_CTU_CALC_PROC_ENABLE && RK_INTER_METEST
 	if (m_bestCU[0]->getSlice()->getSliceType() != I_SLICE)
 	{
@@ -1074,7 +1069,7 @@ void TEncCu::compressCU(TComDataCU* cu)
 #if RK_CTU_CALC_PROC_ENABLE
     this->pHardWare->ctu_calc.proc();
 #endif
-
+	
 #if RK_CTU_CALC_PROC_ENABLE && RK_INTER_METEST
 
 	if (m_bestCU[0]->getSlice()->getSliceType() != I_SLICE)
@@ -1088,7 +1083,7 @@ void TEncCu::compressCU(TComDataCU* cu)
 	}
 #endif
 
-#if RK_CABAC_H
+#if RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE
 	this->pHardWare->ctu_calc.m_cabac_rdo.update_L_buffer_x();
 #endif
 }
@@ -1318,8 +1313,18 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         }
 
         m_entropyCoder->resetBits();
-#if !INTRA_SPLIT_FLAG_MODIFY
+
+#if SPLIT_FLAG_MODIFY
+		m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_NEXT_BEST]);
+		m_entropyCoder->resetBits();
 		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+		m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_NEXT_BEST]);
+#else
+		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+#endif
+
+#if GET_X265_ORG_DATA
+		g_est_bit_cu_split_flag[1][depth ][outTempCU->getZorderIdxInCU()][0] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
 #endif
         outBestCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); // split bits
         outBestCU->m_totalCost  = m_rdCost->calcRdCost(outBestCU->m_totalDistortion, outBestCU->m_totalBits);
@@ -1395,10 +1400,10 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
             {
                 if (0 == partUnitIdx) //initialize RD with previous depth buffer
                 {
-#if INTRA_SPLIT_FLAG_MODIFY
+# if SPLIT_FLAG_MODIFY
 					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
 					m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
-					if (depth == 0 || depth == 1)
+					if ((depth == 0 || depth == 1 || depth ==2) && bInsidePicture )
 					{
 						m_entropyCoder->encodeSplitFlag(subTempPartCU[partUnitIdx], 0, depth  , true);
 					}
@@ -1412,7 +1417,7 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
                 else
                 {
                     //至底向上，需要更新采用最佳的CU划分的CABAC状态表用来更新当前CU开始时状态
-                    m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
                 }
 
                 xCompressIntraCU(subBestPartCU[partUnitIdx], subTempPartCU[partUnitIdx], nextDepth);
@@ -1429,18 +1434,18 @@ void TEncCu::xCompressIntraCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, ui
         if (!bBoundary)
         {
             m_entropyCoder->resetBits();
-# if INTRA_SPLIT_FLAG_MODIFY
-			m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+# if SPLIT_FLAG_MODIFY
+			m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
 			m_entropyCoder->resetBits();
-			//            m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
-			m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+//			m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
 #else
 			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
 #endif
 
             outTempCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); //split bits
-#if RK_CABAC_H
-			g_est_bit_cu_split_flag[0][depth ][outTempCU->getZorderIdxInCU()][1] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+#if GET_X265_ORG_DATA
+			g_est_bit_cu_split_flag[1][depth ][outTempCU->getZorderIdxInCU()][1] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
 #endif
 		}
         outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
@@ -2399,7 +2404,18 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 		}
 
 		m_entropyCoder->resetBits();
+#if SPLIT_FLAG_MODIFY
+		m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_NEXT_BEST]);
+		m_entropyCoder->resetBits();
 		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+		m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_NEXT_BEST]);
+#else
+		m_entropyCoder->encodeSplitFlag(outBestCU, 0, depth, true);
+#endif
+
+#if GET_X265_ORG_DATA
+		g_est_bit_cu_split_flag[1][depth ][outTempCU->getZorderIdxInCU()][0] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+#endif
 		outBestCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); // split bits
 		outBestCU->m_totalCost  = m_rdCost->calcRdCost(outBestCU->m_totalDistortion, outBestCU->m_totalBits);
 
@@ -2474,7 +2490,19 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 			{
 				if (0 == partUnitIdx) //initialize RD with previous depth buffer
 				{
+# if SPLIT_FLAG_MODIFY
 					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+					m_rdGoOnSbacCoder->load(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
+					if ((depth == 0 || depth == 1 || depth ==2) && bInsidePicture )
+					{
+						m_entropyCoder->encodeSplitFlag(subTempPartCU, 0, depth  , true);
+					}
+
+					m_entropyCoder->resetBits();
+					m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_CURR_BEST]);
+#else
+					m_rdSbacCoders[nextDepth][CI_CURR_BEST]->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+#endif
 				}
 				else
 				{
@@ -2495,9 +2523,19 @@ void TEncCu::xCompressCU(TComDataCU*& outBestCU, TComDataCU*& outTempCU, uint32_
 		if (!bBoundary)
 		{
 			m_entropyCoder->resetBits();
-			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
 
+# if SPLIT_FLAG_MODIFY
+			m_rdGoOnSbacCoder->load(m_rdSbacCoders[depth][CI_CURR_BEST]);
+			m_entropyCoder->resetBits();
+			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+			//			m_rdGoOnSbacCoder->store(m_rdSbacCoders[nextDepth][CI_NEXT_BEST]);
+#else
+			m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
+#endif
 			outTempCU->m_totalBits += m_entropyCoder->getNumberOfWrittenBits(); // split bits
+#if GET_X265_ORG_DATA
+			g_est_bit_cu_split_flag[1][depth ][outTempCU->getZorderIdxInCU()][1] = ((x265::TEncSbac*)(m_entropyCoder->m_entropyCoderIf))->m_binIf->m_fracBits;
+#endif
 		}
 		outTempCU->m_totalCost = m_rdCost->calcRdCost(outTempCU->m_totalDistortion, outTempCU->m_totalBits);
 
@@ -2992,10 +3030,7 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 
     m_entropyCoder->resetBits();
 
-# if INTRA_SPLIT_FLAG_MODIFY
-	//	m_entropyCoder->encodeSplitFlag(outTempCU, 0, depth, true);
-#endif
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA
 	UChar depth_temp = depth;
 	if (*outTempCU->getPartitionSize() == SIZE_NxN)
 	{
@@ -3022,7 +3057,11 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 
     // Encode Coefficients
     bool bCodeDQP = getdQPFlag();
-#if RK_CABAC_H
+
+#if CU_QP_DELTA_ABS_MODIFY
+	bCodeDQP = false;
+#endif
+#if GET_X265_ORG_DATA
 
 
 	for (int i = 0 ; i < 3 ; i++)
@@ -3060,7 +3099,7 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 	}
 
 #endif
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA
 	int64_t temp0 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
 	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
 	int64_t temp1 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
@@ -3068,11 +3107,13 @@ void TEncCu::xCheckRDCostIntra(TComDataCU*& outBestCU, TComDataCU*& outTempCU, P
 	g_est_bit_tu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp0);
 
 	g_est_bit_cu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp);
-
+	
 #else
 	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
 #endif
     setdQPFlag(bCodeDQP);
+
+	
 
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_TEMP_BEST]);
 
@@ -3160,6 +3201,17 @@ void TEncCu::xCheckRDCostIntraInInter(TComDataCU*& outBestCU, TComDataCU*& outTe
     m_search->estIntraPredChromaQT(outTempCU, m_origYuv[depth], m_tmpPredYuv[depth], m_tmpResiYuv[depth], m_tmpRecoYuv[depth], preCalcDistC);
 
     m_entropyCoder->resetBits();
+
+#if GET_X265_ORG_DATA_TU
+	UChar depth_temp = depth;
+	if (*outTempCU->getPartitionSize() == SIZE_NxN)
+	{
+		depth_temp+=1;
+	}
+
+	int64_t temp = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+#endif
+
     if (outTempCU->getSlice()->getPPS()->getTransquantBypassEnableFlag())
     {
         m_entropyCoder->encodeCUTransquantBypassFlag(outTempCU, 0, true);
@@ -3172,7 +3224,24 @@ void TEncCu::xCheckRDCostIntraInInter(TComDataCU*& outBestCU, TComDataCU*& outTe
 
     // Encode Coefficients
     bool bCodeDQP = getdQPFlag();
-    m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+
+#if CU_QP_DELTA_ABS_MODIFY
+	bCodeDQP = false;
+#endif
+
+#if GET_X265_ORG_DATA_TU
+	int64_t temp0 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+	int64_t temp1 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+
+	g_est_bit_tu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp0);
+
+	g_est_bit_cu[1][depth_temp ][outTempCU->getZorderIdxInCU() ] = (temp1 - temp);
+
+#else
+	m_entropyCoder->encodeCoeff(outTempCU, 0, depth, outTempCU->getWidth(0), outTempCU->getHeight(0), bCodeDQP);
+#endif
+
     setdQPFlag(bCodeDQP);
 
     m_rdGoOnSbacCoder->store(m_rdSbacCoders[depth][CI_TEMP_BEST]);

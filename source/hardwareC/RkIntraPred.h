@@ -82,7 +82,7 @@ typedef struct RkIntraPred_35
 class Rk_IntraPred
 {
 public:
-#if RK_CABAC_H
+#if RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE||1
 	CABAC_RDO* m_cabac_rdo;
 #endif
     FILE *rk_logIntraPred[20];

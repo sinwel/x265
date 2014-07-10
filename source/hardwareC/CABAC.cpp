@@ -9,6 +9,7 @@ CABAC_RDO *g_cabac_rdo_test = new CABAC_RDO;
 int g_intra_cu_best_mode[RDO_MAX_DEPTH][256] = {0};//1±íÊ¾²ÉÓÃµ±Ç°Éî¶ÈÏÂÒ»²ãµÄintra CU
 uint64_t g_SplitFlag_bit[RDO_MAX_DEPTH] = {0};
 
+
 //TU
 uint64_t g_intra_est_bit_last_sig_coeff_xy[3][RDO_MAX_DEPTH][256] = {0};
 uint64_t g_intra_est_bit_coded_sub_block_flag[3][RDO_MAX_DEPTH][256] = {0};
@@ -27,14 +28,17 @@ uint64_t g_intra_est_bit_chroma_pred_mode[RDO_MAX_DEPTH][256] = {0};
 uint64_t g_intra_est_bit_part_mode[RDO_MAX_DEPTH][256] = {0};
 
 //TU
-uint64_t g_est_bit_tu[2][RDO_MAX_DEPTH][256]= {0};
-uint64_t g_est_bit_tu_luma_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
-uint64_t g_est_bit_tu_cb_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
-uint64_t g_est_bit_tu_cr_NoCbf[2][RDO_MAX_DEPTH][256]= {0};
-//CU
-uint64_t g_est_bit_cu[2][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu[RDO_CU_MODE][RDO_MAX_DEPTH][256]= {0}; //µÚÒ»Î¬0±íÊ¾INTER 1±íÊ¾INTRA 2±íÊ¾MERGE
+uint64_t g_est_bit_tu_luma_NoCbf[RDO_CU_MODE][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu_cb_NoCbf[RDO_CU_MODE][RDO_MAX_DEPTH][256]= {0};
+uint64_t g_est_bit_tu_cr_NoCbf[RDO_CU_MODE][RDO_MAX_DEPTH][256]= {0};
+//cu_delta_qp
+int g_cu_qp_delta_abs[RDO_CU_MODE][RDO_MAX_DEPTH][256] = {0};
 
-uint64_t g_est_bit_cu_split_flag[2][RDO_MAX_DEPTH][256][2]= {0};
+//CU
+uint64_t g_est_bit_cu[RDO_CU_MODE][RDO_MAX_DEPTH][256]= {0};
+
+uint64_t g_est_bit_cu_split_flag[RDO_CU_MODE][RDO_MAX_DEPTH][256][2]= {0};
 
 #pragma region
 const int CABAC_g_entropyBits[128] =
@@ -3653,428 +3657,6 @@ unsigned char state_table[3][52][CONTEXT_NUM] =
 #pragma  endregion
 
 
-void CABAC_RDO::cabac_rdo_status_test(uint32_t depth,bool IsIntra , bool end_of_cabac_rdo_status )
-{
-//	ContextModel_hm *mModels[CONTEXT_NUM];
-//	*mModels = *mModels[IsIntra][depth];
-
-
-//	int current_status[IsIntra][depth] = CTU_EST;
-//	int next_status[IsIntra][depth] = CTU_EST;
-//	current_status[IsIntra][depth] = next_status[IsIntra][depth];
-	
-	bool T1 , /*T2 ,*/  TT1 , TT2 , TT3;
-//	
-	uint32_t ctxIdx[2][RDO_MAX_DEPTH][CONTEXT_NUM]   = {0} ;  //wire
-	UChar mState[2][RDO_MAX_DEPTH][CONTEXT_NUM]    = {0};  //wire
-// 	uint32_t x_offset[2][RDO_MAX_DEPTH]   = {0} ;   //reg
-// 	uint32_t y_offset[2][RDO_MAX_DEPTH]   = {0} ;   //reg
-	int preds[RDO_MAX_DEPTH][3] = {0};//wire
-
-	while(end_of_cabac_rdo_status==0)
-	{
-		current_status[IsIntra][depth] = next_status[IsIntra][depth];
-		switch (current_status[IsIntra][depth])
-		{
-		case CTU_EST:
-			inx_in_cu[IsIntra][depth] = 0;
-			inx_in_tu[IsIntra][depth] = 0;
-
-			if (ctu_start_flag==0)
-			{
-				next_status[IsIntra][depth] = CTU_EST;
-			}
-			else if (ctu_start_flag==1)
-			{
-				next_status[IsIntra][depth] = CU_EST;
-				cu_ready[IsIntra][depth] = 1;
-				cu_cnt[IsIntra][depth] = 0;
-			}
-			break;
-		
-		case CU_EST:
-			//transquant_bypass_enabled_flag
-			if (sps_pps_struct.transquant_bypass_enabled_flag)
-			{
-				mState[IsIntra][depth][CU_TRANSQUANT_BYPASS_FLAG_OFFSET] = mModels[IsIntra][depth][CU_TRANSQUANT_BYPASS_FLAG_OFFSET].get_m_ucState();
-				est_bit_cu_transquant_bypass_flag[IsIntra][depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][CU_TRANSQUANT_BYPASS_FLAG_OFFSET]];
-				est_bit_cu_transquant_bypass_flag[IsIntra][depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][CU_TRANSQUANT_BYPASS_FLAG_OFFSET]];
-				mstate_cu_transquant_bypass_flag[IsIntra][depth][0] = aucNextState_0[mState[IsIntra][depth][CU_TRANSQUANT_BYPASS_FLAG_OFFSET]];
-				mstate_cu_transquant_bypass_flag[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][CU_TRANSQUANT_BYPASS_FLAG_OFFSET]];
-			}
-			//cu_skip_flag
-			if (slice_header_struct.slice_type != I_SLICE)//¿ÉÒÔ²»ÒªÌõ¼þ
-			{
-				ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET] =  getCtxSkipFlag(inx_in_cu[IsIntra][depth],depth,IsIntra);
-				mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]] = mModels[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]].get_m_ucState();
-				est_bit_cu_skip_flag[IsIntra][depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]]];
-				est_bit_cu_skip_flag[IsIntra][depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]]];
-				mstate_cu_skip_flag[IsIntra][depth][0] = aucNextState_0[mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]]];
-				mstate_cu_skip_flag[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]]];
-			}
-			//pred_mode_flag 
-			if (slice_header_struct.slice_type != I_SLICE)
-			{
-				if (IsIntra == 1)
-				{
-					mState[IsIntra][depth][PRED_MODE_OFFSET] = mModels[IsIntra][depth][PRED_MODE_OFFSET].get_m_ucState();
-					est_bit_pred_mode_flag[IsIntra][depth] = CABAC_g_entropyBits_0[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-					mstate_pred_mode_flag[IsIntra][depth] = aucNextState_0[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-				} 
-				else
-				{
-					mState[IsIntra][depth][PRED_MODE_OFFSET] = mModels[IsIntra][depth][PRED_MODE_OFFSET].get_m_ucState();
-					est_bit_pred_mode_flag[IsIntra][depth] = CABAC_g_entropyBits_1[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-					mstate_pred_mode_flag[IsIntra][depth] = aucNextState_1[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-				}
-			}
-
-			//cu_spit_flag
-			ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET] =  getCtxSplitFlag(inx_in_cu[IsIntra][depth] , depth,IsIntra);
-			mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]] = mModels[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]].get_m_ucState();
-			if (depth == 0)
-			{
-				est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_0[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				mstate_cu_spit_flag[IsIntra][depth] = aucNextState_0[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-			} 
-			else if(depth == 1)
-			{
-				if (cu_cnt[IsIntra][depth] == 0)
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_10[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_10[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				} 
-				else if (cu_cnt[IsIntra][depth] != 0)
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_0[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_0[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				}
-			}
-			else if (depth == 2)
-			{
-				if (cu_cnt[IsIntra][depth] == 0)
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_110[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_110[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				}
-				else if (cu_cnt[IsIntra][depth] == 4)
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_10[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_10[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				}
-				else 
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_0[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_0[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				}
-			} 
-			else if ((depth == 3) || (depth == 4) )
-			{
-				if (cu_cnt[IsIntra][depth] == 0)
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_111[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_111[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				}
-				else if (cu_cnt[IsIntra][depth] == 4)
-				{
-					est_bit_cu_spit_flag[IsIntra][depth] = CABAC_g_entropyBits_1[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-					mstate_cu_spit_flag[IsIntra][depth] = aucNextState_1[mState[IsIntra][depth][SPLIT_CU_FLAG_OFFSET+ctxIdx[IsIntra][depth][SPLIT_CU_FLAG_OFFSET]]];
-				}
-			}
-
-
-			if (depth != 0 )
-			{
-				if(cu_ready[IsIntra][depth-1]==1) 
-					cu_ready[IsIntra][depth]=1;
-			}
-
-			T1 = cu_ready[IsIntra][depth]==1 ;
-			TT1 = (T1 && depth!=0 &&  cu_cnt[IsIntra][0] != 1 )||(cu_cnt[IsIntra][0]==0 &&depth==0);
-			TT2 = (depth!=0 &&  cu_cnt[IsIntra][0] ==1 ) ||(cu_cnt[IsIntra][0]==1 &&depth == 0 );//back to ctu state or
-			TT3 = (!T1 && depth!=0 &&  cu_cnt[IsIntra][0] != 1);
-
-			if (TT1 == 1)
-			{
-				cur_mode[IsIntra][depth] = depth_to_cur_mode[IsIntra][depth];
-				next_status[IsIntra][depth] = PU_EST_WAIT;
-				max_pu_cnt[IsIntra][depth] = pu_cnt_table[cur_mode[IsIntra][depth]];
-				max_tu_cnt[IsIntra][depth] = tu_cnt_table[cur_mode[IsIntra][depth]];
-				cu_ready[IsIntra][depth] = 0;
-				pu_cnt[IsIntra][depth] = 0;
-				if (cu_cnt[IsIntra][depth]==4&&depth!=0)
-				{
-					cu_cnt[IsIntra][depth]=0;
-				}
-				inx_in_tu[IsIntra][depth] =  cu_to_tu_idx(inx_in_cu[IsIntra][depth]);
-			}
-			else if (TT3 == 1)
-			{
-				next_status[IsIntra][depth] = CU_EST;
-			} 
-			else if(TT2 == 1)
-			{
-				next_status[IsIntra][depth] = CTU_EST;
-			}
-			break;
-			
-		case PU_EST_WAIT:
-			mState[IsIntra][depth][PART_MODE_OFFSET] = mModels[IsIntra][depth][PART_MODE_OFFSET].get_m_ucState();
-			if (IsIntra == 1)
-			{
-				 getIntraDirLumaPredictor(inx_in_tu[IsIntra][depth], &preds[depth][0],pu_cnt[IsIntra][depth],depth,IsIntra);
-				mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE] = mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE].get_m_ucState();
-				for (Int IntraDirLumaAng = 0 ; IntraDirLumaAng < 35 ;IntraDirLumaAng++)
-				{
-					if (IntraDirLumaAng == preds[depth][0])
-					{
-						est_bit_pu_luma_dir[depth][IntraDirLumaAng] = 32768 + CABAC_g_entropyBits_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-//						mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-					} 
-					else if (IntraDirLumaAng == preds[depth][1] || IntraDirLumaAng == preds[depth][2])
-					{
-						est_bit_pu_luma_dir[depth][IntraDirLumaAng] = 65536 + CABAC_g_entropyBits_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-//						mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-					}
-					else
-					{
-						est_bit_pu_luma_dir[depth][IntraDirLumaAng] = 163840 + CABAC_g_entropyBits_0[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-//						mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_0[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-					}
-					assert(est_bit_pu_luma_dir[depth][IntraDirLumaAng] == g_intra_est_bit_luma_pred_mode_all_case[depth][inx_in_tu[IsIntra][depth]][IntraDirLumaAng]);
-					
-				}
-				//chroma dir
-				mState[IsIntra][depth][INTRA_CHROMA_PRED_MODE_OFFSET] = mModels[IsIntra][depth][INTRA_CHROMA_PRED_MODE_OFFSET].get_m_ucState();
-				est_bit_pu_chroma_dir[depth] = CABAC_g_entropyBits_0[mState[IsIntra][depth][INTRA_CHROMA_PRED_MODE_OFFSET]];
-				mstate_pu_chroma_dir[depth] = aucNextState_0[mState[IsIntra][depth][INTRA_CHROMA_PRED_MODE_OFFSET]];
-
-				if (cur_mode[IsIntra][depth] == 0)//Êµ¼ÊÉÏ²»ÓÃ×÷Ìõ¼þÅÐ¶Ï£¬°Ñ0ºÍ1µÄÇé¿öbit¡¢×´Ì¬×ªÒÆ¶¼Ô¤ÏÈ×¼±¸¾ÍºÃÁË£¬²¢ÇÒPUÖØ¸´½øÀ´µÄÊ±ºò²»»áÓÐµçÆ½±ä»»£¬¹¦ºÄÊÇÒ»ÑùµÄ¡£»¹Ê¡È¥ÁËÌõ¼þÅÐ¶ÏÏûºÄµÄ×ÊÔ´¡£
-				{
-					est_bit_pu_part_mode[IsIntra][depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][PART_MODE_OFFSET]];
-					mstate_pu_part_mode[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][PART_MODE_OFFSET]];
-				} 
-				else if (cur_mode[IsIntra][depth] == 2 && pu_cnt[IsIntra][depth] == 0)
-				{
-					est_bit_pu_part_mode[IsIntra][depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][PART_MODE_OFFSET]];
-					mstate_pu_part_mode[IsIntra][depth][0] = aucNextState_0[mState[IsIntra][depth][PART_MODE_OFFSET]];
-				}
-			} 
-			else if (IsIntra == 0)
-			{  //pu_part_mode
-				est_bit_pu_part_mode[IsIntra][depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][PART_MODE_OFFSET]];
-				mstate_pu_part_mode[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][PART_MODE_OFFSET]];
-				//merge_flag
-				mState[IsIntra][depth][MERGE_FLAG_OFFSET] = mModels[IsIntra][depth][MERGE_FLAG_OFFSET].get_m_ucState();
-				est_bit_merge_flag[depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][MERGE_FLAG_OFFSET]];
-				est_bit_merge_flag[depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][MERGE_FLAG_OFFSET]];
-				mstate_merge_flag[depth][0] = aucNextState_0[mState[IsIntra][depth][MERGE_FLAG_OFFSET]];
-				mstate_merge_flag[depth][1] = aucNextState_1[mState[IsIntra][depth][MERGE_FLAG_OFFSET]];
-
-				//inter_pred_idc
-				if (slice_header_struct.slice_type == B_SLICE)
-				{
-				}
-				//ref_idx_l0/1 
-				if (sps_pps_struct.num_ref_idx_l0_default_active || sps_pps_struct.num_ref_idx_l1_default_active)
-				{
-				}
-				//merge_idx
-				if (slice_header_struct.Five_minus_max_num_merge_cand<4)//Ïàµ±ÓÚÐ­ÒéµÄMaxNumMergeCand > 1
-				{
-					mState[IsIntra][depth][MERGE_IDX_OFFSET] = mModels[IsIntra][depth][MERGE_IDX_OFFSET].get_m_ucState();
-					est_bit_merge_idx[depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][MERGE_IDX_OFFSET]];
-					est_bit_merge_idx[depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][MERGE_IDX_OFFSET]];
-					mstate_merge_idx[depth][0] = aucNextState_0[mState[IsIntra][depth][MERGE_IDX_OFFSET]];
-					mstate_merge_idx[depth][1] = aucNextState_1[mState[IsIntra][depth][MERGE_IDX_OFFSET]];
-				}
-				
-				//mvp_l0_flag
-				mState[IsIntra][depth][MVP_FLAG_OFFSET] = mModels[IsIntra][depth][MVP_FLAG_OFFSET].get_m_ucState();
-				est_bit_mvp_l0_flag[depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][MVP_FLAG_OFFSET]];
-				est_bit_mvp_l0_flag[depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][MVP_FLAG_OFFSET]];
-				mstate_mvp_l0_flag[depth][0] = aucNextState_0[mState[IsIntra][depth][MVP_FLAG_OFFSET]];
-				mstate_mvp_l0_flag[depth][1] = aucNextState_1[mState[IsIntra][depth][MVP_FLAG_OFFSET]];
-
-				//abs_mvd_greater0_flag
-				mState[IsIntra][depth][ABS_MVD_GREATER0_FLAG_OFFSET] = mModels[IsIntra][depth][ABS_MVD_GREATER0_FLAG_OFFSET].get_m_ucState();
-				est_bit_abs_mvd_greater0_flag[depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][ABS_MVD_GREATER0_FLAG_OFFSET]];
-				est_bit_abs_mvd_greater0_flag[depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][ABS_MVD_GREATER0_FLAG_OFFSET]];
-				mstate_abs_mvd_greater0_flag[depth][0] = aucNextState_0[mState[IsIntra][depth][ABS_MVD_GREATER0_FLAG_OFFSET]];
-				mstate_abs_mvd_greater0_flag[depth][1] = aucNextState_1[mState[IsIntra][depth][ABS_MVD_GREATER0_FLAG_OFFSET]];
-
-				//abs_mvd_greater1_flag
-				mState[IsIntra][depth][ABS_MVD_GREATER1_FLAG_OFFSET] = mModels[IsIntra][depth][ABS_MVD_GREATER1_FLAG_OFFSET].get_m_ucState();
-				est_bit_abs_mvd_greater1_flag[depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][ABS_MVD_GREATER1_FLAG_OFFSET]];
-				est_bit_abs_mvd_greater1_flag[depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][ABS_MVD_GREATER1_FLAG_OFFSET]];
-				mstate_abs_mvd_greater1_flag[depth][0] = aucNextState_0[mState[IsIntra][depth][ABS_MVD_GREATER1_FLAG_OFFSET]];
-				mstate_abs_mvd_greater1_flag[depth][1] = aucNextState_1[mState[IsIntra][depth][ABS_MVD_GREATER1_FLAG_OFFSET]];
-
-				//rqt_root_cbf
-				mState[IsIntra][depth][RQT_ROOT_CBF_OFFSET] = mModels[IsIntra][depth][RQT_ROOT_CBF_OFFSET].get_m_ucState();
-				est_bit_rqt_root_cbf[depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][RQT_ROOT_CBF_OFFSET]];
-				est_bit_rqt_root_cbf[depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][RQT_ROOT_CBF_OFFSET]];
-				mstate_rqt_root_cbf[depth][0] = aucNextState_0[mState[IsIntra][depth][RQT_ROOT_CBF_OFFSET]];
-				mstate_rqt_root_cbf[depth][1] = aucNextState_1[mState[IsIntra][depth][RQT_ROOT_CBF_OFFSET]];
-			}
-			//cbf_luma
-			if (depth != 4)
-			{
-				mState[IsIntra][depth][CBF_LUMA_OFFSET+1] = mModels[IsIntra][depth][CBF_LUMA_OFFSET+1].get_m_ucState();
-				est_bit_cbf_luma[IsIntra][depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][CBF_LUMA_OFFSET+1]];
-				est_bit_cbf_luma[IsIntra][depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][CBF_LUMA_OFFSET+1]];
-				mstate_cbf_luma[IsIntra][depth][0] = aucNextState_0[mState[IsIntra][depth][CBF_LUMA_OFFSET+1]];
-				mstate_cbf_luma[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][CBF_LUMA_OFFSET+1]];
-			}
-			else
-			{
-
-			}
-
-			if (pu_best_mode_flag[IsIntra][depth] == 0)
-			{
-				next_status[IsIntra][depth] = PU_EST_WAIT;
-			} 
-			else if (pu_best_mode_flag[IsIntra][depth] == 1)
-			{
-				if (intra_pu_depth_luma_bestDir[depth] == preds[depth][0] || intra_pu_depth_luma_bestDir[depth] == preds[depth][1]
-				|| intra_pu_depth_luma_bestDir[depth] == preds[depth][2])
-					mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-				else
-					mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_0[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
-
-				next_status[IsIntra][depth] = PU_EST;
-
-			}
-//			pu_mode_bit_ready[IsIntra][depth]=1;
-			end_of_cabac_rdo_status =1; 
-			break;
-
-		case PU_EST:
-			if (IsIntra == 1)
-			{
-				if (cur_mode[IsIntra][depth] == 0)
-				{
-					est_bit_pu_part_mode_sure[IsIntra][depth] = est_bit_pu_part_mode[IsIntra][depth][1] ;
-				} 
-				else if (cur_mode[IsIntra][depth] == 2 && pu_cnt[IsIntra][depth] == 0)
-				{
-					est_bit_pu_part_mode_sure[IsIntra][depth] = est_bit_pu_part_mode[IsIntra][depth][0] ;
-				}
-				else
-				{
-					est_bit_pu_part_mode_sure[IsIntra][depth] = 0;
-				}
-				pu_est_bits[IsIntra][depth] = (pu_est_bits[IsIntra][depth] + est_bit_pu_luma_dir[depth][intra_pu_depth_luma_bestDir[depth]]+est_bit_pu_chroma_dir[depth]+est_bit_pu_part_mode_sure[IsIntra][depth]);
-			} 
-			else
-			{
-			}
-
-			next_status[IsIntra][depth] = TU_EST_WAIT;
-			tu_cnt[IsIntra][depth] = 0;
-			break;
-
-		case TU_EST_WAIT:
-			if (quant_finish_flag[IsIntra][depth] == 0)
-			{
-				next_status[IsIntra][depth] = TU_EST_WAIT;
-			} 
-			else if (quant_finish_flag[IsIntra][depth] == 1)
-			{
-				next_status[IsIntra][depth] = TU_EST;
-			}
-			break;
-
-		case TU_EST:
-			if (tu_cnt[IsIntra][depth]!=max_tu_cnt[IsIntra][depth]-1)
-			{
-				next_status[IsIntra][depth] = TU_EST_WAIT;
-				tu_cnt[IsIntra][depth]++;
-			} 
-			else if((pu_cnt[IsIntra][depth]!=max_pu_cnt[IsIntra][depth]-1)&&(tu_cnt[IsIntra][depth]==max_tu_cnt[IsIntra][depth]-1))
-			{
-				mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mstate_prev_intra_luma_pred_flag[depth]);
-				setLumaIntraDirSubParts(intra_pu_depth_luma_bestDir[depth],inx_in_tu[IsIntra][depth],depth, IsIntra);
-				setAvailSubParts_map(1,inx_in_tu[IsIntra][depth],depth, IsIntra);
-				next_status[IsIntra][depth] = PU_EST_WAIT;
-				pu_cnt[IsIntra][depth]++;
-				inx_in_tu[IsIntra][depth] += 1;
-				end_of_cabac_rdo_status = 1 ;
-			}
-			else if ((pu_cnt[IsIntra][depth]==max_pu_cnt[IsIntra][depth]-1)&&(tu_cnt[IsIntra][depth]==max_tu_cnt[IsIntra][depth]-1))
-			{
-				next_status[IsIntra][depth] = CU_EST_WAIT;
-				inx_in_tu[IsIntra][depth] += 1;
-			}
-			break;
-
-		case CU_EST_WAIT:
-			if ( (cu_cnt[IsIntra][depth+1]!=4 || cu_best_mode_flag[depth] != 1 )&&depth!=end_depth[IsIntra] )
-			{
-				next_status[IsIntra][depth] = CU_EST_WAIT;
-			} 
-			else if( (cu_cnt[IsIntra][depth+1]==4&&depth!=end_depth[IsIntra] && cu_best_mode_flag[depth] == 1) || depth==end_depth[IsIntra] )
-			{
-				if (IsIntra == 1)
-				{
-					if (depth == 4)
-					{
-						 setLumaIntraDirSubParts(intra_pu_depth_luma_bestDir[depth],inx_in_tu[IsIntra][depth]-1,depth, IsIntra);
-						 setPredModeSubParts(MODE_INTRA,inx_in_cu[IsIntra][depth],depth, IsIntra);
-						 setAvailSubParts_map(1,inx_in_tu[IsIntra][depth]-1,depth, IsIntra);
-						 setDepthSubParts(depth,inx_in_cu[IsIntra][depth], IsIntra);
-						 setSkipFlagSubParts(0,inx_in_cu[IsIntra][depth],depth, IsIntra);
-						 mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mstate_prev_intra_luma_pred_flag[depth]);
-					} 
-					else if (depth != 4)
-					{
-						if (cu_best_mode[depth] ==1)
-						{
-							 setLumaIntraDirSubParts(intra_pu_depth_luma_bestDir[depth],cu_to_tu_idx(inx_in_cu[IsIntra][depth]),depth, IsIntra);
-							 setPredModeSubParts(MODE_INTRA,inx_in_cu[IsIntra][depth],depth, IsIntra);
-							 setAvailSubParts_map(1,inx_in_tu[IsIntra][depth]-1,depth, IsIntra);
-							 setDepthSubParts(depth,inx_in_cu[IsIntra][depth], IsIntra);
-							 setSkipFlagSubParts(0,inx_in_cu[IsIntra][depth],depth, IsIntra);
-							 mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mstate_prev_intra_luma_pred_flag[depth]);
-							 for (int i = (depth+1) ; i < 5 ; i ++)
-							 {
-								 mModels[IsIntra][i][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mstate_prev_intra_luma_pred_flag[depth]);
-								 memcpy(intra_luma_pred_mode_left_up[IsIntra][i],intra_luma_pred_mode_left_up[IsIntra][depth],sizeof(intra_luma_pred_mode_left_up[IsIntra][depth]));
-								 memcpy(pred_mode_left_up[IsIntra][i],pred_mode_left_up[IsIntra][depth],sizeof(pred_mode_left_up[IsIntra][depth]));
-								 memcpy(avail_left_up[IsIntra][i],avail_left_up[IsIntra][depth],sizeof(avail_left_up[IsIntra][depth]));
-								 memcpy(depth_left_up[IsIntra][i],depth_left_up[IsIntra][depth],sizeof(depth_left_up[IsIntra][depth]));
-								 memcpy(skip_flag_left_up[IsIntra][i],skip_flag_left_up[IsIntra][depth],sizeof(skip_flag_left_up[IsIntra][depth]));
-							 }
-						}
-						else
-						{
-							mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE] = mModels[IsIntra][depth+1][PREV_INTRA_LUMA_PRED_MODE];
-							memcpy(intra_luma_pred_mode_left_up[IsIntra][depth],intra_luma_pred_mode_left_up[IsIntra][depth+1],sizeof(intra_luma_pred_mode_left_up[IsIntra][depth]));
-							memcpy(pred_mode_left_up[IsIntra][depth],pred_mode_left_up[IsIntra][depth+1],sizeof(pred_mode_left_up[IsIntra][depth]));
-							memcpy(avail_left_up[IsIntra][depth],avail_left_up[IsIntra][depth+1],sizeof(avail_left_up[IsIntra][depth]));
-							memcpy(depth_left_up[IsIntra][depth],depth_left_up[IsIntra][depth+1],sizeof(depth_left_up[IsIntra][depth]));
-							memcpy(skip_flag_left_up[IsIntra][depth],skip_flag_left_up[IsIntra][depth+1],sizeof(skip_flag_left_up[IsIntra][depth]));
-						}
-					}
-				} 
-				else
-				{
-				}
-				
-
-				inx_in_cu[IsIntra][depth] += inx_in_cu_transfer_table[depth];
-				next_status[IsIntra][depth] = CU_EST;
-				if(cu_cnt[depth][depth]!=3 && depth!=4) 
-					cu_ready[IsIntra][depth] = 1;
-				depth == 4 ? cu_cnt[IsIntra][depth]+=4 : cu_cnt[IsIntra][depth]+=1;
-				
-				end_of_cabac_rdo_status =1;
-			}
-			break;
-		}
-	}
-}
 
 //¶ÁÈëSPS  PPS²ÎÊý
 Sps_Pps_struct sps_pps_struct={0};
@@ -4271,7 +3853,7 @@ void CABAC_codeSliceHeader(TComSlice* slice , Slice_header_struct &slice_header_
 	slice_header_struct.Slice_segment_address = 0;
 
 
-	if (!slice->getDependentSliceSegmentFlag())
+	if (!slice_header_struct.Dependent_slice_segment_flag)
 	{
 // 		for (int i = 0; i < slice->getPPS()->getNumExtraSliceHeaderBits(); i++)
 // 		{
@@ -4477,7 +4059,7 @@ void CABAC_codeSliceHeader(TComSlice* slice , Slice_header_struct &slice_header_
 
 		//check if numrefidxes match the defaults. If not, override
 
-		if (!slice->isIntra())
+		if (slice_header_struct.slice_type != 2)
 		{
 			bool overrideFlag = ((uint32_t)slice->getNumRefIdx(REF_PIC_LIST_0) != slice->getPPS()->getNumRefIdxL0DefaultActive() || (slice->isInterB() && (uint32_t)slice->getNumRefIdx(REF_PIC_LIST_1) != slice->getPPS()->getNumRefIdxL1DefaultActive()));
 //			WRITE_FLAG(overrideFlag ? 1 : 0,                               "num_ref_idx_active_override_flag");
@@ -4494,13 +4076,21 @@ void CABAC_codeSliceHeader(TComSlice* slice , Slice_header_struct &slice_header_
 				else
 				{
 					slice->setNumRefIdx(REF_PIC_LIST_1, 0);
+					slice_header_struct.num_ref_idx_l1_active_minus1 = 0 ;
 				}
+			}
+			else
+			{
+				slice_header_struct.num_ref_idx_l0_active_minus1 = slice->getPPS()->getNumRefIdxL0DefaultActive() -1;
+				slice_header_struct.num_ref_idx_l1_active_minus1 = slice->getPPS()->getNumRefIdxL1DefaultActive() -1;
 			}
 		}
 		else
 		{
 			slice->setNumRefIdx(REF_PIC_LIST_0, 0);
 			slice->setNumRefIdx(REF_PIC_LIST_1, 0);
+			slice_header_struct.num_ref_idx_l0_active_minus1 = 0 ;
+			slice_header_struct.num_ref_idx_l1_active_minus1 = 0 ;
 		}
 
 //		if( lists_modification_present_flag && NumPocTotalCurr > 1 )  Ó¦¸ÃÊÇ²»»á³ÉÁ¢
@@ -4724,7 +4314,7 @@ bool CABAC_findMatchingLTRP(TComSlice* slice, uint32_t *ltrpsIndex, int ltrpPOC,
 	return false;
 }
 
-//³õÊ¼»¯8Ì×ÉÏÏÂÎÄ
+//³õÊ¼»¯ÉÏÏÂÎÄ
 void CABAC_RDO::resetEntropy_CABAC()
 {
 	SliceType sliceType  			= (SliceType)slice_header_struct.slice_type;
@@ -4741,11 +4331,12 @@ void CABAC_RDO::resetEntropy_CABAC()
 			sliceType = P_SLICE;
 			break;
 		default     :           // should not occur
-			assert(0);
+			break;
+			//assert(0);
 		}
 	}
 	
-	for (int x = 0; x < 2 ; x++)
+	for (int x = 0; x < RDO_CU_MODE ; x++)
 	{
 		for (int y = 0; y < RDO_MAX_DEPTH ; y++)
 		{
@@ -4768,17 +4359,6 @@ void CABAC_RDO::resetEntropy_CABAC()
 //³õÊ¼»¯±äÁ¿
 void CABAC_RDO::init_data()
 {
-// 	for (int x=0;x<2;x++)
-// 	{
-// 		for (int y=0;y<RDO_MAX_DEPTH;y++)
-// 		{
-// 			for (int z=0;z<CONTEXT_NUM;z++)
-// 			{
-// 				mModels[x][y][z] = new ContextModel_hm;
-// 			}
-// 		}
-// 	}
-
 	resetEntropy_CABAC();
 	init_L_buffer();
 
@@ -4911,14 +4491,14 @@ void CABAC_RDO::init_L_buffer()
 
 void CABAC_RDO::update_L_buffer_x()
 {
-	for (int i = 0 ; i < 2 ; i++)
+	for (int i = 0 ; i < RDO_CU_MODE ; i++)
 	{
-		for (int j = 0 ; j < (RDO_MAX_DEPTH+1) ; j++ )
+		for (int j = 0 ; j < (RDO_MAX_DEPTH) ; j++ )
 		{
-			memset(&avail_left_up[i][j][16],0,sizeof(avail_left_up[i][j])/2);
+//			memset(&avail_left_up[i][j][16],0,sizeof(avail_left_up[i][j])/2);
 			memset(&intra_luma_pred_mode_left_up[i][j][16],1,sizeof(intra_luma_pred_mode_left_up[i][j])/2);
-			memset(&depth_left_up[i][j][8],0,sizeof(depth_left_up[i][j])/2);
-			memset(&skip_flag_left_up[i][j][8],0,sizeof(skip_flag_left_up[i][j])/2);
+//			memset(&depth_left_up[i][j][8],0,sizeof(depth_left_up[i][j])/2);
+//			memset(&skip_flag_left_up[i][j][8],0,sizeof(skip_flag_left_up[i][j])/2);
 			memset(&pred_mode_left_up[i][j][8],0,sizeof(pred_mode_left_up[i][j])/2);
 		}
 	}
@@ -4927,15 +4507,15 @@ void CABAC_RDO::update_L_buffer_x()
 
 void CABAC_RDO::update_L_buffer_y()
 {
-	for (int i = 0 ; i < 2 ; i++)
+	for (int i = 0 ; i < RDO_CU_MODE ; i++)
 	{
-		for (int j = 0 ; j < (RDO_MAX_DEPTH+1) ; j++ )
+		for (int j = 0 ; j < (RDO_MAX_DEPTH) ; j++ )
 		{
-			memset(&avail_left_up[i][j][0],0,sizeof(avail_left_up[i][j])/2);
-			memset(&intra_luma_pred_mode_left_up[i][j][0],1,sizeof(intra_luma_pred_mode_left_up[i][j])/2);
-			memset(&depth_left_up[i][j][0],0,sizeof(depth_left_up[i][j]));
-			memset(&skip_flag_left_up[i][j][0],0,sizeof(skip_flag_left_up[i][j]));
-			memset(&pred_mode_left_up[i][j][0],0,sizeof(pred_mode_left_up[i][j])/2);
+			memset(&avail_left_up[i][j][0],0 , 16);
+			memset(&intra_luma_pred_mode_left_up[i][j][0],1, 16);
+			memset(&depth_left_up[i][j][0],0, 8);
+			memset(&skip_flag_left_up[i][j][0],0, 8);
+			memset(&pred_mode_left_up[i][j][0],0, 8);
 		}
 	}
 	x_ctu_left_up_in_pic = 0;
@@ -5010,10 +4590,10 @@ T CABAC_RDO::getUppart_in_tu(T* puhBaseLCU, UInt uiAbsPartIdx )
   	Êä³ö:
   	puhBaseLCU[(1 << log2_max_coding_block_depth_bt_cu_tu) + x_pos] 		ÐèÒª»ñÈ¡µÄµ±Ç°±äÁ¿ÉÏ·½±äÁ¿µÄÖµ
 	*/
-  return puhBaseLCU[(1 << log2_max_coding_block_depth_bt_cu_tu) + x_pos];
+  return puhBaseLCU[(1 << log2_max_coding_block_depth_bt_cu_tu) + x_pos +(L_buff_ctu_x<<4)];
 }
 
-char CABAC_RDO::getLeftAvailSubParts( UInt uiAbsPartIdx, UInt depth , bool IsIntra  )
+char CABAC_RDO::getLeftAvailSubParts( UInt uiAbsPartIdx, UInt depth , int IsIntra  )
 {
 	//assert(getLeftpart_in_tu<char>(slice_avail_left_up, uiAbsPartIdx ) == getLeftpart_in_map_tu<char>(slice_avail_map,uiAbsPartIdx));
 
@@ -5021,8 +4601,9 @@ char CABAC_RDO::getLeftAvailSubParts( UInt uiAbsPartIdx, UInt depth , bool IsInt
 	//return	getLeftpart_in_map_tu<char>(slice_avail_map,uiAbsPartIdx);
 }
 
-char CABAC_RDO::getUpAvailSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntra )
+char CABAC_RDO::getUpAvailSubParts( UInt uiAbsPartIdx , UInt depth , int IsIntra )
 {
+	L_buff_ctu_x = ctu_x;
 	//assert(getUppart_in_tu<char>(slice_avail_left_up, uiAbsPartIdx ) == getUppart_in_map_tu<char>(slice_avail_map,uiAbsPartIdx));
 	return	getUppart_in_tu<char>(avail_left_up[IsIntra][depth], uiAbsPartIdx );
 	//return	getUppart_in_map_tu<char>(slice_avail_map,uiAbsPartIdx);
@@ -5057,7 +4638,7 @@ T CABAC_RDO::getUppart_in_cu(  T* puhBaseLCU, UInt uiAbsPartIdx )
   	puhBaseLCU[(1 << log2_maxa_coding_block_depth ) + x_pos] 		ÐèÒª»ñÈ¡µÄµ±Ç°±äÁ¿ÉÏ·½±äÁ¿µÄÖµ
 	*/
 	
-  	return puhBaseLCU[(1 << log2_max_coding_depth_for_dec )+ x_pos];
+  	return puhBaseLCU[(1 << log2_max_coding_depth_for_dec )+ x_pos+(L_buff_ctu_x<<3)];
 }
 template<typename T>
 T CABAC_RDO::getLeftpart_in_cu( T* puhBaseLCU, UInt uiAbsPartIdx )
@@ -5090,7 +4671,7 @@ T CABAC_RDO::getLeftpart_in_cu( T* puhBaseLCU, UInt uiAbsPartIdx )
   return puhBaseLCU[ y_pos];
 }
 
-char CABAC_RDO::getLeftDepthSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntra )
+char CABAC_RDO::getLeftDepthSubParts( UInt uiAbsPartIdx , UInt depth , int IsIntra )
 {
 	//assert(getLeftpart_in_cu<UChar>(depth_left_up[IsIntra][depth], uiAbsPartIdx ) == getLeftpart_in_map_cu<UChar>(depth_map,uiAbsPartIdx));
 	char temp;/*temp1*/
@@ -5107,7 +4688,7 @@ char CABAC_RDO::getLeftDepthSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIn
 
 }
 
-char CABAC_RDO::getUpDepthSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntra )
+char CABAC_RDO::getUpDepthSubParts( UInt uiAbsPartIdx , UInt depth , int IsIntra )
 {
 	//assert(getUppart_in_cu<UChar>(depth_left_up[IsIntra][depth], uiAbsPartIdx ) == getUppart_in_map_cu<UChar>(depth_map,uiAbsPartIdx));
 //	UInt Idx_in_tu = cu_to_tu_idx(uiAbsPartIdx);
@@ -5117,14 +4698,14 @@ char CABAC_RDO::getUpDepthSubParts( UInt uiAbsPartIdx , UInt depth , bool IsIntr
 //	temp1 = (get_global_up_6bit_func(uiAbsPartIdx) ) & 3;
 //	if(getUpAvailSubParts(Idx_in_tu))
 //		assert(temp == temp1);
-
+	L_buff_ctu_x = ctu_x;
 	return getUppart_in_cu<UChar>(depth_left_up[IsIntra][depth], uiAbsPartIdx );
 
 
 	//	return	getUppart_in_map_cu<UChar>(depth_map,uiAbsPartIdx);
 }
 
-UInt CABAC_RDO::getCtxSplitFlag( UInt uiAbsPartIdx, UInt depth , bool IsIntra)
+UInt CABAC_RDO::getCtxSplitFlag( UInt uiAbsPartIdx, UInt depth , int IsIntra)
 {
 //	CABAC_RDO* pcTempCU;
 //	UInt        uiTempPartIdx;
@@ -5145,7 +4726,7 @@ UInt CABAC_RDO::getCtxSplitFlag( UInt uiAbsPartIdx, UInt depth , bool IsIntra)
 	return uiCtx;
 }
 
-UInt CABAC_RDO::getCtxSkipFlag( UInt uiAbsPartIdx , UInt depth , bool IsIntra )
+UInt CABAC_RDO::getCtxSkipFlag( UInt uiAbsPartIdx , UInt depth , int IsIntra )
 {
 //	CABAC_RDO* pcTempCU;
 //	UInt        uiTempPartIdx;
@@ -5168,7 +4749,7 @@ UInt CABAC_RDO::getCtxSkipFlag( UInt uiAbsPartIdx , UInt depth , bool IsIntra )
 	return uiCtx;
 }
 
-char CABAC_RDO::getLeftSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , bool IsIntra)
+char CABAC_RDO::getLeftSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , int IsIntra)
 {
 	//	assert(getLeftpart_in_cu<Char>(skip_flag_left_up[IsIntra][depth], uiAbsPartIdx ) == getLeftpart_in_map_cu<Char>(skip_flag_map,uiAbsPartIdx));
 // 	UInt Idx_in_tu = cu_to_tu_idx(uiAbsPartIdx);
@@ -5181,13 +4762,14 @@ char CABAC_RDO::getLeftSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , bool
 	//return	getLeftpart_in_map_cu<Char>(skip_flag_map,uiAbsPartIdx);
 }
 
-char CABAC_RDO::getUpSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , bool IsIntra)
+char CABAC_RDO::getUpSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , int IsIntra)
 {
 	//	assert(getUppart_in_cu<Char>(skip_flag_left_up[IsIntra][depth], uiAbsPartIdx ) == getUppart_in_map_cu<Char>(skip_flag_map,uiAbsPartIdx));
 //	UInt Idx_in_tu = cu_to_tu_idx(uiAbsPartIdx);
 // 	if(getUpAvailSubParts(Idx_in_tu))
 // 		assert(getUppart_in_cu<Char>(skip_flag_left_up[IsIntra][depth], uiAbsPartIdx )  == 
 // 		((get_global_up_6bit_func(uiAbsPartIdx) >> 2) & 1));
+	L_buff_ctu_x = ctu_x;
 	return getUppart_in_cu<char>(skip_flag_left_up[IsIntra][depth], uiAbsPartIdx );
 
 	//return	getUppart_in_cu<Char>(skip_flag_left_up[IsIntra][depth], uiAbsPartIdx ) ;
@@ -5195,7 +4777,7 @@ char CABAC_RDO::getUpSkip_flagSubParts( UInt uiAbsPartIdx  , UInt depth , bool I
 
 }
 
-Int CABAC_RDO::getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,int partIdx   , UInt depth , bool IsIntra)
+Int CABAC_RDO::getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,int partIdx   , UInt depth , int IsIntra)
 {
 	Int         iLeftIntraDir, iAboveIntraDir;
 	Int         uiPredNum = 0;
@@ -5224,6 +4806,7 @@ Int CABAC_RDO::getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,
 		left_avail 		= true;
 		left_pred_mode  = MODE_INTRA;
 	}
+
 	if(tu_ZscanToRaster[uiAbsPartIdx] / (1 << sps_pps_struct.log2_max_coding_block_depth_bt_cu_tu) == 0)
 	{
 		up_intra_mode 	= getUpIntra_pred_modeSubParts(uiAbsPartIdx,depth,IsIntra);
@@ -5232,7 +4815,6 @@ Int CABAC_RDO::getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,
 		//if(up_avail && up_pred_mode 	== MODE_INTRA)
 		//	assert(getUpIntra_pred_modeSubParts(uiAbsPartIdx) == getUpIntra_pred_modeSubParts1(uiAbsPartIdx));
 	}
-
 	else	if(partIdx / 2 == 0)
 	{
 		up_intra_mode 	= getUpIntra_pred_modeSubParts(uiAbsPartIdx,depth,IsIntra);
@@ -5289,7 +4871,7 @@ Int CABAC_RDO::getIntraDirLumaPredictor( UInt uiAbsPartIdx, Int* uiIntraDirPred,
 	return uiPredNum;
 }
 
-unsigned char CABAC_RDO::getLeftIntra_pred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool IsIntra)
+unsigned char CABAC_RDO::getLeftIntra_pred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , int IsIntra)
 {
 
 
@@ -5297,15 +4879,15 @@ unsigned char CABAC_RDO::getLeftIntra_pred_modeSubParts( UInt uiAbsPartIdx   , U
 	//return	getLeftpart_in_map_tu<UChar>(intra_luma_pred_mode_map,uiAbsPartIdx);
 }
 
-unsigned char CABAC_RDO::getUpIntra_pred_modeSubParts( UInt uiAbsPartIdx  , UInt depth , bool IsIntra )
+unsigned char CABAC_RDO::getUpIntra_pred_modeSubParts( UInt uiAbsPartIdx  , UInt depth , int IsIntra )
 {
 
-
+	L_buff_ctu_x = 0;
 	return	getUppart_in_tu<UChar>(intra_luma_pred_mode_left_up[IsIntra][depth], uiAbsPartIdx ) ;
 	//return	getUppart_in_map_tu<UChar>(intra_luma_pred_mode_map,uiAbsPartIdx);
 }
 
-char CABAC_RDO::getLeftPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool IsIntra)
+char CABAC_RDO::getLeftPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , int IsIntra)
 {
 	//assert(getLeftpart_in_cu<Char>(pred_mode_left_up[IsIntra][depth], uiAbsPartIdx ) == getLeftpart_in_map_cu<Char>(pred_mode_map,uiAbsPartIdx));
 	char temp;/*temp1*/
@@ -5321,7 +4903,7 @@ char CABAC_RDO::getLeftPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , boo
 	//return	getLeftpart_in_map_cu<Char>(pred_mode_map,uiAbsPartIdx);
 }
 
-char CABAC_RDO::getUpPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool IsIntra)
+char CABAC_RDO::getUpPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , int IsIntra)
 {
 	//assert(getUppart_in_cu<Char>(pred_mode_left_up[IsIntra][depth], uiAbsPartIdx ) == getUppart_in_map_cu<Char>(pred_mode_map,uiAbsPartIdx));
 
@@ -5333,6 +4915,7 @@ char CABAC_RDO::getUpPred_modeSubParts( UInt uiAbsPartIdx   , UInt depth , bool 
 // 		assert(temp == temp1);
 	//assert(getUppart_in_cu<Char>(pred_mode_left_up[IsIntra][depth], uiAbsPartIdx)  == 
 	//		(get_global_up_6bit_func(uiAbsPartIdx) >> 3));
+	L_buff_ctu_x = 0;
 	return getUppart_in_cu<char>(pred_mode_left_up[IsIntra][depth], uiAbsPartIdx );
 	//	return	getUppart_in_cu<Char>(pred_mode_left_up[IsIntra][depth], uiAbsPartIdx ) ;
 	//	return	getUppart_in_map_cu<Char>(pred_mode_map,uiAbsPartIdx);
@@ -5352,15 +4935,11 @@ void CABAC_RDO::setpart_in_tu( T uiParameter, T* puhBaseLCU, UInt uiAbsPartIdx, 
 	{
 		int	x_pos =(Int) tu_ZscanToRaster[uiAbsPartIdx] % cur_part_line  ;
 		int	y_pos = (Int)tu_ZscanToRaster[uiAbsPartIdx] / cur_part_line  ;
-		puhBaseLCU[ cur_part_line + (x_pos ) ] 	= uiParameter;
+		puhBaseLCU[ cur_part_line + (x_pos ) +(L_buff_ctu_x<<4)] 	= uiParameter;
 		puhBaseLCU[ y_pos ] 						= uiParameter;
 	}
 }
 
-void CABAC_RDO::setLumaIntraDirSubParts( UInt uiDir, UInt uiAbsPartIdx, UInt depth , bool IsIntra)//tu level
-{
-	setpart_in_tu<UChar>(uiDir,intra_luma_pred_mode_left_up[IsIntra][depth], uiAbsPartIdx, depth);
-}
 
 template<typename T>
 void CABAC_RDO::setpart_in_cu( T uiParameter, T* puhBaseLCU, UInt uiAbsPartIdx, UInt depth )//uiAbsPartIdxÊÇ°´×îÐ¡CU ZÉ¨ÃèÀ´ÅÅÐòµÄ
@@ -5397,30 +4976,40 @@ void CABAC_RDO::setpart_in_cu( T uiParameter, T* puhBaseLCU, UInt uiAbsPartIdx, 
   {
 	  int	x_pos = (Int)cu_ZscanToRaster[uiAbsPartIdx] % cur_part_line  ;
 	  int	y_pos = (Int)cu_ZscanToRaster[uiAbsPartIdx] / cur_part_line  ;
-	  puhBaseLCU[ cur_part_line + (x_pos ) ] = uiParameter;
+	  puhBaseLCU[ cur_part_line + (x_pos ) + (L_buff_ctu_x<<3)] = uiParameter;
 	  puhBaseLCU[ y_pos ] = uiParameter;
 
   }
 }
 
-void CABAC_RDO::setPredModeSubParts( PredMode eMode, UInt uiAbsPartIdx, UInt depth , bool IsIntra )//cu level   //Ô­°æ±¾×¢ÊÍÎªtu level
+void CABAC_RDO::setLumaIntraDirSubParts( UInt uiDir, UInt uiAbsPartIdx, UInt depth , int IsIntra)//tu level
 {
+	L_buff_ctu_x = 0;
+	setpart_in_tu<UChar>(uiDir,intra_luma_pred_mode_left_up[IsIntra][depth], uiAbsPartIdx, depth);
+}
+
+
+void CABAC_RDO::setPredModeSubParts( PredMode eMode, UInt uiAbsPartIdx, UInt depth , int IsIntra )//cu level   //Ô­°æ±¾×¢ÊÍÎªtu level
+{
+	L_buff_ctu_x = 0;
 	setpart_in_cu<char>(eMode,pred_mode_left_up[IsIntra][depth], uiAbsPartIdx, depth);
 }
 
-void CABAC_RDO::setSkipFlagSubParts( bool skip, UInt absPartIdx, UInt depth  , bool IsIntra)//cu level
+void CABAC_RDO::setSkipFlagSubParts( bool skip, UInt absPartIdx, UInt depth  , int IsIntra)//cu level
 {
+	L_buff_ctu_x = ctu_x;
 	setpart_in_cu<char>(skip,skip_flag_left_up[IsIntra][depth], absPartIdx, depth);
 }
 
-void CABAC_RDO::setDepthSubParts( UInt depth, UInt uiAbsPartIdx , bool IsIntra )//cu level
+void CABAC_RDO::setDepthSubParts( UInt depth, UInt uiAbsPartIdx , int IsIntra )//cu level
 {
+	L_buff_ctu_x = ctu_x;
 	setpart_in_cu<UChar>(depth,depth_left_up[IsIntra][depth], uiAbsPartIdx, depth);//ÓÃÀ´°´Ó²¼þ·½Ê½±£´æ×ó±ßºÍÉÏ±ßCUÉî¶ÈµÄ¹ý³Ì  ±£´æ½á¹ûÔÚdepth_left_up[IsIntra][depth]µÄ¿Õ¼ä´óÐ¡16µÄÊý×éÖÐ
 }
 
-void CABAC_RDO::setAvailSubParts_map( UInt availC, UInt uiAbsPartIdx,UInt depth   , bool IsIntra)//tu level Ô­±¾×¢ÊÍ cu level
+void CABAC_RDO::setAvailSubParts_map( UInt availC, UInt uiAbsPartIdx,UInt depth   , int IsIntra)//tu level Ô­±¾×¢ÊÍ cu level
 {
-
+	L_buff_ctu_x = ctu_x;
 	setpart_in_tu<char>(availC,avail_left_up[IsIntra][depth], uiAbsPartIdx, depth);
 }
 
@@ -5739,7 +5328,6 @@ void	write_to_fifo(int bits, int size)
 		enc_out_data[fifo_index] = ((bits <<  (64 - size)) >> (64 - size - bit_offset)) | enc_out_data[fifo_index];
 		bit_offset+=size;
 	}
-	return;
 }
 void	CABAC_RDO::est_bins(int bin, int len , int valbin_ctxInc_r[4] , int ctx_offset)
 {
@@ -5782,9 +5370,9 @@ void	CABAC_RDO::est_bins(int bin, int len , int valbin_ctxInc_r[4] , int ctx_off
 	}
 	else if (ctx_offset == SIGNIFICANT_COEFF_GROUP_FLAG_OFFSET)
 	{
-		est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] += enc_output_est.est_bit_out;
+		est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] += (enc_output_est.est_bit_out);
 	}
-	return;
+	
 }
 
 void	CABAC_RDO::est_bypass( int len , int mode)
@@ -6095,14 +5683,14 @@ int	set_bit(int data,int val, int offset)
 
 #pragma  endregion
 
-void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0 1 2·Ö±ð±íÊ¾YUV
+void CABAC_RDO::cabac_est(int TU_chroma_size,int16_t *TU_Resi , int TU_type)//TU_type 0 1 2·Ö±ð±íÊ¾YUV
 {
 	int16_t coeff[64][64];
-	for (int i = 0 ; i < TU_size; i++)
+	for (int i = 0 ; i < TU_chroma_size; i++)
 	{
-		for (int j = 0 ; j < TU_size; j++)
+		for (int j = 0 ; j < TU_chroma_size; j++)
 		{
-			coeff[i][j] = TU_Resi[i * TU_size + j];
+			coeff[i][j] = TU_Resi[i * TU_chroma_size + j];
 		}
 	}
 	
@@ -6138,7 +5726,7 @@ void CABAC_RDO::cabac_est(int TU_size,int16_t *TU_Resi , int TU_type)//TU_type 0
 	int first_to_greater1_r = 1;
 	int blkidx_r = 3 ;
 
-	int log2TrafoSize = TU_size == 64 ? 6 : (TU_size == 32 ? 5 : (TU_size == 16 ? 4 : (TU_size == 8 ? 3 : (TU_size == 4 ? 2 : 0))));
+	int log2TrafoSize = TU_chroma_size == 64 ? 6 : (TU_chroma_size == 32 ? 5 : (TU_chroma_size == 16 ? 4 : (TU_chroma_size == 8 ? 3 : (TU_chroma_size == 4 ? 2 : 0))));
 	int scanorder_mode = 0 ;
 	int predModeIntra;
 	if (IsIntra_tu==1 && ( log2TrafoSize ==2 || (log2TrafoSize ==3 && TU_type == 0) ) )
@@ -8007,6 +7595,240 @@ uint32_t CABAC_RDO::Est_bit_pu_luma_dir(uint32_t  depth , int  dir)//PU¼¶±ðINTRA
 	return (est_bit_pu_luma_dir[depth][dir]+16384)>>15;
 }
 
+uint32_t CABAC_RDO::Intra_Est_bit_pu_luma_dir(int  IntraDirLumaAng , ContextModel_hm mModels_of_CU_PU[CONTEXT_NUM], int pred[3] , uint32_t &bit_fraction )//PU¼¶±ðINTRA 35ÖÖ·½Ïòluma bit¹À¼Æ
+{
+	 bit_fraction = 0;
+	UChar mState = mModels_of_CU_PU[PREV_INTRA_LUMA_PRED_MODE].get_m_ucState();
+	if (IntraDirLumaAng == pred[0])
+	{
+		bit_fraction =  32768 + CABAC_g_entropyBits_1[mState];
+		//						mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
+	} 
+	else if (IntraDirLumaAng == pred[1] || IntraDirLumaAng == pred[2])
+	{
+		bit_fraction =  65536 + CABAC_g_entropyBits_1[mState];
+		//						mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_1[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
+	}
+	else
+	{
+		bit_fraction =  163840 + CABAC_g_entropyBits_0[mState];
+		//						mstate_prev_intra_luma_pred_flag[depth] =  aucNextState_0[mState[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE]];
+	}
+
+	
+
+	return ((bit_fraction +16384)>> 15);
+}
+
+uint64_t CABAC_RDO::Intra_est_bit_cu_pu()//PU¼¶±ðINTRA 35ÖÖ·½Ïòluma bit¹À¼Æ
+{
+	UChar mState ;
+	UChar mState_next;
+	int bits=0;
+	int ctxIdx;
+	int bestDir = intra_pu_depth_luma_bestDir[depth_tu];
+
+	if ( (depth_tu == 4 && (tu_luma_idx == 0) ) || depth_tu!=4 )
+	{
+		if (slice_header_struct.slice_type != 2)
+		{
+			ctxIdx =  getCtxSkipFlag(zscan_idx_tu>>2,depth_tu,IsIntra_tu);
+			mState = mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].get_m_ucState();
+			mState_next = aucNextState_0[mState] ;
+			bits += CABAC_g_entropyBits_0[mState];
+			mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].set_m_ucState(mState_next);
+
+			mState = mModels[IsIntra_tu][depth_tu][PRED_MODE_OFFSET].get_m_ucState();
+			mState_next = aucNextState_1[mState] ;
+			bits += CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][PRED_MODE_OFFSET].set_m_ucState(mState_next);
+		}
+
+		if (depth_tu == 3)
+		{
+			mState = mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].get_m_ucState();
+			mState_next = aucNextState_1[mState] ;
+			bits += CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].set_m_ucState(mState_next);
+		}
+		if (depth_tu == 4)
+		{
+			mState = mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].get_m_ucState();
+			mState_next = aucNextState_0[mState] ;
+			bits += CABAC_g_entropyBits_0[mState];
+			mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].set_m_ucState(mState_next);
+		}
+	}
+
+//	setDepthSubParts(depth_tu, zscan_idx_tu>>2 , IsIntra_tu);
+	setSkipFlagSubParts(0, zscan_idx_tu>>2 , depth_tu , IsIntra_tu);
+
+	if (tu_luma_idx != 4)
+	{
+		mState = mModels[IsIntra_tu][depth_tu][PREV_INTRA_LUMA_PRED_MODE].get_m_ucState();
+		if (bestDir == preds[0])
+		{
+			mState_next = aucNextState_1[mState];
+			bits += CABAC_g_entropyBits_1[mState] + 32768;
+		}
+		else if (bestDir == preds[1] || bestDir == preds[2])
+		{
+			mState_next = aucNextState_1[mState];
+			bits += CABAC_g_entropyBits_1[mState] + 65536;
+		}
+		else
+		{
+			mState_next = aucNextState_0[mState];
+			bits += CABAC_g_entropyBits_0[mState] + 163840;
+		}
+		mModels[IsIntra_tu][depth_tu][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mState_next);
+	}
+	
+
+	if ( (depth_tu == 4 && (tu_luma_idx == 0) ) || depth_tu!=4 )
+	{
+		mState = mModels[IsIntra_tu][depth_tu][INTRA_CHROMA_PRED_MODE_OFFSET].get_m_ucState();
+		mState_next = aucNextState_0[mState] ;
+		bits += CABAC_g_entropyBits_0[mState];
+		mModels[IsIntra_tu][depth_tu][INTRA_CHROMA_PRED_MODE_OFFSET].set_m_ucState(mState_next);
+	}
+	return bits;
+}
+
+void CABAC_RDO::Intra_pu_update(ContextModel_hm mModels_of_CU_PU[CONTEXT_NUM], int  bestDir , int pred[3] , int inx_in_tu , int depth , int IsIntra)//PU¼¶±ðINTRA 35ÖÖ·½Ïòluma bit¹À¼Æ
+{
+	UChar mState = mModels_of_CU_PU[PREV_INTRA_LUMA_PRED_MODE].get_m_ucState();
+	UChar next_status;
+	preds[0] = pred[0]; preds[1] = pred[1]; preds[2] = pred[2];
+
+	if (bestDir == pred[0] )
+	{
+		next_status = aucNextState_1[mState];
+	}
+	else if (bestDir == pred[1] || bestDir == pred[2])
+	{
+		next_status = aucNextState_1[mState];
+	}
+	else
+	{
+		next_status = aucNextState_0[mState];
+	}
+	mModels_of_CU_PU[PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(next_status);
+//	mModels[1][depth][PREV_INTRA_LUMA_PRED_MODE].m_ucState = mModels_of_CU_PU[PREV_INTRA_LUMA_PRED_MODE].m_ucState;
+
+	intra_pu_depth_luma_bestDir[depth] = bestDir;
+
+	if ( (depth == 4 && (inx_in_tu%4 == 0) ) || depth!=4 )
+	{
+		intra_pu_depth_chroma_bestDir[depth] = bestDir;
+	}
+	
+	setLumaIntraDirSubParts(bestDir , inx_in_tu , depth , IsIntra);
+	setPredModeSubParts(MODE_INTRA , tu_to_cu_idx(inx_in_tu) ,depth, IsIntra);
+	setAvailSubParts_map(1, inx_in_tu , depth , IsIntra);
+}
+
+void CABAC_RDO::Intra_cu_update()
+{
+	if (cu_best_mode[depth_tu] ==1 )
+	{
+		for (int i = (depth_tu+1) ; i < 5 ; i ++)
+		{
+			memcpy(intra_luma_pred_mode_left_up[IsIntra_tu][i],intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu],sizeof(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu]));
+			memcpy(pred_mode_left_up[IsIntra_tu][i],pred_mode_left_up[IsIntra_tu][depth_tu],sizeof(pred_mode_left_up[IsIntra_tu][depth_tu]));
+			memcpy(avail_left_up[IsIntra_tu][i],avail_left_up[IsIntra_tu][depth_tu],sizeof(avail_left_up[IsIntra_tu][depth_tu]));
+
+			memcpy(depth_left_up[IsIntra_tu][i],depth_left_up[IsIntra_tu][depth_tu],sizeof(depth_left_up[IsIntra_tu][depth_tu]));
+			memcpy(skip_flag_left_up[IsIntra_tu][i],skip_flag_left_up[IsIntra_tu][depth_tu],sizeof(skip_flag_left_up[IsIntra_tu][depth_tu]));
+
+			memcpy(mModels[IsIntra_tu][i] ,mModels[IsIntra_tu][depth_tu], sizeof(mModels[IsIntra_tu][i]) );
+		}
+	}
+	else
+	{
+		memcpy(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu],intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu+1],sizeof(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu]));
+		memcpy(pred_mode_left_up[IsIntra_tu][depth_tu],pred_mode_left_up[IsIntra_tu][depth_tu+1],sizeof(pred_mode_left_up[IsIntra_tu][depth_tu]));
+		memcpy(avail_left_up[IsIntra_tu][depth_tu],avail_left_up[IsIntra_tu][depth_tu+1],sizeof(avail_left_up[IsIntra_tu][depth_tu]));
+
+		memcpy(depth_left_up[IsIntra_tu][depth_tu],depth_left_up[IsIntra_tu][depth_tu+1],sizeof(depth_left_up[IsIntra_tu][depth_tu]));
+		memcpy(skip_flag_left_up[IsIntra_tu][depth_tu],skip_flag_left_up[IsIntra_tu][depth_tu+1],sizeof(skip_flag_left_up[IsIntra_tu][depth_tu]));
+
+		memcpy(mModels[IsIntra_tu][depth_tu] , mModels[IsIntra_tu][depth_tu+1] , sizeof(mModels[IsIntra_tu][depth_tu]));
+	}
+}
+
+void CABAC_RDO::cu_update()
+{
+	if (cu_best_mode[depth_tu] ==1 )
+	{
+		for (int i = (depth_tu) ; i < 5 ; i ++)
+		{
+			for (int j = 0 ; j < 3 ; j++)
+			{
+				memcpy(intra_luma_pred_mode_left_up[j][i],intra_luma_pred_mode_left_up[1][depth_tu],sizeof(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu]));
+				memcpy(pred_mode_left_up[j][i],pred_mode_left_up[1][depth_tu],sizeof(pred_mode_left_up[IsIntra_tu][depth_tu]));
+				memcpy(avail_left_up[j][i],avail_left_up[1][depth_tu],sizeof(avail_left_up[IsIntra_tu][depth_tu]));
+
+				memcpy(depth_left_up[j][i],depth_left_up[1][depth_tu],sizeof(depth_left_up[IsIntra_tu][depth_tu]));
+				memcpy(skip_flag_left_up[j][i],skip_flag_left_up[1][depth_tu],sizeof(skip_flag_left_up[IsIntra_tu][depth_tu]));
+
+				memcpy(mModels[j][i] ,mModels[1][depth_tu], sizeof(mModels[IsIntra_tu][i]) );
+			}
+		}
+	}
+	else if (cu_best_mode[depth_tu] == 0)
+	{
+		if (inter_cu_best_mode[depth_tu] == 0)
+		{
+			for (int i = (depth_tu) ; i < 5 ; i ++)
+			{
+				for (int j = 0 ; j < 3 ; j++)
+				{
+					memcpy(intra_luma_pred_mode_left_up[j][i],intra_luma_pred_mode_left_up[0][depth_tu],sizeof(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu]));
+					memcpy(pred_mode_left_up[j][i],pred_mode_left_up[0][depth_tu],sizeof(pred_mode_left_up[IsIntra_tu][depth_tu]));
+					memcpy(avail_left_up[j][i],avail_left_up[0][depth_tu],sizeof(avail_left_up[IsIntra_tu][depth_tu]));
+
+					memcpy(depth_left_up[j][i],depth_left_up[0][depth_tu],sizeof(depth_left_up[IsIntra_tu][depth_tu]));
+					memcpy(skip_flag_left_up[j][i],skip_flag_left_up[0][depth_tu],sizeof(skip_flag_left_up[IsIntra_tu][depth_tu]));
+
+					memcpy(mModels[j][i] ,mModels[0][depth_tu], sizeof(mModels[IsIntra_tu][i]) );
+				}
+			}
+		} 
+		else
+		{
+			for (int i = (depth_tu) ; i < 5 ; i ++)
+			{
+				for (int j = 0 ; j < 3 ; j++)
+				{
+					memcpy(intra_luma_pred_mode_left_up[j][i],intra_luma_pred_mode_left_up[2][depth_tu],sizeof(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu]));
+					memcpy(pred_mode_left_up[j][i],pred_mode_left_up[2][depth_tu],sizeof(pred_mode_left_up[IsIntra_tu][depth_tu]));
+					memcpy(avail_left_up[j][i],avail_left_up[2][depth_tu],sizeof(avail_left_up[IsIntra_tu][depth_tu]));
+
+					memcpy(depth_left_up[j][i],depth_left_up[2][depth_tu],sizeof(depth_left_up[IsIntra_tu][depth_tu]));
+					memcpy(skip_flag_left_up[j][i],skip_flag_left_up[2][depth_tu],sizeof(skip_flag_left_up[IsIntra_tu][depth_tu]));
+
+					memcpy(mModels[j][i] ,mModels[2][depth_tu], sizeof(mModels[IsIntra_tu][i]) );
+				}
+			}
+		}
+	}
+	else
+	{
+		for (int i = 0 ; i < 3 ; i++)
+		{
+			memcpy(intra_luma_pred_mode_left_up[i][depth_tu],intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu+1],sizeof(intra_luma_pred_mode_left_up[IsIntra_tu][depth_tu]));
+			memcpy(pred_mode_left_up[i][depth_tu],pred_mode_left_up[IsIntra_tu][depth_tu+1],sizeof(pred_mode_left_up[IsIntra_tu][depth_tu]));
+			memcpy(avail_left_up[i][depth_tu],avail_left_up[IsIntra_tu][depth_tu+1],sizeof(avail_left_up[IsIntra_tu][depth_tu]));
+
+			memcpy(depth_left_up[i][depth_tu],depth_left_up[IsIntra_tu][depth_tu+1],sizeof(depth_left_up[IsIntra_tu][depth_tu]));
+			memcpy(skip_flag_left_up[i][depth_tu],skip_flag_left_up[IsIntra_tu][depth_tu+1],sizeof(skip_flag_left_up[IsIntra_tu][depth_tu]));
+
+			memcpy(mModels[i][depth_tu] , mModels[IsIntra_tu][depth_tu+1] , sizeof(mModels[IsIntra_tu][depth_tu]));
+		}
+	}
+}
+
 uint32_t CABAC_RDO::Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx)//PU¼¶±ðINTER  mergeÄ£Ê½bit¹À¼Æ
 {
 	int bit;
@@ -8024,7 +7846,7 @@ uint32_t CABAC_RDO::Est_bit_pu_merge(uint32_t  depth , uint32_t  merge_idx)//PU¼
 			bit+=(merge_idx-1);
 	}
 
-	return est_bit_merge_flag[depth][1] + est_bit_cu_skip_flag[0][depth][0] + est_bit_pred_mode_flag[0][depth] + est_bit_pu_part_mode[0][depth][1] + bit;
+	return est_bit_merge_flag[depth][1] + est_bit_cu_skip_flag[0][depth][0] + est_bit_pred_mode_flag[0][depth][0] + est_bit_pu_part_mode[0][depth][1] + bit;
 }
 
 uint32_t CABAC_RDO::Est_bit_pu_fme(uint32_t  depth , uint32_t  mvd , uint32_t  mvp_l0_flag)//PU¼¶±ðINTER  FMEÄ£Ê½bit¹À¼Æ
@@ -8137,12 +7959,12 @@ uint32_t CABAC_RDO::Est_bit_sao(SaoParam_CABAC  saoParam , int cIdx , int Y_type
 	}
 }
 
-uint32_t CABAC_RDO::Est_bit_tu(uint32_t  depth , bool  IsIntra)//TU¼¶±ðbit¹À¼Æ
+uint32_t CABAC_RDO::Est_bit_tu(uint32_t  depth , int  IsIntra)//TU¼¶±ðbit¹À¼Æ
 {
 	return est_bit_tu[IsIntra][depth];
 }
 
-void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac_rdo_status )
+void CABAC_RDO::cabac_rdo_status(uint32_t depth,int IsIntra , bool end_of_cabac_rdo_status )
 {
 	//	ContextModel_hm *mModels[CONTEXT_NUM];
 	//	*mModels = *mModels[IsIntra][depth];
@@ -8206,21 +8028,23 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 				mstate_cu_skip_flag[IsIntra][depth][0] = aucNextState_0[mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]]];
 				mstate_cu_skip_flag[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][SKIP_FLAG_OFFSET +ctxIdx[IsIntra][depth][SKIP_FLAG_OFFSET]]];
 			}
+			else
+			{
+				est_bit_cu_skip_flag[IsIntra][depth][0] = 0;
+			}
 			//pred_mode_flag 
 			if (slice_header_struct.slice_type != I_SLICE)
 			{
-				if (IsIntra == 1)
-				{
-					mState[IsIntra][depth][PRED_MODE_OFFSET] = mModels[IsIntra][depth][PRED_MODE_OFFSET].get_m_ucState();
-					est_bit_pred_mode_flag[IsIntra][depth] = CABAC_g_entropyBits_0[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-					mstate_pred_mode_flag[IsIntra][depth] = aucNextState_0[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-				} 
-				else
-				{
-					mState[IsIntra][depth][PRED_MODE_OFFSET] = mModels[IsIntra][depth][PRED_MODE_OFFSET].get_m_ucState();
-					est_bit_pred_mode_flag[IsIntra][depth] = CABAC_g_entropyBits_1[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-					mstate_pred_mode_flag[IsIntra][depth] = aucNextState_1[mState[IsIntra][depth][PRED_MODE_OFFSET]];
-				}
+				mState[IsIntra][depth][PRED_MODE_OFFSET] = mModels[IsIntra][depth][PRED_MODE_OFFSET].get_m_ucState();
+				est_bit_pred_mode_flag[IsIntra][depth][0] = CABAC_g_entropyBits_0[mState[IsIntra][depth][PRED_MODE_OFFSET]];
+				mstate_pred_mode_flag[IsIntra][depth][0] = aucNextState_0[mState[IsIntra][depth][PRED_MODE_OFFSET]];
+				est_bit_pred_mode_flag[IsIntra][depth][1] = CABAC_g_entropyBits_1[mState[IsIntra][depth][PRED_MODE_OFFSET]];
+				mstate_pred_mode_flag[IsIntra][depth][1] = aucNextState_1[mState[IsIntra][depth][PRED_MODE_OFFSET]];
+				
+			}
+			else
+			{
+				est_bit_pred_mode_flag[IsIntra][depth][1] = 0;
 			}
 
 			//cu_split_flag
@@ -8330,7 +8154,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 					cu_ready[IsIntra][depth]=1;
 			}
 
-			tu_luma_4x4_idx = 0;
+			tu_luma_idx = 0;
 			end_of_cabac_rdo_status =1; 
 			break;
 
@@ -8499,7 +8323,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 					est_bit_pu_chroma_dir[depth] = 0;
 				}
 				
-				pu_est_bits[IsIntra][depth] = (pu_est_bits[IsIntra][depth] + est_bit_pu_luma_dir[depth][intra_pu_depth_luma_bestDir[depth]]+est_bit_pu_chroma_dir[depth]+est_bit_pu_part_mode_sure[IsIntra][depth]);
+				pu_est_bits[IsIntra][depth] = (pu_est_bits[IsIntra][depth] + est_bit_pu_luma_dir[depth][intra_pu_depth_luma_bestDir[depth]]+est_bit_pu_chroma_dir[depth]+est_bit_pu_part_mode_sure[IsIntra][depth] + est_bit_pred_mode_flag[IsIntra][depth][1] + est_bit_cu_skip_flag[IsIntra][depth][0]);
 			} 
 			else
 			{
@@ -8526,104 +8350,118 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 				//luma
 				if (cbf_luma == 1)
 				{
-					cabac_est( TU_size *2, TU_Resi_luma , 0);
+					cabac_est( TU_chroma_size *2, TU_Resi_luma , 0);
+					if (slice_header_struct.slice_type == 2)
+					{
+						assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == g_intra_est_bit_last_sig_coeff_xy[0][depth][inx_in_tu[IsIntra][depth]]);
+						assert(est_bit_sig_coeff_flag[IsIntra_tu][depth_tu] == g_intra_est_sig_coeff_flag[0][depth][inx_in_tu[IsIntra][depth]]);
+						assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth][inx_in_tu[IsIntra][depth]]);
+						assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth][inx_in_tu[IsIntra][depth]]);
+						assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth][inx_in_tu[IsIntra][depth]]);
+						assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth][inx_in_tu[IsIntra][depth]]);
+						assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth][inx_in_tu[IsIntra][depth]]);
 
-					assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == g_intra_est_bit_last_sig_coeff_xy[0][depth][inx_in_tu[IsIntra][depth]]);
-					assert(est_bit_sig_coeff_flag[IsIntra_tu][depth_tu] == g_intra_est_sig_coeff_flag[0][depth][inx_in_tu[IsIntra][depth]]);
-					assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth][inx_in_tu[IsIntra][depth]]);
-					assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth][inx_in_tu[IsIntra][depth]]);
-					assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth][inx_in_tu[IsIntra][depth]]);
-					assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth][inx_in_tu[IsIntra][depth]]);
-					assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth][inx_in_tu[IsIntra][depth]]);
-
-					assert( (est_bit_cbf_luma[IsIntra_tu][depth_tu][1]) == g_intra_est_bit_cbf[0][depth][inx_in_tu[IsIntra][depth]] );
+						assert( (est_bit_cbf_luma[IsIntra_tu][depth_tu][1]) == g_intra_est_bit_cbf[0][depth][inx_in_tu[IsIntra][depth]] );
+					}
+					
 					mModels[IsIntra][depth][CBF_LUMA_OFFSET+ (depth!=4)].set_m_ucState(mstate_cbf_luma[IsIntra][depth][1]);
 
 					tu_est_bits[IsIntra][depth] += est_bit_cbf_luma[IsIntra_tu][depth_tu][1];
 				}
 				else
 				{
-					assert( (est_bit_cbf_luma[IsIntra_tu][depth_tu][0]) == g_intra_est_bit_cbf[0][depth][inx_in_tu[IsIntra][depth]] );
+					if (slice_header_struct.slice_type == 2)
+					{
+						assert( (est_bit_cbf_luma[IsIntra_tu][depth_tu][0]) == g_intra_est_bit_cbf[0][depth][inx_in_tu[IsIntra][depth]] );
+					}
+					
 					mModels[IsIntra][depth][CBF_LUMA_OFFSET+ (depth!=4)].set_m_ucState(mstate_cbf_luma[IsIntra][depth][0]);
 
 					tu_est_bits[IsIntra][depth] += est_bit_cbf_luma[IsIntra_tu][depth_tu][0];
 				}
 				
-				if ( (tu_luma_4x4_idx ==3 || depth !=4) && cbf_chroma_u == 1)
+				if ( (tu_luma_idx ==3 || depth !=4) && cbf_chroma_u == 1)
 				{	//chroma U
 					if (depth == 4)
 					{
-						TU_size = 4;
+						TU_chroma_size = 4;
 					}
-					cabac_est( TU_size , TU_Resi_chroma_u , 1);
+					cabac_est( TU_chroma_size , TU_Resi_chroma_u , 1);
 
 					int idx_temp = inx_in_tu[IsIntra][depth];
 					if (depth == 4)
 					{
 						idx_temp = inx_in_tu[IsIntra][depth] - 3;
 					}
-					assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == (g_intra_est_bit_last_sig_coeff_xy[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_last_sig_coeff_xy[1][depth][idx_temp]));
-					assert(est_bit_sig_coeff_flag[IsIntra_tu][depth_tu] == g_intra_est_sig_coeff_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_sig_coeff_flag[1][depth][idx_temp]);
-					assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_abs_level_greater1_flag[1][depth][idx_temp]);
-					assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_abs_level_greater2_flag[1][depth][idx_temp]);
-					assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coded_sub_block_flag[1][depth][idx_temp]);
-					assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_sign_flag[1][depth][idx_temp]);
-					assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_abs_level_remaining[1][depth][idx_temp]);
+					if (slice_header_struct.slice_type == 2)
+					{
+						assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == (g_intra_est_bit_last_sig_coeff_xy[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_last_sig_coeff_xy[1][depth][idx_temp]));
+						assert(est_bit_sig_coeff_flag[IsIntra_tu][depth_tu] == g_intra_est_sig_coeff_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_sig_coeff_flag[1][depth][idx_temp]);
+						assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_abs_level_greater1_flag[1][depth][idx_temp]);
+						assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_abs_level_greater2_flag[1][depth][idx_temp]);
+						assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coded_sub_block_flag[1][depth][idx_temp]);
+						assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_sign_flag[1][depth][idx_temp]);
+						assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_abs_level_remaining[1][depth][idx_temp]);
+					}
 				}
 					
-				if ( (tu_luma_4x4_idx ==3 || depth !=4) && cbf_chroma_v == 1)
+				if ( (tu_luma_idx ==3 || depth !=4) && cbf_chroma_v == 1)
 				{	//chroma V
 					if (depth == 4)
 					{
-						TU_size = 4;
+						TU_chroma_size = 4;
 					}
-					cabac_est( TU_size , TU_Resi_chroma_v , 2);
+					cabac_est( TU_chroma_size , TU_Resi_chroma_v , 2);
 
 					int idx_temp = inx_in_tu[IsIntra][depth];
 					if (depth == 4)
 					{
 						idx_temp = inx_in_tu[IsIntra][depth] - 3;
 					}
-					assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
-						est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == (g_intra_est_bit_last_sig_coeff_xy[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_last_sig_coeff_xy[1][depth][idx_temp]
-					+ g_intra_est_bit_last_sig_coeff_xy[2][depth][idx_temp]));
-					assert(est_bit_sig_coeff_flag[IsIntra_tu][depth_tu] == g_intra_est_sig_coeff_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_sig_coeff_flag[1][depth][idx_temp]
-					+ g_intra_est_sig_coeff_flag[2][depth][idx_temp]);
-					assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_abs_level_greater1_flag[1][depth][idx_temp]
-					+ g_intra_est_bit_coeff_abs_level_greater1_flag[2][depth][idx_temp]);
-					assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_abs_level_greater2_flag[1][depth][idx_temp]
-					+ g_intra_est_bit_coeff_abs_level_greater2_flag[2][depth][idx_temp]);
-					assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coded_sub_block_flag[1][depth][idx_temp]
-					+ g_intra_est_bit_coded_sub_block_flag[2][depth][idx_temp]);
-					assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_sign_flag[1][depth][idx_temp]
-					+ g_intra_est_bit_coeff_sign_flag[2][depth][idx_temp]);
-					assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth][inx_in_tu[IsIntra][depth]]
-					+ g_intra_est_bit_coeff_abs_level_remaining[1][depth][idx_temp]
-					+ g_intra_est_bit_coeff_abs_level_remaining[2][depth][idx_temp]);
+					if (slice_header_struct.slice_type == 2)
+					{
+						assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
+							est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == (g_intra_est_bit_last_sig_coeff_xy[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_last_sig_coeff_xy[1][depth][idx_temp]
+						+ g_intra_est_bit_last_sig_coeff_xy[2][depth][idx_temp]));
+						assert(est_bit_sig_coeff_flag[IsIntra_tu][depth_tu] == g_intra_est_sig_coeff_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_sig_coeff_flag[1][depth][idx_temp]
+						+ g_intra_est_sig_coeff_flag[2][depth][idx_temp]);
+						assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_abs_level_greater1_flag[1][depth][idx_temp]
+						+ g_intra_est_bit_coeff_abs_level_greater1_flag[2][depth][idx_temp]);
+						assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_abs_level_greater2_flag[1][depth][idx_temp]
+						+ g_intra_est_bit_coeff_abs_level_greater2_flag[2][depth][idx_temp]);
+						assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coded_sub_block_flag[1][depth][idx_temp]
+						+ g_intra_est_bit_coded_sub_block_flag[2][depth][idx_temp]);
+						assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_sign_flag[1][depth][idx_temp]
+						+ g_intra_est_bit_coeff_sign_flag[2][depth][idx_temp]);
+						assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth][inx_in_tu[IsIntra][depth]]
+						+ g_intra_est_bit_coeff_abs_level_remaining[1][depth][idx_temp]
+						+ g_intra_est_bit_coeff_abs_level_remaining[2][depth][idx_temp]);
+					}
+					
 				}
 				
-				if ( (tu_luma_4x4_idx ==3 || depth !=4) )
+				if ( (tu_luma_idx ==3 || depth !=4) )
 				{
 					int idx_temp = inx_in_tu[IsIntra][depth];
 					if (depth == 4)
@@ -8633,25 +8471,41 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 					switch ((cbf_chroma_u << 1) | cbf_chroma_v)
 					{
 					case 0: 
-						assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][0]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						if (slice_header_struct.slice_type == 2)
+						{
+							assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][0]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						}
+						
 						mModels[IsIntra][depth][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra][depth][0][0]);
 
 						tu_est_bits[IsIntra][depth] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][0];
 						break;
 					case 1:
-						assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][1]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						if (slice_header_struct.slice_type == 2)
+						{
+							assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][1]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						}
+						
 						mModels[IsIntra][depth][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra][depth][0][1]);
 
 						tu_est_bits[IsIntra][depth] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][1];
 						break;
 					case 2:
-						assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][0]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						if (slice_header_struct.slice_type == 2)
+						{
+							assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][0]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						}
+						
 						mModels[IsIntra][depth][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra][depth][1][0]);
 
 						tu_est_bits[IsIntra][depth] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][0];
 						break;
 					case 3:
-						assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][1]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						if (slice_header_struct.slice_type == 2)
+						{
+							assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][1]) == g_intra_est_bit_cbf[1][depth][idx_temp] + g_intra_est_bit_cbf[2][depth][idx_temp]);
+						}
+						
 						mModels[IsIntra][depth][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra][depth][1][1]);
 
 						tu_est_bits[IsIntra][depth] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][1];
@@ -8668,7 +8522,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 
 				if (depth==4)
 				{
-					tu_luma_4x4_idx += 1;
+					tu_luma_idx += 1;
 				}
 				
 
@@ -8701,31 +8555,35 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 				inx_in_tu[IsIntra][depth] += 1;
 
 				assert(tu_est_bits[IsIntra][depth] == g_est_bit_tu[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]);
-				assert(tu_est_bits[IsIntra][depth] + pu_est_bits[IsIntra][depth] == g_est_bit_cu[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]);
-				if (depth != 4)
+				if (slice_header_struct.slice_type == 2)
 				{
-					assert(tu_est_bits[IsIntra][depth] == g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_est_bit_tu_cb_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_est_bit_tu_cr_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4] 
-																		+ g_intra_est_bit_cbf[1][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_intra_est_bit_cbf[2][depth][inx_in_cu[IsIntra][depth] * 4] );
+					assert(tu_est_bits[IsIntra][depth] + pu_est_bits[IsIntra][depth] == g_est_bit_cu[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]);
+					if (depth != 4)
+					{
+						assert(tu_est_bits[IsIntra][depth] == g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_est_bit_tu_cb_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_est_bit_tu_cr_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4] 
+						+ g_intra_est_bit_cbf[1][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_intra_est_bit_cbf[2][depth][inx_in_cu[IsIntra][depth] * 4] );
+					}
+					else
+					{
+						assert(tu_est_bits[IsIntra][depth] == g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
+						+g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4 + 1]
+						+g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4 + 2]
+						+g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4 + 3]
+						+ g_est_bit_tu_cb_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_est_bit_tu_cr_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4] 
+						+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4 + 1] 
+						+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4 + 2] 
+						+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4 + 3] 
+						+ g_intra_est_bit_cbf[1][depth][inx_in_cu[IsIntra][depth] * 4]
+						+ g_intra_est_bit_cbf[2][depth][inx_in_cu[IsIntra][depth] * 4] );
+					}
 				}
-				else
-				{
-					assert(tu_est_bits[IsIntra][depth] == g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4 + 1]
-																		+g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4 + 2]
-																		+g_est_bit_tu_luma_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4 + 3]
-																		+ g_est_bit_tu_cb_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_est_bit_tu_cr_NoCbf[IsIntra][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4] 
-																		+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4 + 1] 
-																		+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4 + 2] 
-																		+ g_intra_est_bit_cbf[0][depth][inx_in_cu[IsIntra][depth] * 4 + 3] 
-																		+ g_intra_est_bit_cbf[1][depth][inx_in_cu[IsIntra][depth] * 4]
-																		+ g_intra_est_bit_cbf[2][depth][inx_in_cu[IsIntra][depth] * 4] );
-				}
+				
 			}
 			end_of_cabac_rdo_status = 1;
 			break;
@@ -8744,7 +8602,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 						setLumaIntraDirSubParts(intra_pu_depth_luma_bestDir[depth],inx_in_tu[IsIntra][depth]-1,depth, IsIntra);
 						setPredModeSubParts(MODE_INTRA,inx_in_cu[IsIntra][depth],depth, IsIntra);
 						setAvailSubParts_map(1,inx_in_tu[IsIntra][depth]-1,depth, IsIntra);
-						setDepthSubParts(depth,inx_in_cu[IsIntra][depth], IsIntra);
+//						setDepthSubParts(depth,inx_in_cu[IsIntra][depth], IsIntra);
 						setSkipFlagSubParts(0,inx_in_cu[IsIntra][depth],depth, IsIntra);
 						mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mstate_prev_intra_luma_pred_flag[depth]);
 					} 
@@ -8755,7 +8613,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 							setLumaIntraDirSubParts(intra_pu_depth_luma_bestDir[depth],cu_to_tu_idx(inx_in_cu[IsIntra][depth]),depth, IsIntra);
 							setPredModeSubParts(MODE_INTRA,inx_in_cu[IsIntra][depth],depth, IsIntra);
 							setAvailSubParts_map(1,inx_in_tu[IsIntra][depth]-1,depth, IsIntra);
-							setDepthSubParts(depth,inx_in_cu[IsIntra][depth], IsIntra);
+//							setDepthSubParts(depth,inx_in_cu[IsIntra][depth], IsIntra);
 							setSkipFlagSubParts(0,inx_in_cu[IsIntra][depth],depth, IsIntra);
 							mModels[IsIntra][depth][PREV_INTRA_LUMA_PRED_MODE].set_m_ucState(mstate_prev_intra_luma_pred_flag[depth]);
 							for (int i = (depth+1) ; i < 5 ; i ++)
@@ -8768,12 +8626,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 								memcpy(skip_flag_left_up[IsIntra][i],skip_flag_left_up[IsIntra][depth],sizeof(skip_flag_left_up[IsIntra][depth]));
 
 								memcpy(mModels[IsIntra][i] ,mModels[IsIntra][depth], sizeof(mModels[IsIntra][i]) );
-// 								mModels[IsIntra][i][LAST_SIGNIFICANT_COEFF_X_PREFIX_OFFSET].m_ucState = mModels[IsIntra][depth][LAST_SIGNIFICANT_COEFF_X_PREFIX_OFFSET].m_ucState;
-// 								mModels[IsIntra][i][LAST_SIGNIFICANT_COEFF_Y_PREFIX_OFFSET].m_ucState = mModels[IsIntra][depth][LAST_SIGNIFICANT_COEFF_Y_PREFIX_OFFSET].m_ucState;
-// 								mModels[IsIntra][i][SIGNIFICANT_COEFF_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth][SIGNIFICANT_COEFF_FLAG_OFFSET].m_ucState;
-// 								mModels[IsIntra][i][COEFF_ABS_LEVEL_GREATER1_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth][COEFF_ABS_LEVEL_GREATER1_FLAG_OFFSET].m_ucState;
-// 								mModels[IsIntra][i][COEFF_ABS_LEVEL_GREATER2_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth][COEFF_ABS_LEVEL_GREATER2_FLAG_OFFSET].m_ucState;
-// 								mModels[IsIntra][i][SIGNIFICANT_COEFF_GROUP_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth][SIGNIFICANT_COEFF_GROUP_FLAG_OFFSET].m_ucState;
+
 							}
 						}
 						else
@@ -8786,12 +8639,7 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 							memcpy(skip_flag_left_up[IsIntra][depth],skip_flag_left_up[IsIntra][depth+1],sizeof(skip_flag_left_up[IsIntra][depth]));
 
 							memcpy(mModels[IsIntra][depth] , mModels[IsIntra][depth+1] , sizeof(mModels[IsIntra][depth]));
-// 							mModels[IsIntra][depth][LAST_SIGNIFICANT_COEFF_X_PREFIX_OFFSET].m_ucState = mModels[IsIntra][depth+1][LAST_SIGNIFICANT_COEFF_X_PREFIX_OFFSET].m_ucState;
-// 							mModels[IsIntra][depth][LAST_SIGNIFICANT_COEFF_Y_PREFIX_OFFSET].m_ucState = mModels[IsIntra][depth+1][LAST_SIGNIFICANT_COEFF_Y_PREFIX_OFFSET].m_ucState;
-// 							mModels[IsIntra][depth][SIGNIFICANT_COEFF_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth+1][SIGNIFICANT_COEFF_FLAG_OFFSET].m_ucState;
-// 							mModels[IsIntra][depth][COEFF_ABS_LEVEL_GREATER1_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth+1][COEFF_ABS_LEVEL_GREATER1_FLAG_OFFSET].m_ucState;
-// 							mModels[IsIntra][depth][COEFF_ABS_LEVEL_GREATER2_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth+1][COEFF_ABS_LEVEL_GREATER2_FLAG_OFFSET].m_ucState;
-// 							mModels[IsIntra][depth][SIGNIFICANT_COEFF_GROUP_FLAG_OFFSET].m_ucState = mModels[IsIntra][depth+1][SIGNIFICANT_COEFF_GROUP_FLAG_OFFSET].m_ucState;
+
 						}
 					}
 				} 
@@ -8818,3 +8666,782 @@ void CABAC_RDO::cabac_rdo_status(uint32_t depth,bool IsIntra , bool end_of_cabac
 	}
 }
 
+
+
+void CABAC_RDO::cabac_est_functional_type_intra()
+{
+	int cu_qp_delta ;
+	int cu_qp_delta_abs ;
+	uint32_t cu_qp_delta_abs_prefixVal ;
+	UChar mState;
+	mState = mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=4)].get_m_ucState();
+	est_bit_cbf_luma[IsIntra_tu][depth_tu][0] = CABAC_g_entropyBits_0[mState];
+	est_bit_cbf_luma[IsIntra_tu][depth_tu][1] = CABAC_g_entropyBits_1[mState];
+	mstate_cbf_luma[IsIntra_tu][depth_tu][0] = aucNextState_0[mState];
+	mstate_cbf_luma[IsIntra_tu][depth_tu][1] = aucNextState_1[mState];
+
+	mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET/*+ (depth_tu==4)*/].get_m_ucState();
+	est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][0] = CABAC_g_entropyBits_00[mState];
+	est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][1] = CABAC_g_entropyBits_01[mState];
+	est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][0] = CABAC_g_entropyBits_10[mState];
+	est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][1] = CABAC_g_entropyBits_11[mState];
+
+	mstate_cbf_chroma[IsIntra_tu][depth_tu][0][0] = aucNextState_00[mState];
+	mstate_cbf_chroma[IsIntra_tu][depth_tu][0][1] = aucNextState_01[mState];
+	mstate_cbf_chroma[IsIntra_tu][depth_tu][1][0] = aucNextState_10[mState];
+	mstate_cbf_chroma[IsIntra_tu][depth_tu][1][1] = aucNextState_11[mState];
+
+// 	rqt_root_cbf = (cbf_luma_total[0] | cbf_luma_total[1] | cbf_luma_total[2] | cbf_luma_total[3] | cbf_chroma_u_total[0] | cbf_chroma_v_total[0]) ;
+// 	if ( ((cbf_luma_total[0]==1 || cbf_chroma_u_total[0]==1 || cbf_chroma_v_total[0] ==1) && depth_tu!=4) || (rqt_root_cbf==1 && depth_tu==4 && tu_luma_idx==4) )
+// 	{
+// 		cu_qp_delta = g_cu_qp_delta_abs[IsIntra_tu][depth_tu][zscan_idx_tu];
+// 		cu_qp_delta_abs = abs(cu_qp_delta);
+// 		cu_qp_delta_abs_prefixVal = MIN(cu_qp_delta_abs , 5);
+// 		tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cu_qp_delta_abs_prefixVal(cu_qp_delta_abs_prefixVal);
+// 		if (cu_qp_delta_abs_prefixVal>=5)
+// 		{
+// 			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_Golomb(cu_qp_delta_abs - cu_qp_delta_abs_prefixVal , 0);
+// 		}
+// 		if (cu_qp_delta != 0)
+// 		{
+// 			tu_est_bits[IsIntra_tu][depth_tu] += 32768;
+// 		}
+// 	}
+
+	//luma
+	if (tu_luma_idx != 4)
+	{
+		if (cbf_luma_total[tu_luma_idx] == 1)
+		{
+			cabac_est( TU_chroma_size *2, TU_Resi_luma , 0);
+
+			if (slice_header_struct.slice_type == 2)
+			{
+				assert((est_bit_last_sig_coeff_x_prefix[IsIntra_tu][depth_tu] +
+					est_bit_last_sig_coeff_y_prefix[IsIntra_tu][depth_tu] +
+					est_bit_last_sig_coeff_x_suffix[IsIntra_tu][depth_tu] +
+					est_bit_last_sig_coeff_y_suffix[IsIntra_tu][depth_tu] ) == g_intra_est_bit_last_sig_coeff_xy[0][depth_tu][zscan_idx_tu + tu_luma_idx]);
+				assert(est_bit_coeff_abs_level_greater1_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater1_flag[0][depth_tu][zscan_idx_tu + tu_luma_idx]);
+				assert(est_bit_coeff_abs_level_greater2_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_greater2_flag[0][depth_tu][zscan_idx_tu + tu_luma_idx]);
+				assert(est_bit_coded_sub_block_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coded_sub_block_flag[0][depth_tu][zscan_idx_tu + tu_luma_idx]);
+				assert(est_bit_coeff_sign_flag[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_sign_flag[0][depth_tu][zscan_idx_tu + tu_luma_idx]);
+				assert(est_bit_coeff_abs_level_remaining[IsIntra_tu][depth_tu] == g_intra_est_bit_coeff_abs_level_remaining[0][depth_tu][zscan_idx_tu + tu_luma_idx]);
+
+				assert( (est_bit_cbf_luma[IsIntra_tu][depth_tu][1]) == g_intra_est_bit_cbf[0][depth_tu][zscan_idx_tu + tu_luma_idx] );
+			}
+
+			mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=4)].set_m_ucState(mstate_cbf_luma[IsIntra_tu][depth_tu][1]);
+
+			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cbf_luma[IsIntra_tu][depth_tu][1];
+		}
+		else
+		{
+			if (slice_header_struct.slice_type == 2)
+			{
+				//			assert( (est_bit_cbf_luma[IsIntra_tu][depth_tu][0]) == g_intra_est_bit_cbf[0][depth_tu][inx_in_tu[IsIntra_tu][depth_tu]] );
+			}
+
+			mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=4)].set_m_ucState(mstate_cbf_luma[IsIntra_tu][depth_tu][0]);
+
+			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cbf_luma[IsIntra_tu][depth_tu][0];
+		}
+	}
+	
+
+	if ( (tu_luma_idx ==4 || depth_tu !=4) && cbf_chroma_u_total[0] == 1)
+	{	//chroma U
+		if (depth_tu == 4)
+		{
+			TU_chroma_size = 4;
+		}
+		cabac_est( TU_chroma_size , TU_Resi_chroma_u , 1);
+
+		int idx_temp = inx_in_tu[IsIntra_tu][depth_tu];
+		if (depth_tu == 4)
+		{
+			idx_temp = inx_in_tu[IsIntra_tu][depth_tu] - 3;
+		}
+		if (slice_header_struct.slice_type == 2)
+		{
+			
+		}
+	}
+
+	if ( (tu_luma_idx ==4 || depth_tu !=4) && cbf_chroma_v_total[0] == 1)
+	{	//chroma V
+		if (depth_tu == 4)
+		{
+			TU_chroma_size = 4;
+		}
+		cabac_est( TU_chroma_size , TU_Resi_chroma_v , 2);
+
+		int idx_temp = inx_in_tu[IsIntra_tu][depth_tu];
+		if (depth_tu == 4)
+		{
+			idx_temp = inx_in_tu[IsIntra_tu][depth_tu] - 3;
+		}
+		if (slice_header_struct.slice_type == 2)
+		{
+			
+		}
+
+	}
+
+	if ( (tu_luma_idx ==4 || depth_tu !=4) )
+	{
+		switch ((cbf_chroma_u_total[0] << 1) | cbf_chroma_v_total[0])
+		{
+		case 0: 
+			if (slice_header_struct.slice_type == 2)
+			{
+				assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][0]) == g_intra_est_bit_cbf[1][depth_tu][zscan_idx_tu] + g_intra_est_bit_cbf[2][depth_tu][zscan_idx_tu]);
+			}
+
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra_tu][depth_tu][0][0]);
+
+			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][0];
+			break;
+		case 1:
+			if (slice_header_struct.slice_type == 2)
+			{
+//				assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][1]) == g_intra_est_bit_cbf[1][depth_tu][idx_temp] + g_intra_est_bit_cbf[2][depth_tu][idx_temp]);
+			}
+
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra_tu][depth_tu][0][1]);
+
+			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][0][1];
+			break;
+		case 2:
+			if (slice_header_struct.slice_type == 2)
+			{
+//				assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][0]) == g_intra_est_bit_cbf[1][depth_tu][idx_temp] + g_intra_est_bit_cbf[2][depth_tu][idx_temp]);
+			}
+
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra_tu][depth_tu][1][0]);
+
+			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][0];
+			break;
+		case 3:
+			if (slice_header_struct.slice_type == 2)
+			{
+//				assert( (est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][1]) == g_intra_est_bit_cbf[1][depth_tu][idx_temp] + g_intra_est_bit_cbf[2][depth_tu][idx_temp]);
+			}
+
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].set_m_ucState(mstate_cbf_chroma[IsIntra_tu][depth_tu][1][1]);
+
+			tu_est_bits[IsIntra_tu][depth_tu] += est_bit_cbf_chroma[IsIntra_tu][depth_tu][1][1];
+			break;
+		default:
+			assert(0);
+		}
+	}
+
+// 	if (depth_tu==4)
+// 	{
+// 		tu_luma_idx += 1;
+// 	}
+	if (depth_tu != 4 && depth_tu != 0)
+	{
+		assert(tu_est_bits[IsIntra_tu][depth_tu] == g_est_bit_tu[IsIntra_tu][depth_tu][zscan_idx_tu]);
+	} 
+	else if( (depth_tu == 4 && tu_luma_idx ==4) || (depth_tu == 0 && tu_luma_idx ==3) )
+	{
+		assert(tu_est_bits[IsIntra_tu][depth_tu] == g_est_bit_tu[IsIntra_tu][depth_tu][zscan_idx_tu]);
+	}
+	if (tu_luma_idx==4)
+	{
+		tu_luma_idx = 0;
+	}
+}
+
+void CABAC_RDO::cabac_est_functional_type_inter(int type)
+{
+
+	//luma
+	if (cbf_luma_total[tu_luma_idx] == 1 && type == 0)
+	{
+		cabac_est( TU_chroma_size *2, TU_Resi_luma , 0);
+	}
+	
+	
+
+	if (cbf_chroma_u_total[tu_luma_idx] == 1 && type == 1)
+	{	//chroma U
+		cabac_est( TU_chroma_size , TU_Resi_chroma_u , 1);
+	}
+
+	if (  cbf_chroma_v_total[tu_luma_idx] == 1 && type == 2)
+	{	//chroma V
+		cabac_est( TU_chroma_size , TU_Resi_chroma_v , 2);
+	}
+
+
+	if (depth_tu == 0 && tu_luma_idx ==3 &&   type == 2)
+	{
+		UChar mState;
+		UChar mState_next;
+		cbf_luma_root = (cbf_luma_total[0] | cbf_luma_total[1] | cbf_luma_total[2] | cbf_luma_total[3]) ;
+		cbf_chroma_u_root = (cbf_chroma_u_total[0] | cbf_chroma_u_total[1] | cbf_chroma_u_total[2] | cbf_chroma_u_total[3]) ;
+		cbf_chroma_v_root = (cbf_chroma_v_total[0] | cbf_chroma_v_total[1] | cbf_chroma_v_total[2] | cbf_chroma_v_total[3]) ;
+		rqt_root_cbf = (cbf_luma_root | cbf_chroma_u_root | cbf_chroma_v_root ) ;
+
+
+		if (rqt_root_cbf == 0 )
+		{
+			if (IsIntra_tu == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].get_m_ucState();
+				mState_next = aucNextState_0[mState];
+				tu_est_bits[IsIntra_tu][depth_tu] += CABAC_g_entropyBits_0[mState];
+				mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].set_m_ucState(mState_next);
+			}
+		}
+		else
+		{
+			if (IsIntra_tu == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].get_m_ucState();
+				mState_next = aucNextState_1[mState];
+				tu_est_bits[IsIntra_tu][depth_tu] += CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].set_m_ucState(mState_next);
+			}
+
+			for (int i = 0 ; i < 4 ; i++)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=0)].get_m_ucState();
+				mState_next = cbf_luma_total[i] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+				tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_luma_total[i] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=0)].set_m_ucState(mState_next);
+			}
+
+			mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].get_m_ucState();
+			mState_next = cbf_chroma_u_root ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+			tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_chroma_u_root ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].set_m_ucState(mState_next);
+
+			mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].get_m_ucState();
+			mState_next = cbf_chroma_v_root ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+			tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_chroma_v_root ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET].set_m_ucState(mState_next);
+
+			for (int i = 0 ; i < 4 ; i++)
+			{
+				if (cbf_chroma_u_root == 1)
+				{
+					mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].get_m_ucState();
+					mState_next = cbf_chroma_u_total[i] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+					tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_chroma_u_total[i] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+					mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].set_m_ucState(mState_next);
+				}
+				
+				if (cbf_chroma_v_root == 1)
+				{
+					mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].get_m_ucState();
+					mState_next = cbf_chroma_v_total[i] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+					tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_chroma_v_total[i] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+					mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].set_m_ucState(mState_next);
+				}
+			}
+		}
+		
+		if (tu_est_bits[IsIntra_tu][depth_tu] != 0)
+		{
+			assert(tu_est_bits[IsIntra_tu][depth_tu] == g_est_bit_tu[IsIntra_tu][depth_tu][zscan_idx_tu]);
+		}
+		
+	}
+
+	if (depth_tu != 0 && type == 2)
+	{
+		UChar mState;
+		UChar mState_next;
+		cbf_luma_root = (cbf_luma_total[0]) ;
+		cbf_chroma_u_root = (cbf_chroma_u_total[0]) ;
+		cbf_chroma_v_root = (cbf_chroma_v_total[0]) ;
+		rqt_root_cbf = (cbf_luma_root | cbf_chroma_u_root | cbf_chroma_v_root ) ;
+
+		if (rqt_root_cbf == 0 )
+		{
+			if (IsIntra_tu == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].get_m_ucState();
+				mState_next = aucNextState_0[mState];
+				tu_est_bits[IsIntra_tu][depth_tu] += CABAC_g_entropyBits_0[mState];
+				mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].set_m_ucState(mState_next);
+			}
+		}
+		else
+		{
+			if (IsIntra_tu == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].get_m_ucState();
+				mState_next = aucNextState_1[mState];
+				tu_est_bits[IsIntra_tu][depth_tu] += CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][RQT_ROOT_CBF_OFFSET].set_m_ucState(mState_next);
+			}
+
+			if (cbf_chroma_u_total[0]==1 || cbf_chroma_v_total[0] ==1)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=0)].get_m_ucState();
+				mState_next = cbf_luma_total[0] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+				tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_luma_total[0] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][CBF_LUMA_OFFSET+ (depth_tu!=0)].set_m_ucState(mState_next);
+			}
+
+			mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].get_m_ucState();
+			mState_next = cbf_chroma_u_total[0] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+			tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_chroma_u_total[0] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].set_m_ucState(mState_next);
+
+			mState = mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].get_m_ucState();
+			mState_next = cbf_chroma_v_total[0] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+			tu_est_bits[IsIntra_tu][depth_tu] +=  cbf_chroma_v_total[0] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][CBF_CHROMA_OFFSET+ (depth_tu==0)].set_m_ucState(mState_next);
+		}
+
+		if (tu_est_bits[IsIntra_tu][depth_tu] != 0)
+		{
+			assert(tu_est_bits[IsIntra_tu][depth_tu] == g_est_bit_tu[IsIntra_tu][depth_tu][zscan_idx_tu]);
+		}
+		
+	}
+}
+
+uint64_t CABAC_RDO::Inter_fme_est_bit_cu_pu(FmeInfoForCabac *fmeInfoForCabac)
+{
+	UChar mState;
+	UChar mState_next;
+	uint64_t bits = 0;
+	int ctxIdx;
+	UChar interDir = fmeInfoForCabac->m_interDir - 1;
+	char mvp_l0_flag = fmeInfoForCabac->m_mvpIdx[0];
+	char mvp_l1_flag = fmeInfoForCabac->m_mvpIdx[1];
+
+	ctxIdx =  getCtxSkipFlag(zscan_idx_tu>>2,depth_tu,IsIntra_tu);
+	mState = mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].get_m_ucState();
+	mState_next = aucNextState_0[mState] ;
+	bits += CABAC_g_entropyBits_0[mState];
+	mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].set_m_ucState(mState_next);
+
+	setLumaIntraDirSubParts(1 , zscan_idx_tu , depth_tu , IsIntra_tu);
+	setPredModeSubParts(MODE_INTER , tu_to_cu_idx(zscan_idx_tu) ,depth_tu, IsIntra_tu);
+	setAvailSubParts_map(1, zscan_idx_tu , depth_tu , IsIntra_tu);
+
+//	setDepthSubParts(depth_tu, zscan_idx_tu>>2 , IsIntra_tu);
+	setSkipFlagSubParts(0, zscan_idx_tu>>2 , depth_tu , IsIntra_tu);
+
+	mState = mModels[IsIntra_tu][depth_tu][PRED_MODE_OFFSET].get_m_ucState();
+	mState_next = aucNextState_0[mState] ;
+	bits += CABAC_g_entropyBits_0[mState];
+	mModels[IsIntra_tu][depth_tu][PRED_MODE_OFFSET].set_m_ucState(mState_next);
+
+	mState = mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].get_m_ucState();//INTERÖ»¿¼ÂÇÁË2N*2NµÄÇé¿ö
+	mState_next = aucNextState_1[mState] ;
+	bits += CABAC_g_entropyBits_1[mState];
+	mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].set_m_ucState(mState_next);
+
+	mState = mModels[IsIntra_tu][depth_tu][MERGE_FLAG_OFFSET].get_m_ucState();
+	mState_next = aucNextState_0[mState] ;
+	bits += CABAC_g_entropyBits_0[mState];
+	mModels[IsIntra_tu][depth_tu][MERGE_FLAG_OFFSET].set_m_ucState(mState_next);
+
+	if (slice_header_struct.slice_type == 0)
+	{
+		if (interDir == 0)
+		{
+			mState = mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + depth_tu].get_m_ucState();
+			mState_next = aucNextState_0[mState] ;
+			bits += CABAC_g_entropyBits_0[mState];
+			mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + depth_tu].set_m_ucState(mState_next);
+
+			mState = mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + 4].get_m_ucState();
+			mState_next = aucNextState_0[mState] ;
+			bits += CABAC_g_entropyBits_0[mState];
+			mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + 4].set_m_ucState(mState_next);
+		} 
+		else if (interDir == 1)
+		{
+			mState = mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + depth_tu].get_m_ucState();
+			mState_next = aucNextState_0[mState] ;
+			bits += CABAC_g_entropyBits_0[mState];
+			mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + depth_tu].set_m_ucState(mState_next);
+
+			mState = mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + 4].get_m_ucState();
+			mState_next = aucNextState_1[mState] ;
+			bits += CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + 4].set_m_ucState(mState_next);
+		}
+		else
+		{
+			mState = mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + depth_tu].get_m_ucState();
+			mState_next = aucNextState_1[mState] ;
+			bits += CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][INTER_PRED_IDC_OFFSET + depth_tu].set_m_ucState(mState_next);
+		}
+	}
+
+	if (interDir != 1)
+	{
+		if (slice_header_struct.num_ref_idx_l0_active_minus1>0)
+		{
+			bits+=est_bits_ref_idx(0 , fmeInfoForCabac);//0±íÊ¾Ç°Ïò£¬1±íÊ¾ºóÏò¡£
+		}
+		bits += est_bits_mvd(0 , fmeInfoForCabac);//0±íÊ¾Ç°Ïò£¬1±íÊ¾ºóÏò¡£
+
+		mState = mModels[IsIntra_tu][depth_tu][MVP_FLAG_OFFSET].get_m_ucState();
+		mState_next = mvp_l0_flag ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+		bits +=  mvp_l0_flag ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][MVP_FLAG_OFFSET].set_m_ucState(mState_next);
+	}
+
+	if (interDir != 0)
+	{
+		if (slice_header_struct.num_ref_idx_l1_active_minus1>0)
+		{
+			bits+=est_bits_ref_idx(1 , fmeInfoForCabac);//0±íÊ¾Ç°Ïò£¬1±íÊ¾ºóÏò¡£
+		}
+		if (!(slice_header_struct.Mvd_l1_zero_flag==1 && interDir == 2))
+		{
+			bits += est_bits_mvd(1 , fmeInfoForCabac);//0±íÊ¾Ç°Ïò£¬1±íÊ¾ºóÏò¡£
+
+			mState = mModels[IsIntra_tu][depth_tu][MVP_FLAG_OFFSET].get_m_ucState();
+			mState_next = mvp_l1_flag ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+			bits +=  mvp_l1_flag ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+			mModels[IsIntra_tu][depth_tu][MVP_FLAG_OFFSET].set_m_ucState(mState_next);
+		}
+	}
+
+
+	return bits ;
+}
+
+uint64_t CABAC_RDO::est_bits_ref_idx(int type , FmeInfoForCabac *fmeInfoForCabac)
+{
+	UChar mState;
+	UChar mState_next;
+	uint64_t bits = 0;
+	int ctxIdx;
+
+	int max_ref_idx = type == 0 ? slice_header_struct.num_ref_idx_l0_active_minus1 : slice_header_struct.num_ref_idx_l1_active_minus1;
+	int ref_idx = fmeInfoForCabac->m_refIdx[type];
+
+	mState = mModels[IsIntra_tu][depth_tu][REF_IDX_L0_OFFSET].get_m_ucState();
+	mState_next = ref_idx ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+	bits +=  ref_idx ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+	mModels[IsIntra_tu][depth_tu][REF_IDX_L0_OFFSET].set_m_ucState(mState_next);
+
+	if (ref_idx > 0)
+	{
+		ref_idx--;
+		for (int i = 0 ; i < (max_ref_idx - 1) ; i++)
+		{
+			int symbol = i == ref_idx ? 0 : 1 ;
+
+			if (i == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][REF_IDX_L0_OFFSET + 1].get_m_ucState();
+				mState_next = symbol ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+				bits +=  symbol ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][REF_IDX_L0_OFFSET + 1].set_m_ucState(mState_next);
+			} 
+			else
+			{
+				bits += 32768;
+			}
+			if (symbol == 0)
+			{
+				return bits;
+			}
+		}
+	}
+	return bits;
+}
+
+uint64_t CABAC_RDO::est_bits_mvd(int type  , FmeInfoForCabac *fmeInfoForCabac)
+{
+	UChar mState;
+	UChar mState_next;
+	uint64_t bits = 0;
+
+	short mvdx = fmeInfoForCabac->m_mvdx[type];
+	short mvdy = fmeInfoForCabac->m_mvdy[type];
+	short abs_mvdx = abs(mvdx);
+	short abs_mvdy = abs(mvdy);
+	short abs_mvd_greater0_flag[ 2 ];
+	short abs_mvd_greater1_flag[ 2 ];
+
+	abs_mvd_greater0_flag[0] = abs_mvdx > 0 ? 1 : 0 ;
+	abs_mvd_greater0_flag[1] = abs_mvdy > 0 ? 1 : 0 ;
+
+	mState = mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER0_FLAG_OFFSET].get_m_ucState();
+	mState_next = abs_mvd_greater0_flag[0] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+	bits +=  abs_mvd_greater0_flag[0] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+	mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER0_FLAG_OFFSET].set_m_ucState(mState_next);
+
+	mState = mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER0_FLAG_OFFSET ].get_m_ucState();
+	mState_next = abs_mvd_greater0_flag[1] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+	bits +=  abs_mvd_greater0_flag[1] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+	mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER0_FLAG_OFFSET ].set_m_ucState(mState_next);
+
+	if( abs_mvd_greater0_flag[0] ==1) 
+	{
+		abs_mvd_greater1_flag[0] = abs_mvdx > 1 ? 1 : 0 ;
+		mState = mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER1_FLAG_OFFSET].get_m_ucState();
+		mState_next = abs_mvd_greater1_flag[0] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+		bits +=  abs_mvd_greater1_flag[0] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER1_FLAG_OFFSET].set_m_ucState(mState_next);
+	}
+
+	if( abs_mvd_greater0_flag[1] ==1) 
+	{
+		abs_mvd_greater1_flag[1] = abs_mvdy > 1 ? 1 : 0 ;
+		mState = mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER1_FLAG_OFFSET].get_m_ucState();
+		mState_next = abs_mvd_greater1_flag[1] ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+		bits +=  abs_mvd_greater1_flag[1] ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][ABS_MVD_GREATER1_FLAG_OFFSET].set_m_ucState(mState_next);
+	}
+
+	if( abs_mvd_greater0_flag[ 0 ] == 1) 
+	{ 
+		if( abs_mvd_greater1_flag[ 0 ] == 1) 
+			bits += est_bit_Golomb(abs_mvdx - 2, 1);
+
+		bits += 32768;
+	} 
+
+	if( abs_mvd_greater0_flag[ 1 ] == 1) 
+	{ 
+		if( abs_mvd_greater1_flag[ 1 ] == 1) 
+			bits += est_bit_Golomb(abs_mvdy - 2, 1);
+
+		bits += 32768;
+	} 
+	return bits;
+}
+
+uint64_t CABAC_RDO::est_bit_Golomb(uint32_t symbol, uint32_t count)
+{
+	uint32_t bins = 0;
+	int numBins = 0;
+
+	while (symbol >= (uint32_t)(1 << count))
+	{
+		bins = 2 * bins + 1;
+		numBins++;
+		symbol -= 1 << count;
+		count++;
+	}
+
+	bins = 2 * bins + 0;
+	numBins++;
+
+	bins = (bins << count) | symbol;
+	numBins += count;
+
+	assert(numBins <= 32);
+	return numBins * 32768;
+}
+
+uint64_t CABAC_RDO::Inter_merge_est_bit_cu_pu(MergeInfoForCabac *mergeInfoForCabac)
+{
+	UChar mState;
+	UChar mState_next;
+	uint64_t bits = 0;
+	int ctxIdx;
+	int merge_idx = mergeInfoForCabac->m_mergeIdx;
+	if (mergeInfoForCabac->m_bSkipFlag == 1)
+	{
+		ctxIdx =  getCtxSkipFlag(zscan_idx_tu>>2,depth_tu,IsIntra_tu);
+		mState = mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].get_m_ucState();
+		mState_next = aucNextState_1[mState] ;
+		bits += CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].set_m_ucState(mState_next);
+
+		setLumaIntraDirSubParts(1 , zscan_idx_tu , depth_tu , IsIntra_tu);
+		setPredModeSubParts(MODE_SKIP , tu_to_cu_idx(zscan_idx_tu) ,depth_tu, IsIntra_tu);
+		setAvailSubParts_map(1, zscan_idx_tu , depth_tu , IsIntra_tu);
+
+//		setDepthSubParts(depth_tu, zscan_idx_tu>>2 , IsIntra_tu);
+		setSkipFlagSubParts(1, zscan_idx_tu>>2 , depth_tu , IsIntra_tu);
+
+		int max_merge_idx = 5 -slice_header_struct.Five_minus_max_num_merge_cand - 1;
+		if (max_merge_idx == 0)
+		{
+			return bits;
+		} 
+		else
+		{
+			if (merge_idx == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].get_m_ucState();
+				mState_next = aucNextState_0[mState] ;
+				bits += CABAC_g_entropyBits_0[mState];
+				mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].set_m_ucState(mState_next);
+			} 
+			else
+			{
+				mState = mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].get_m_ucState();
+				mState_next = aucNextState_1[mState] ;
+				bits += CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].set_m_ucState(mState_next);
+				if (merge_idx != max_merge_idx)
+					bits+=(merge_idx*32768);
+				else
+					bits+=((merge_idx-1)*32768);
+			}
+			
+			
+			return bits;
+		}
+	}
+	else
+	{
+		ctxIdx =  getCtxSkipFlag(zscan_idx_tu>>2,depth_tu,IsIntra_tu);
+		mState = mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].get_m_ucState();
+		mState_next = aucNextState_0[mState] ;
+		bits += CABAC_g_entropyBits_0[mState];
+		mModels[IsIntra_tu][depth_tu][SKIP_FLAG_OFFSET+ ctxIdx].set_m_ucState(mState_next);
+
+		setLumaIntraDirSubParts(1 , zscan_idx_tu , depth_tu , IsIntra_tu);
+		setPredModeSubParts(MODE_INTER , tu_to_cu_idx(zscan_idx_tu) ,depth_tu, IsIntra_tu);
+		setAvailSubParts_map(1, zscan_idx_tu , depth_tu , IsIntra_tu);
+
+//		setDepthSubParts(depth_tu, zscan_idx_tu>>2 , IsIntra_tu);
+		setSkipFlagSubParts(0, zscan_idx_tu>>2 , depth_tu , IsIntra_tu);
+
+		mState = mModels[IsIntra_tu][depth_tu][PRED_MODE_OFFSET].get_m_ucState();
+		mState_next = aucNextState_0[mState] ;
+		bits += CABAC_g_entropyBits_0[mState];
+		mModels[IsIntra_tu][depth_tu][PRED_MODE_OFFSET].set_m_ucState(mState_next);
+
+		mState = mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].get_m_ucState();//INTERÖ»¿¼ÂÇÁË2N*2NµÄÇé¿ö
+		mState_next = aucNextState_1[mState] ;
+		bits += CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][PART_MODE_OFFSET].set_m_ucState(mState_next);
+
+		mState = mModels[IsIntra_tu][depth_tu][MERGE_FLAG_OFFSET].get_m_ucState();
+		mState_next = aucNextState_1[mState] ;
+		bits += CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][MERGE_FLAG_OFFSET].set_m_ucState(mState_next);
+
+		int max_merge_idx = 5 -slice_header_struct.Five_minus_max_num_merge_cand - 1;
+		if (max_merge_idx == 0)
+		{
+			return bits;
+		} 
+		else
+		{
+			if (merge_idx == 0)
+			{
+				mState = mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].get_m_ucState();
+				mState_next = aucNextState_0[mState] ;
+				bits += CABAC_g_entropyBits_0[mState];
+				mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].set_m_ucState(mState_next);
+			} 
+			else
+			{
+				mState = mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].get_m_ucState();
+				mState_next = aucNextState_1[mState] ;
+				bits += CABAC_g_entropyBits_1[mState];
+				mModels[IsIntra_tu][depth_tu][MERGE_IDX_OFFSET].set_m_ucState(mState_next);
+				if (merge_idx != max_merge_idx)
+					bits+=(merge_idx*32768);
+				else
+					bits+=((merge_idx-1)*32768);
+			}
+			
+
+			return bits;
+		}
+	}
+}
+
+uint64_t CABAC_RDO::est_bit_cu_qp_delta_abs_prefixVal(uint32_t symbol)
+{
+	UChar mState;
+	UChar mState_next;
+	uint64_t bits = 0;
+
+	mState = mModels[IsIntra_tu][depth_tu][CU_QP_DELTA_OFFSET].get_m_ucState();
+	mState_next = symbol ==0 ? aucNextState_0[mState] : aucNextState_1[mState] ;
+	bits +=  symbol ==0 ? CABAC_g_entropyBits_0[mState] : CABAC_g_entropyBits_1[mState];
+	mModels[IsIntra_tu][depth_tu][CU_QP_DELTA_OFFSET].set_m_ucState(mState_next);
+
+	if (symbol == 0)
+	{
+		return bits;
+	}
+
+	bool bCodeLast = (5 > symbol);
+
+	while (--symbol)
+	{
+		mState = mModels[IsIntra_tu][depth_tu][CU_QP_DELTA_OFFSET + 1].get_m_ucState();
+		mState_next = aucNextState_1[mState] ;
+		bits += CABAC_g_entropyBits_1[mState];
+		mModels[IsIntra_tu][depth_tu][CU_QP_DELTA_OFFSET + 1].set_m_ucState(mState_next);
+	}
+
+	if (bCodeLast)
+	{
+		mState = mModels[IsIntra_tu][depth_tu][CU_QP_DELTA_OFFSET + 1].get_m_ucState();
+		mState_next = aucNextState_0[mState] ;
+		bits += CABAC_g_entropyBits_0[mState];
+		mModels[IsIntra_tu][depth_tu][CU_QP_DELTA_OFFSET + 1].set_m_ucState(mState_next);
+	}
+	return bits;
+}
+
+int CABAC_RDO::est_bits_split_cu_flag(unsigned int depth  , uint32_t zscan)
+{
+	UChar mState;
+	UChar mState_next;
+	uint64_t bits = 0;
+	uint32_t next_depth = depth + 1;
+	int ctx;
+	int cu_mode ;
+	if (cu_best_mode[depth] == 1)
+	{
+		cu_mode = 1;
+	}
+	else if (inter_cu_best_mode[depth] == 1)
+	{
+		cu_mode = 2;
+	}
+	else
+	{
+		cu_mode = 0;
+	}
+	
+	ctx =  getCtxSplitFlag( zscan>>2 , depth , cu_mode);
+
+	if (depth == 3)
+	{
+		setDepthSubParts( depth,  zscan>>2  ,  cu_mode );//cu level
+		return 0;
+	}
+
+	mState = mModels[cu_mode][depth][SPLIT_CU_FLAG_OFFSET + ctx].get_m_ucState();
+	bits_split_cu_flag[depth] = CABAC_g_entropyBits_1[mState];
+	mState_next = aucNextState_1[mState] ;
+	for (int i = next_depth ; i <5 ; i ++)
+	{
+		mModels[0][i][SPLIT_CU_FLAG_OFFSET + ctx].set_m_ucState(mState_next);
+		mModels[1][i][SPLIT_CU_FLAG_OFFSET + ctx].set_m_ucState(mState_next);
+		mModels[2][i][SPLIT_CU_FLAG_OFFSET + ctx].set_m_ucState(mState_next);
+	}
+	
+
+	assert(g_est_bit_cu_split_flag[1][depth ][zscan][1] == bits_split_cu_flag[depth]);
+
+	mState = mModels[cu_mode][depth][SPLIT_CU_FLAG_OFFSET + ctx].get_m_ucState();
+	mState_next = aucNextState_0[mState] ;
+	bits += CABAC_g_entropyBits_0[mState];
+	mModels[cu_mode][depth][SPLIT_CU_FLAG_OFFSET + ctx].set_m_ucState(mState_next);
+	setDepthSubParts( depth,  zscan>>2  ,  cu_mode );//cu level
+
+	assert(g_est_bit_cu_split_flag[1][depth ][zscan][0] == bits);
+
+	return (bits + (1<<14))>>15;
+	
+}

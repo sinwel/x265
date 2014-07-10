@@ -2682,7 +2682,7 @@ void TEncSearch::estIntraPredQT(TComDataCU* cu, TComYuv* fencYuv, TComYuv* predY
 				uint32_t nSad = modeCosts[mode];
 #endif
 				uint32_t bits = xModeBitsIntra(cu, mode, partOffset, depth, initTrDepth);
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA
 				if (depth != 0)
 				{
 					g_intra_pu_lumaDir_bits[depth + initTrDepth][cu->getZorderIdxInCU()+partOffset][mode] = bits;
@@ -6490,10 +6490,31 @@ uint32_t TEncSearch::xSymbolBitsInter(TComDataCU* cu)
 		m_entropyCoder->encodePartSize(cu, 0, cu->getDepth(0), true);
 		m_entropyCoder->encodePredInfo(cu, 0, true);
 		bool bDummy = false;
+
+#if GET_X265_ORG_DATA_TU
+		int64_t temp0 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
 		m_entropyCoder->encodeCoeff(cu, 0, cu->getDepth(0), cu->getWidth(0), cu->getHeight(0), bDummy);
+		int64_t temp1 = m_entropyCoder->m_entropyCoderIf->getNumberOfWrittenBits_fraction();
+
+		if (cu->getMergeFlag(0) == 1)
+		{
+			g_est_bit_tu[2][cu->getDepth(0) ][cu->getZorderIdxInCU() ] = (temp1 - temp0);
+		} 
+		else
+		{
+			g_est_bit_tu[0][cu->getDepth(0) ][cu->getZorderIdxInCU() ] = (temp1 - temp0);
+		}
+		
+//		g_est_bit_cu[0][cu->getDepth(0) ][cu->getZorderIdxInCU() ] = (temp1 - temp);
+
+#else
+		m_entropyCoder->encodeCoeff(cu, 0, cu->getDepth(0), cu->getWidth(0), cu->getHeight(0), bDummy);
+#endif
+
 		return m_entropyCoder->getNumberOfWrittenBits();
 	}
 }
+
 
 /**** Function to estimate the header bits ************/
 uint32_t  TEncSearch::estimateHeaderBits(TComDataCU* cu, uint32_t absPartIdx)

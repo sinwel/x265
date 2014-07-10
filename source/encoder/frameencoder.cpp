@@ -274,7 +274,7 @@ void FrameEncoder::ctuRow_threadMain()
 
 int FrameEncoder::getStreamHeaders(NALUnitEBSP **nalunits)
 {
-#if (RK_CABAC_H||RK_CABAC_TEST)
+#if (RK_CABAC_H||RK_CABAC_TEST||RK_CABAC_FUNCTIONAL_TYPE)
 	read_Sps_Pps_to_sps_struct( &m_sps , &m_pps ,  sps_pps_struct);
 #endif
     TEncEntropy* entropyCoder = getEntropyCoder(0);
@@ -633,13 +633,17 @@ void FrameEncoder::compressFrame()
     // Analyze CTU rows, most of the hard work is done here
     // frame is compressed in a wave-front pattern if WPP is enabled. Loop filter runs as a
     // wave-front behind the CU compression and reconstruction
-#if (RK_CABAC_H||RK_CABAC_TEST)
-	slice_header_struct.Slice_deblocking_filter_disabled_flag=1;
+#if (RK_CABAC_H||RK_CABAC_TEST||RK_CABAC_FUNCTIONAL_TYPE)
+
+	CABAC_codeSliceHeader( slice ,  slice_header_struct);
+
+//	slice_header_struct.Slice_deblocking_filter_disabled_flag=1;
 	slice_header_struct.Slice_qp_delta = slice->getSliceQp() - 26;
 	slice_header_struct.slice_sao_chroma_flag = 1;
 	slice_header_struct.slice_sao_luma_flag = 1;
-	slice_header_struct.slice_type = 2;
+//	slice_header_struct.slice_type = 2;
 	slice_header_struct.First_slice_segment_in_pic_flag = 1;
+//	slice_header_struct.Five_minus_max_num_merge_cand = MRG_MAX_NUM_CANDS - slice->getMaxNumMergeCand();
 #endif
     compressCTURows();
 
@@ -728,7 +732,7 @@ void FrameEncoder::compressFrame()
     entropyCoder->setBitstream(&nalu.m_bitstream);
     entropyCoder->encodeSliceHeader(slice);
 
-#if (RK_CABAC_H||RK_CABAC_TEST)
+#if (RK_CABAC_H||RK_CABAC_TEST||RK_CABAC_FUNCTIONAL_TYPE)
 	CABAC_codeSliceHeader( slice ,  slice_header_struct);
 #endif
 
@@ -1082,7 +1086,7 @@ void FrameEncoder::determineSliceBounds()
 
 void FrameEncoder::compressCTURows()
 {
-#if RK_CABAC_H
+#if RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE
 	G_hardwareC.ctu_calc.m_cabac_rdo.init_data();
 #endif
     PPAScopeEvent(FrameEncoder_compressRows);
@@ -1231,7 +1235,7 @@ void FrameEncoder::compressCTURows()
 				ScopedLock l(m_fltLock);
                 processRow((i - m_filterRowDelay) * 2 + 1);
             }
-#if RK_CABAC_H
+#if RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE
 			G_hardwareC.ctu_calc.m_cabac_rdo.update_L_buffer_y();
 #endif
         }

@@ -80,7 +80,7 @@ void CTURow::processCU(TComDataCU *cu, TComSlice *slice, TEncSbac *bufferSbac, b
     m_cuCoder.setRDGoOnSbacCoder(&m_rdGoOnSbacCoder);
 
 
-#if (RK_CABAC_TEST||RK_CABAC_H)
+#if (RK_CABAC_TEST||RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE)
 	memset(&g_intra_est_bit_luma_pred_mode_all_case , 0 , sizeof(g_intra_est_bit_luma_pred_mode_all_case));
 	memset(&g_intra_est_bit_luma_pred_mode , 0 , sizeof(g_intra_est_bit_luma_pred_mode));
 	memset(&g_intra_cu_best_mode , 0 , sizeof(g_intra_cu_best_mode));

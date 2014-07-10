@@ -1338,9 +1338,9 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
 	for (int idxPmv = 0; idxPmv <= nNeightMv; idxPmv++)
 	{
 		MV tmv;
-		for (short i = -nRimeHeight; i <= nRimeHeight; i++) //7x7块的每个点都算  add by hdl
+		for (short i = -nRimeHeight; i < nRimeHeight; i++) //7x7块的每个点都算  add by hdl
 		{
-			for (short j = -nRimeWidth; j <= nRimeWidth; j++)
+			for (short j = -nRimeWidth; j < nRimeWidth; j++)
 			{
 				tmv = Pmv[nRefPicIdx][idxPmv] + MV(j, i);
 				int cost;

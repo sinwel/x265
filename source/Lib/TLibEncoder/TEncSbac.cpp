@@ -1879,6 +1879,24 @@ void TEncSbac::codeDeltaQP(TComDataCU* cu, uint32_t absPartIdx)
 
     dqp = (dqp + 78 + qpBdOffsetY + (qpBdOffsetY / 2)) % (52 + qpBdOffsetY) - 26 - (qpBdOffsetY / 2);
 
+#if GET_X265_ORG_DATA_TU
+	if (cu->getPredictionMode(0) == 1)
+	{
+		g_cu_qp_delta_abs[1][cu->getDepth(0) +(cu->getPartitionSize(0)==SIZE_NxN)][cu->getZorderIdxInCU() ] = (dqp);
+	} 
+	else
+	{
+		if (cu->getMergeFlag(0) == 1)
+		{
+			g_cu_qp_delta_abs[2][cu->getDepth(0) ][cu->getZorderIdxInCU() ] = (dqp);
+		} 
+		else
+		{
+			g_cu_qp_delta_abs[0][cu->getDepth(0) ][cu->getZorderIdxInCU() ] = (dqp);
+		}
+	}
+#endif
+
     uint32_t absDQp = (uint32_t)((dqp > 0) ? dqp  : (-dqp));
     uint32_t TUValue = X265_MIN((int)absDQp, CU_DQP_TU_CMAX);
     xWriteUnaryMaxSymbol(TUValue, &m_contextModels[OFF_DELTA_QP_CTX], 1, CU_DQP_TU_CMAX);
@@ -2123,7 +2141,7 @@ void TEncSbac::codeLastSignificantXY(uint32_t posx, uint32_t posy, int width, in
 
 void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, uint32_t width, uint32_t height, uint32_t depth, TextType ttype)
 {
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 	UChar depth_temp = depth;
 	// 	if (*cu->getPartitionSize() == SIZE_NxN)
 	// 	{
@@ -2242,7 +2260,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
     // Code position of last coefficient
     int posLastY = posLast >> log2BlockSize;
     int posLastX = posLast - (posLastY << log2BlockSize);
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 	temp0 = m_binIf->m_fracBits;
 	codeLastSignificantXY(posLastX, posLastY, width, height, ttype, scanIdx);
 	temp1 = m_binIf->m_fracBits;
@@ -2304,7 +2322,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
         {
             uint32_t sigCoeffGroup = (sigCoeffGroupFlag[cgBlkPos] != 0);
             uint32_t ctxSig = TComTrQuant::getSigCoeffGroupCtxInc(sigCoeffGroupFlag, cgPosX, cgPosY, log2BlockSize);
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 			temp0 = m_binIf->m_fracBits;
 			m_binIf->encodeBin(sigCoeffGroup, baseCoeffGroupCtx[ctxSig]);
 			temp1 = m_binIf->m_fracBits;
@@ -2339,7 +2357,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
                 if (scanPosSig > subPos || subSet == 0 || numNonZero)
                 {
                     ctxSig  = TComTrQuant::getSigCtxInc(patternSigCtx, scanIdx, posx, posy, log2BlockSize, ttype);
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 					temp0 = m_binIf->m_fracBits;
 					m_binIf->encodeBin(sig, baseCtx[ctxSig]);
 					temp1 = m_binIf->m_fracBits;
@@ -2394,7 +2412,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
             for (int idx = 0; idx < numC1Flag; idx++)
             {
                 uint32_t symbol = absCoeff[idx] > 1;
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 				temp0 = m_binIf->m_fracBits;
 				m_binIf->encodeBin(symbol, baseCtxMod[c1]);
 				temp1 = m_binIf->m_fracBits;
@@ -2434,7 +2452,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
                 if (firstC2FlagIdx != -1)
                 {
                     uint32_t symbol = absCoeff[firstC2FlagIdx] > 2;
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 					temp0 = m_binIf->m_fracBits;
 					m_binIf->encodeBin(symbol, baseCtxMod[0]);
 					temp1 = m_binIf->m_fracBits;
@@ -2462,7 +2480,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
             }
             else
             {
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 				temp0 = m_binIf->m_fracBits;
 				m_binIf->encodeBinsEP(coeffSigns, numNonZero);
 				temp1 = m_binIf->m_fracBits;
@@ -2492,7 +2510,7 @@ void TEncSbac::codeCoeffNxN(TComDataCU* cu, TCoeff* coeff, uint32_t absPartIdx, 
 
                     if (absCoeff[idx] >= baseLevel)
                     {
-#if RK_CABAC_H
+#if GET_X265_ORG_DATA_TU
 						temp0 = m_binIf->m_fracBits;
 						xWriteCoefRemainExGolomb(absCoeff[idx] - baseLevel, goRiceParam);
 						temp1 = m_binIf->m_fracBits;

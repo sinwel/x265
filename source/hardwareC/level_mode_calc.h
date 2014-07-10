@@ -24,6 +24,7 @@ struct COST_DATA{
     uint8_t  skipFlag;
     uint8_t  mergeFlag;
     uint8_t  interDir;
+    uint8_t  intraDir[4];
     uint8_t  refIdx;
     MV_INFO  mv;
     int32_t  mvd;
@@ -49,7 +50,7 @@ public:
 public:
 	hevcQT*			 m_hevcQT;
 #endif
-#if RK_CABAC_H
+#if RK_CABAC_H||RK_CABAC_FUNCTIONAL_TYPE||1
 public:
 	CABAC_RDO*  m_cabac_rdo;
 #endif
@@ -123,6 +124,7 @@ public:
     uint8_t intra_buf_u[16*5+1];
     uint8_t intra_buf_v[16*5+1];
     uint8_t cu_type[4*5 + 1];
+    uint8_t intra_mpm[4 + 1];
     uint8_t tu_cbfY_flag[16*16];
     struct MV_INFO mv_info[8*5+1];
     struct COST_DATA  cost_inter;

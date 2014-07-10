@@ -43,8 +43,8 @@ struct HW_CONFIG
     int8_t   QP_cr_offset;
     uint8_t  AQ_mode_enable;
     uint8_t  sign_hide;
-    uint32_t CbDistWeight;
-    uint32_t CrDistWeight;
+    uint64_t CbDistWeight;
+    uint64_t CrDistWeight;
 
     uint8_t  Deblocking_enable;
     uint8_t  SAO_enable;

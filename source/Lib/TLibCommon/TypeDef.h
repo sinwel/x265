@@ -101,6 +101,7 @@ enum PredMode
 {
     MODE_INTER,         ///< inter-prediction mode
     MODE_INTRA,         ///< intra-prediction mode
+	MODE_SKIP,
     MODE_NONE = 15
 };
 

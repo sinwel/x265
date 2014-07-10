@@ -160,6 +160,9 @@ void CTU_CALC::begin()
         memcpy(L_cu_type + 9 + (ctu_w >> 3), buf_t + (ctu_w >> 3), 32 >> 3);
     }
 
+    memset(L_intra_mpm + 16, 0x1, 17); //MODE_DC
+    if(ctu_x == 0)
+        memset(L_intra_mpm, 0x1, 16); //MODE_DC
     /* inter */
     if(pos) {
         memcpy(L_mv_buf + 8, buf_mv - 1, sizeof(MV_INFO));
@@ -241,6 +244,9 @@ void CTU_CALC::end()
     /* hor to ver */
 	for(i=0; i<(ctu_w/8 + 1); i++){
 		L_cu_type[i] = L_cu_type[8 + i];
+	}
+    for(i=0; i<(ctu_w/4 + 1); i++){
+		L_intra_mpm[i] = L_intra_mpm[16 + i];
 	}
 
     for(i=0; i<ctu_w + 1; i++){
@@ -857,6 +863,13 @@ void CTU_CALC::proc()
 	int offsIdx = 84;
 	cu_level_calc[0].depth = 0;
     cu_level_calc[0].TotalCost = 0;
+
+#if RK_CABAC_FUNCTIONAL_TYPE
+	for (int i = 0 ; i < 4 ; i++)
+	{
+		cu_level_calc[i].m_cabac_rdo = &m_cabac_rdo;
+	}
+#endif
     cost_0 = cu_level_calc[0].proc(0, 0, 0);
 	compareCoeffandRecon(cu_level_calc, 0, false);
 
@@ -868,15 +881,6 @@ void CTU_CALC::proc()
         cu_level_calc[1].matrix_pos = m;
         cu_x_1 = (m & 1)*(ctu_w>>1);
         cu_y_1 = (m >>1)*(ctu_w>>1);
-
-#if RK_CABAC_H
-		cu_level_calc[1].m_cabac_rdo = &m_cabac_rdo;
-		m_cabac_rdo.cabac_rdo_status(1,1,0);//CTU_EST->CU_EST        第一次除外：CU_EST->PU_EST_WAIT    超出图像边界时：CU_EST->CU_EST_WAIT
-		m_cabac_rdo.cabac_rdo_status(1,1,0);//CU_EST->PU_EST_WAIT   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转  准备好35种方向的bit     超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度2未更新完
-		m_cabac_rdo.cabac_rdo_status(1,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转 超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度2未更新完
-		m_cabac_rdo.est_bits_init();
-#endif
-
 
         cost_1 = cu_level_calc[1].proc(1, cu_x_1, cu_y_1);
 
@@ -901,14 +905,6 @@ void CTU_CALC::proc()
             cu_level_calc[2].matrix_pos = n;
             cu_x_2 = cu_x_1 + (n & 1)*(ctu_w>>2);
             cu_y_2 = cu_y_1 + (n >>1)*(ctu_w>>2);
-
-#if RK_CABAC_H
-			cu_level_calc[2].m_cabac_rdo = &m_cabac_rdo;
-			m_cabac_rdo.cabac_rdo_status(2,1,0);//CTU_EST->CU_EST        第一次除外：CU_EST->PU_EST_WAIT   超出图像边界时：CU_EST->CU_EST_WAIT
-			m_cabac_rdo.cabac_rdo_status(2,1,0);//CU_EST->PU_EST_WAIT   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转    超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度3未更新完
-			m_cabac_rdo.cabac_rdo_status(2,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转    超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度3未更新完
-			m_cabac_rdo.est_bits_init();
-#endif 
 
             cost_2 = cu_level_calc[2].proc(2, cu_x_2, cu_y_2);
 
@@ -935,24 +931,9 @@ void CTU_CALC::proc()
                 cu_x_3 = cu_x_2 + (k & 1)*(ctu_w>>3);
                 cu_y_3 = cu_y_2 + (k >>1)*(ctu_w>>3);
 
-#if RK_CABAC_H
-				cu_level_calc[3].m_cabac_rdo = &m_cabac_rdo;
-				m_cabac_rdo.cabac_rdo_status(3,1,0);//CTU_EST->CU_EST        第一次除外：CU_EST->PU_EST_WAIT    超出图像边界时：CU_EST->CU_EST_WAIT
-				m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST->PU_EST_WAIT    第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转      超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度4未更新完
-				m_cabac_rdo.cabac_rdo_status(3,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向  第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转   超出图像边界时：CU_EST_WAIT->CU_EST_WAIT  自转 因为深度4未更新完
-
-				m_cabac_rdo.cabac_rdo_status(4,1,0);//CTU_EST->CU_EST       第一次除外：CU_EST->PU_EST_WAIT     超出图像边界时：CU_EST->CU_EST_WAIT
-				m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->PU_EST_WAIT   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转 准备好35种方向的bit   超出图像边界时:CU_EST_WAIT->CU_EST  不作状态更新
-				m_cabac_rdo.cabac_rdo_status(4,1,0);//PU_EST_WAIT->PU_EST_WAIT  准备好35种方向的bit  自转表示在等待INTRA给出最佳方向   第一次除外 : PU_EST_WAIT->PU_EST_WAIT  自转  超出图像边界时：CU_EST->CU_EST 自转 因为深度3未状态更新，深度4不能开始下一个cu
-				m_cabac_rdo.est_bits_init();
-#endif
-
                 cost_3 = cu_level_calc[3].proc(3, cu_x_3, cu_y_3);
-
-#if RK_CABAC_H
-				m_cabac_rdo.cu_best_mode_flag[3] = 1;
-				m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST_WAIT->CU_EST   更新上下文
-				m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度3的第4个cu时不置为1
+#if RK_CABAC_FUNCTIONAL_TYPE
+				m_cabac_rdo.cu_update();
 #endif
 
                 if (!(cost_3 & 0x80000000)) {
@@ -981,20 +962,19 @@ void CTU_CALC::proc()
             //EncoderCuSplitFlag();
             //calcRDOCOST
             cost_3_total = (uint32_t)pHardWare->ctu_calc.intra_temp_2[cu_level_calc[2].temp_pos-1].m_totalCost;
-#if RK_CABAC_H
-			int temp = cu_level_calc[3].RdoCostCalc(totalDist_3, totalBits_3, pHardWare->ctu_calc.QP_cb);
-			if ((totalDist_3==0) && (totalBits_3==0))
+#if RK_CABAC_FUNCTIONAL_TYPE
+			uint32_t zscan = RasterToZscan[cu_x_2/4 + cu_y_2*4];
+			int bits_split_cu_flag = (m_cabac_rdo.bits_split_cu_flag[2] + (1<<14))>>15;
+			totalBits_3+= bits_split_cu_flag;
+			int temp = cu_level_calc[3].RdoCostCalc(totalDist_3, totalBits_3, pHardWare->ctu_calc.QP_lu);
+			if (!(cost_2 & 0x80000000))
 			{
-				cost_3_total = 0xffffffff;
-				temp = 0xffffffff;
+				assert(cost_3_total == temp);
 			}
-			assert(cost_3_total == temp);  
-#endif
-#if RK_CABAC_H
-			m_cabac_rdo.cu_best_mode_flag[2] = 1;
+
 			if (cost_2 <= cost_3_total)
 			{
-				m_cabac_rdo.cu_best_mode[2] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
+				//m_cabac_rdo.cu_best_mode[2] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
 				if (!(cost_2 & 0x80000000)) {
 					totalBits_2 += cu_level_calc[2].cost_best->Bits;
 					totalDist_2 += cu_level_calc[2].cost_best->Distortion;
@@ -1009,9 +989,8 @@ void CTU_CALC::proc()
 				}
 			}
 
-			m_cabac_rdo.cabac_rdo_status(2,1,0);//CU_EST_WAIT->CU_EST  更新上下文
-			m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度2的第4个cu时不置为1
-			m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度3的第4个cu时不置为1
+			m_cabac_rdo.depth_tu = 2;
+			m_cabac_rdo.cu_update();
 #endif
 			
 			cu_level_compare(cost_2, cost_3_total, 2);
@@ -1028,20 +1007,19 @@ void CTU_CALC::proc()
         //EncoderCuSplitFlag();
         //calcRDOCOST
         cost_2_total = (uint32_t)pHardWare->ctu_calc.intra_temp_1[cu_level_calc[1].temp_pos-1].m_totalCost;
-#if RK_CABAC_H
-		int temp = cu_level_calc[2].RdoCostCalc(totalDist_2, totalBits_2, pHardWare->ctu_calc.QP_cb);
-		if (totalDist_2==0 && totalBits_2 == 0)
+#if RK_CABAC_FUNCTIONAL_TYPE
+		uint32_t zscan = RasterToZscan[cu_x_1/4 + cu_y_1*4];
+		int bits_split_cu_flag = (m_cabac_rdo.bits_split_cu_flag[1] + (1<<14))>>15;
+		totalBits_2+=bits_split_cu_flag;
+		int temp = cu_level_calc[2].RdoCostCalc(totalDist_2, totalBits_2 , pHardWare->ctu_calc.QP_lu);
+		if (!(cost_1 & 0x80000000))
 		{
-			cost_2_total = 0xffffffff;
-			temp = 0xffffffff;
+			assert(cost_2_total == temp);
 		}
-		assert(cost_2_total == temp);  
-#endif
-#if RK_CABAC_H
-		m_cabac_rdo.cu_best_mode_flag[1] = 1;
+
 		if (cost_1 <= cost_2_total)
 		{
-			m_cabac_rdo.cu_best_mode[1] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
+			//m_cabac_rdo.cu_best_mode[1] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
 			if (!(cost_1 & 0x80000000)) {
 				totalBits_1 += cu_level_calc[1].cost_best->Bits;
 				totalDist_1 += cu_level_calc[1].cost_best->Distortion;
@@ -1055,12 +1033,11 @@ void CTU_CALC::proc()
 				totalDist_1 += totalDist_2;
 			}
 		}
-		m_cabac_rdo.cabac_rdo_status(1,1,0);//CU_EST_WAIT->CU_EST  更新上下文
-		m_cabac_rdo.cabac_rdo_status(2,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度1的第4个cu时不置为1
-		m_cabac_rdo.cabac_rdo_status(3,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度2的第4个cu时不置为1
-		m_cabac_rdo.cabac_rdo_status(4,1,0);//CU_EST->CU_EST    模仿并行  把cu_ready置为1  当是深度3的第4个cu时不置为1
+
+		m_cabac_rdo.depth_tu = 1;
+		m_cabac_rdo.cu_update();
 #endif
-		
+
 		cu_level_compare(cost_1, cost_2_total, 1);
 
 		if (2 != pHardWare->ctu_calc.slice_type)
@@ -1075,6 +1052,38 @@ void CTU_CALC::proc()
     //EncoderCuSplitFlag();
     //calcRDOCOST
     cost_1_total = (uint32_t)pHardWare->ctu_calc.intra_temp_0.m_totalCost;
+
+#if RK_CABAC_FUNCTIONAL_TYPE
+	uint32_t zscan = RasterToZscan[0];
+	int bits_split_cu_flag = (m_cabac_rdo.bits_split_cu_flag[0] + (1<<14))>>15;
+	totalBits_1+=bits_split_cu_flag;
+	int temp = cu_level_calc[2].RdoCostCalc(totalDist_1, totalBits_1 , pHardWare->ctu_calc.QP_lu);
+	if (!(cost_0 & 0x80000000))
+	{
+		assert(cost_1_total == temp);
+	}
+
+	if (cost_0 <= cost_1_total)
+	{
+		//m_cabac_rdo.cu_best_mode[0] = 1;//0表示当前层用inter  1表示intra   2表示不用这层，用这层往下划分的
+		if (!(cost_0 & 0x80000000)) {
+			totalBits_1 += cu_level_calc[0].cost_best->Bits;
+			totalDist_1 += cu_level_calc[0].cost_best->Distortion;
+		}
+	}
+	else 
+	{
+		m_cabac_rdo.cu_best_mode[0] = 2;
+		if (!(cost_1_total & 0x80000000)) {
+			totalBits_1 += totalBits_2;
+			totalDist_1 += totalDist_2;
+		}
+	}
+
+	m_cabac_rdo.depth_tu = 0;
+	m_cabac_rdo.cu_update();
+#endif
+
     cu_level_compare(cost_0, cost_1_total, 0);
     cu_level_calc[0].end();
 	//========================================================================

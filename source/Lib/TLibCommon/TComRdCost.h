@@ -66,9 +66,9 @@ private:
 
 	uint64_t  m_lambdaMotionSAD;  // m_lambda w/ 16 bits of fraction
 
-    uint32_t  m_cbDistortionWeight;
+	uint64_t  m_cbDistortionWeight;
 
-    uint32_t  m_crDistortionWeight;
+	uint64_t  m_crDistortionWeight;
 
 public:
 
@@ -112,9 +112,9 @@ public:
 
     inline uint32_t getCost(uint32_t bits)                     { return (uint32_t)((bits * m_lambdaMotionSAD + 32768) >> 16); }
 
-    inline uint32_t scaleChromaDistCb(uint32_t dist)           { return ((dist * m_cbDistortionWeight) + 128) >> 8; }
+    inline uint32_t scaleChromaDistCb(uint32_t dist)           { return uint32_t(((dist * m_cbDistortionWeight) + 128) >> 8); }
 
-    inline uint32_t scaleChromaDistCr(uint32_t dist)           { return ((dist * m_crDistortionWeight) + 128) >> 8; }
+    inline uint32_t scaleChromaDistCr(uint32_t dist)           { return uint32_t(((dist * m_crDistortionWeight) + 128) >> 8); }
 
     inline double   getSADLambda() const                       { return m_lambda; }
 

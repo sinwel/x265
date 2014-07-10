@@ -476,7 +476,7 @@ void hevcQT::printResiTQiQiT(int16_t *inT, int16_t *outT, int16_t *outQ, int16_t
 void hevcQT::printResiForTandIT(FILE* fpIn, FILE* fpOut, int16_t *in, int16_t *out, uint8_t size, bool isT, uint8_t trType)
 {
 	int idx;
-	if(size==4 ) // tu_size
+	if(size==4 ) // TU_chroma_size
 	{
 		if(m_infoForQT->textType==0) //luma
 		{
@@ -555,7 +555,7 @@ void hevcQT::fprintResiForTQiT(FILE* fpIn, FILE* fpOut, int16_t *inT, int16_t *o
 	idx1[0] = idx0[0] = qp;
 	//assert(m_infoForQT->qp==30);
 	idx1[1] = idx0[1] = m_infoForQT->sliceType==2? 0 : 1;
-	if(m_infoForQT->size==4 ) // tu_size
+	if(m_infoForQT->size==4 ) // TU_chroma_size
 	{
 		// [text_type] 0: intra Luma;  1: intra chroma;  2: inter Luma;  3: inter chroma;
 		if(m_infoForQT->textType==0) //luma

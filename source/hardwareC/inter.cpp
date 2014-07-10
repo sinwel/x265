@@ -2536,9 +2536,9 @@ void RefineIntMotionEstimation::RimeAndFme(int nRefPicIdx)
 	{
 		Mv tmv;
 		unsigned char *pCuRimeSW = m_pCuRimeSW[idxPmv] + (4 + nRimeWidth) + (4 + nRimeHeight)*m_nRimeSwWidth;
-		for (short i = -nRimeHeight; i <= nRimeHeight; i++)
+		for (short i = -nRimeHeight; i < nRimeHeight; i++)
 		{
-			for (short j = -nRimeWidth; j <= nRimeWidth; j++)
+			for (short j = -nRimeWidth; j < nRimeWidth; j++)
 			{
 				tmv.x =  j;  tmv.y =  i;
 				unsigned short tmpCost = USHORT_MAX;
