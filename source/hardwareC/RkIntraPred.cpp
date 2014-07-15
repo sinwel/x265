@@ -2213,13 +2213,15 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			}
 			FPRINT(fp_intra_16x16[INTRA_16_REF_CU_VALID],"\n");
-			for ( uint16_t  i = 0 ; i < 16*16 ; i++ )
+			
+			for ( uint32_t  j = 0 ; j < height; j++ )
 			{
-				FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_LU],"%02x",fenc[256 - i]);			    
-				if ( (i + 1)%16 == 0 )
+				for (uint32_t i = 0 ; i < width ; i++ )
 				{
-					FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_LU],"\n");			    
+					FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_LU],"%02x",fenc[j*width + width - 1 - i]);			    
 				}
+				FPRINT(fp_intra_16x16[INTRA_16_ORI_PIXEL_CU_LU],"\n");			    
+
 			}
 
 			//INTRA_16_TU_CABAC_BITS
@@ -2287,14 +2289,16 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 
 			}
 			FPRINT(fp_intra_32x32[INTRA_32_REF_CU_VALID],"\n");
-			for ( uint32_t  i = 0 ; i < 32*32 ; i++ )
+			
+			for ( uint32_t  i = 0 ; i < height; i++ )
 			{
-				FPRINT(fp_intra_32x32[INTRA_32_ORI_PIXEL_CU_LU],"%02x",fenc[32*32 - i]);			    
-				if ( (i + 1)%32 == 0 )
-				{
-					FPRINT(fp_intra_32x32[INTRA_32_ORI_PIXEL_CU_LU],"\n");			    
-				}
+				for ( uint32_t  j = 0 ; j < width; j++ )
+					FPRINT(fp_intra_32x32[INTRA_32_ORI_PIXEL_CU_LU],"%02x",fenc[i*width + width - 1 - j]);			    
+
+				FPRINT(fp_intra_32x32[INTRA_32_ORI_PIXEL_CU_LU],"\n");			    
 			}
+			
+
 
 			//INTRA_32_TU_CABAC_BITS
 			uint64_t tu_cabac_bits[3];
@@ -2555,7 +2559,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 //#ifdef INTRA_RESULT_STORE_FILE_
 #if 1
 			static uint32_t cu_count = 0;
-			if((width == 8) && (cur_depth == 3))
+			if((width == 32) && (cur_depth == 1))
 			{
 				if ( 0 == dirMode )
 				{
@@ -3550,7 +3554,7 @@ void Rk_IntraPred::RkIntra_proc(INTERFACE_INTRA* pInterface_Intra,
 				rk_IntraPred_35.rk_predSampleTmp[dirMode],
 				predSample, width, height);
 //#ifdef INTRA_RESULT_STORE_FILE_
-#if 1
+#if 0
 			if ( width == 8 )
 			{
 				RK_HEVC_FPRINT(g_fp_result_x265,"dirMode = %d\n", dirMode);
