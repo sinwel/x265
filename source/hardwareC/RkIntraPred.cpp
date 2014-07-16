@@ -2282,7 +2282,7 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 		{
 			// print CU valid flag.
 			uint8_t ValidIdx32x32[] = { 31, 29, 27, 25, 23, 21, 19 ,17, 15, 14, 12, 10, 8, 6, 4, 2, 0 };// reverse
-			for ( uint8_t  i = 0 ; i < 9 ; i++ )
+			for ( uint8_t  i = 0 ; i < 17 ; i++ )
 			{
 				FPRINT(fp_intra_32x32[INTRA_32_REF_CU_VALID],"%d",
 					pInterface_Intra->bNeighborFlags[ValidIdx32x32[i]] == true ? 1 : 0);			    
@@ -2738,10 +2738,10 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			// INTRA_32_SAD
 			for ( uint8_t  i = 0 ; i < 34 ; i++ )
 			{
-				FPRINT(fp_intra_32x32[INTRA_32_SAD],"%d %04x, ",i, costSad[i]);			    
+				FPRINT(fp_intra_32x32[INTRA_32_SAD],"%d %05x, ",i, costSad[i]);			    
 			}
 			
-			FPRINT(fp_intra_32x32[INTRA_32_SAD],"%d %04x",34,costSad[34]);	
+			FPRINT(fp_intra_32x32[INTRA_32_SAD],"%d %05x",34,costSad[34]);	
 			
 			FPRINT(fp_intra_32x32[INTRA_32_SAD],"\n");	
 
@@ -2750,10 +2750,10 @@ void Rk_IntraPred::Intra_Proc(INTERFACE_INTRA* pInterface_Intra,
 			  
 			for ( uint8_t  i = 0 ; i < 34 ; i+=2 )
 			{
-				FPRINT(fp_intra_32x32[INTRA_32_TU_COST_BITS],"%d %04x, ",i, costTotal[i]);			    
+				FPRINT(fp_intra_32x32[INTRA_32_TU_COST_BITS],"%d %05x, ",i, costTotal[i]);			    
 			}
 			
-			FPRINT(fp_intra_32x32[INTRA_32_TU_COST_BITS],"%d %04x",34,costTotal[34]);	
+			FPRINT(fp_intra_32x32[INTRA_32_TU_COST_BITS],"%d %05x",34,costTotal[34]);	
 			
 			FPRINT(fp_intra_32x32[INTRA_32_TU_COST_BITS],"\n");				
 
